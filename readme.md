@@ -182,7 +182,59 @@ Response Body :
 ```
 
 
+ERD
 
+```mermaid
+erDiagram
+    USERS {
+        uuid id PK
+        varchar email "NOT NULL UNIQUE"
+        varchar nik "NOT NULL"
+        varchar phone
+        varchar name
+        user_status status "NOT NULL DEFAULT ACTIVE"
+        timestamptz created_at "NOT NULL"
+        timestamptz updated_at
+    }
+
+    WALLETS {
+        uuid id PK
+        uuid user_id FK
+        varchar currency "NOT NULL DEFAULT IDR"
+        wallet_status status "NOT NULL DEFAULT ACTIVE"
+        numeric balance_snapshot "NOT NULL DEFAULT 0"
+        timestamptz created_at "NOT NULL"
+        timestamptz updated_at
+    }
+
+    TRANSACTIONS {
+        uuid id PK
+        uuid wallet_id FK
+        varchar trx_id "NOT NULL"
+        tx_type type "NOT NULL"
+        numeric amount "NOT NULL"
+        varchar currency "NOT NULL DEFAULT IDR"
+        tx_status status "NOT NULL DEFAULT PENDING"
+        uuid initiated_by
+        timestamptz created_at "NOT NULL"
+        timestamptz updated_at
+    }
+
+    OTP_SESSIONS {
+        uuid otp_id PK
+        varchar phone_number "NOT NULL"
+        varchar otp_code "NOT NULL"
+        otp_purpose purpose "NOT NULL"
+        timestamp expires_at "NOT NULL"
+        boolean is_used "NOT NULL DEFAULT FALSE"
+        timestamp created_at "NOT NULL"
+    }
+
+    USERS ||--o{ WALLETS : "has many"
+    WALLETS ||--o{ TRANSACTIONS : "has many"
+    USERS ||--o{ OTP_SESSIONS : "has many (via phone)"
+
+```
 
 
 
