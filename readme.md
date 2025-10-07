@@ -4,9 +4,9 @@
 
 ### Post /auth/login
 Request Body 1 - email:
-```
+```json
 {
-    "login_method" : 1
+    "login_method" : 1,
     "email" : "naufal.sunandar@bni.co.id",
     "Password" : "admin"
 }
@@ -14,9 +14,9 @@ Request Body 1 - email:
 
 
 Request Body 2 - email:
-```
+```json
 {
-    "login_method" : 2
+    "login_method" : 2,
     "email" : "0812345678",
     "Password" : "admin"
 }
@@ -25,7 +25,7 @@ Request Body 2 - email:
 
 
 Response Body :
-```
+```json
 {
     "status": "success",
     "error" :{
@@ -37,21 +37,21 @@ Response Body :
 ## Kebutuhan 2 : User bisa register sebagai new user
 ### Post /register
 Request Body:
-```
+```json
 {
     "email" : "naufal.sunandar@bni.co.id",
     "name" : "naufal sunandar",
     "Password" : "admin",
     "nik" : "666666667777771",
     "phone" : "0812345678",
-    "created_at" :  
+    "created_at" : 1759808188
     
 }
 ```
 
 
 Response Body :
-```
+```json
 {
     "status": "success",
     "error" :{
@@ -65,7 +65,7 @@ Response Body :
 ## Kebutuhan 3 : User bisa ganti password
 ### Post /request_change_password
 Request Body:
-```
+```json
 {
     "email" : "naufal.sunandar@bni.co.id"
 }
@@ -73,16 +73,16 @@ Request Body:
 
 ### Post /change_password
 Request Body:
-```
+```json
 {
     "otp" : 123456,
-    "email" : "naufal.sunandar@bni.co.id"
+    "email" : "naufal.sunandar@bni.co.id",
     "password" : "admin"
 }
 ```
 
 Response Body :
-```
+```json
 {
     "status": "success",
     "error" :{
@@ -95,14 +95,14 @@ Response Body :
 ## Kebutuhan 4 : User bisa logout
 ### Post /logout
 Request Body:
-```
+```json
 {
     
 }
 ```
 
 Response Body :
-```
+```json
 {
     "status": "success",
     "error" :{
@@ -114,14 +114,14 @@ Response Body :
 ## Kebutuhan 5 : User bisa melakukan inquiry
 ### Post /inquiry
 Request Body:
-```
+```json
 {
   "phone": "0812345678"
 }
 ```
 
 Response Body :
-```
+```json
 {
 
     "name" : "kai riven",
@@ -138,7 +138,7 @@ Response Body :
 ## Kebutuhan 6 : User bisa transfer
 ### Post /transfer
 Request Body:
-```
+```json
 {
   "to_uuid": 1,
   "amount": 100000,
@@ -148,7 +148,7 @@ Request Body:
 ```
 
 Response Body :
-```
+```json
 {
     "status": "success",
     "error" :{
@@ -161,28 +161,75 @@ Response Body :
 ## Kebutuhan 6 : User bisa baca riwayat history
 ### Post /check_transfer_history
 Request Body:
-```
+```json
 {
 
 }
 ```
 
 Response Body :
-```
+```json
 {
   "status":"success",
   "error" :{
         "reason" : ""
-        }
+        },
   "data": {
-    "transactions": [ /* Transaction[] */ ],
+    "transactions": [ ],
     "pagination": { "page":1, "page_size":20, "total_pages": 10, "total_items": 200 }
   }
 }
 ```
 
+## Kebutuhan 8 : User bisa top pup
+### Post /toppup
+Request Body:
+```json
+{
+  "topup_amount" :100000,
+  "currency" : "IDR"
+}
+```
 
-ERD
+Response Body :
+```json
+{
+  "status":"success",
+  "error" :{
+        "reason" : ""
+        }
+}
+```
+
+
+## Kebutuhan 13 : User bisa ganti data user
+### Post /update_data
+Request Body:
+```json
+{
+    "email" : "naufal.sunandar@bni.co.id",
+    "name" : "naufal sunandar",
+    "Password" : "admin",
+    "nik" : "666666667777771",
+    "phone" : "0812345678",
+    "updated_at" : 1759808188
+    
+}
+```
+
+
+Response Body :
+```json
+{
+    "status": "success",
+    "error" :{
+        "reason" : ""
+        }
+}
+```
+
+
+## ERD
 
 ```mermaid
 erDiagram
