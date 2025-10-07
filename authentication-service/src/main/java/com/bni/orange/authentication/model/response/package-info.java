@@ -1,1 +1,0 @@
-package com.bni.orange.authentication.model.response;
