@@ -3,20 +3,10 @@
 ## Kebutuhan 1 : user bisa login
 
 ### Post /auth/login
-Request Body 1 - email:
+
+Request Body:
 ```json
 {
-    "login_method" : 1,
-    "email" : "naufal.sunandar@bni.co.id",
-    "Password" : "admin"
-}
-```
-
-
-Request Body 2 - email:
-```json
-{
-    "login_method" : 2,
     "email" : "0812345678",
     "Password" : "admin"
 }
@@ -228,6 +218,46 @@ Response Body :
 }
 ```
 
+## Kebutuhan 14 : User bisa melihat saldo
+### Get /user/balance
+Request Body:
+```json
+
+```
+
+
+Response Body :
+```json
+{
+  "balance" : 100000,
+  "last-update" : 1759813097,
+    "status": "success",
+    "error" :{
+        "reason" : ""
+        }
+}
+```
+
+## Kebutuhan 14 : User bisa data profile
+### Get /user/profile
+Request Body:
+```json
+{
+  
+}
+```
+
+Response Body :
+```json
+{
+  "email" : "naufal.sunandar@bni.co.id",
+  "name" : "naufal sunandar",
+  "Password" : "admin",
+  "nik" : "666666667777771",
+  "phone" : "0812345678"
+
+}
+```
 
 ## ERD
 
