@@ -66,7 +66,7 @@ public class AuthFlowService {
             user.getId().toString()
         );
 
-        eventPublisher.publish("otp-notification", user.getPhoneNumber(), otpEvent);
+        eventPublisher.publish("notification.otp.whatsapp", user.getPhoneNumber(), otpEvent);
 
         if (log.isDebugEnabled()) {
             log.debug("DEV MODE - OTP for {}: {}", user.getPhoneNumber(), otp);

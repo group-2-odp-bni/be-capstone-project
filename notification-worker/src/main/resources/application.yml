@@ -1,0 +1,42 @@
+spring:
+  application:
+    name: notification-worker
+  threads:
+    virtual:
+      enabled: true
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: "notification-otp-whatsapp-group"
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      properties:
+        spring.json.trusted.packages: "*"
+
+    listener:
+      ack-mode: MANUAL
+      missing-topics-fatal: false
+
+    producer:
+      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
+      acks: all
+
+orange:
+  kafka:
+    topics:
+      otp-whatsapp: "notification.otp.whatsapp"
+      otp-whatsapp-dlq: "notification.otp.whatsapp.dlq"
+  waha-client:
+    base-url: ${WAHA_BASE_URL:https://5f88a0f1-7800-4aec-b27a-9887d057994a.mock.pstmn.io}
+    session-name: "default"
+    retry:
+      max-attempts: 3
+      backoff-duration: 1s
+
+server:
+  port: 8085
