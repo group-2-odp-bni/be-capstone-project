@@ -17,10 +17,7 @@ public class CorsConfig {
 
         // TODO: Update with your actual frontend domains in production
         corsConfig.setAllowedOrigins(List.of(
-            "http://localhost:3000",  // React/Next.js dev
-            "http://localhost:5173",  // Vite dev
-            "http://localhost:4200"   // Angular dev
-            // Add production domains here: "https://yourdomain.com"
+            "http://localhost:3000"
         ));
 
         corsConfig.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));

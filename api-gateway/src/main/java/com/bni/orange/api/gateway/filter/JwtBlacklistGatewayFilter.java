@@ -27,7 +27,6 @@ public class JwtBlacklistGatewayFilter implements GlobalFilter, Ordered {
         var request = exchange.getRequest();
         var path = request.getURI().getPath();
 
-        // Skip blacklist check for public endpoints
         if (isPublicEndpoint(path)) {
             return chain.filter(exchange);
         }
@@ -35,7 +34,6 @@ public class JwtBlacklistGatewayFilter implements GlobalFilter, Ordered {
         var token = extractBearerToken(exchange);
 
         if (token == null) {
-            // No token, let Spring Security handle it
             return chain.filter(exchange);
         }
 
@@ -48,7 +46,6 @@ public class JwtBlacklistGatewayFilter implements GlobalFilter, Ordered {
                 return chain.filter(exchange);
             }
 
-            // Check if token is blacklisted
             return blacklistService.isTokenBlacklisted(jti)
                 .flatMap(isBlacklisted -> {
                     if (Boolean.TRUE.equals(isBlacklisted)) {
@@ -63,7 +60,6 @@ public class JwtBlacklistGatewayFilter implements GlobalFilter, Ordered {
                 });
 
         } catch (JwtException e) {
-            // Invalid JWT, let Spring Security handle it (will return 401)
             log.debug("JWT validation failed in blacklist filter: {}", e.getMessage());
             return chain.filter(exchange);
         }
@@ -104,7 +100,6 @@ public class JwtBlacklistGatewayFilter implements GlobalFilter, Ordered {
 
     @Override
     public int getOrder() {
-        // Run before Spring Security filter (order -100)
         return -200;
     }
 }
