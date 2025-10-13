@@ -1,6 +1,7 @@
-public record InquiryResponse(
-        String name
-) implements Response{
+package com.bni.orange.transaction.model.response;
 
-}
+public record InquiryResponse(
+        String name,
+        String uuid
+){}
 
