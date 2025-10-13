@@ -1,18 +1,21 @@
 package com.bni.orange.api.gateway.filter;
 
+import com.bni.orange.api.gateway.exception.TokenRevokedException;
 import com.bni.orange.api.gateway.service.BlacklistService;
-import com.bni.orange.api.gateway.util.GatewayResponseUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
-import org.springframework.http.HttpStatus;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtClaimAccessor;
 import org.springframework.security.oauth2.jwt.JwtException;
+import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
+
+import java.util.Objects;
+import java.util.Optional;
 
 @Slf4j
 @Component
@@ -20,55 +23,42 @@ import reactor.core.publisher.Mono;
 public class JwtBlacklistGatewayFilter implements GlobalFilter, Ordered {
 
     private final BlacklistService blacklistService;
-    private final JwtDecoder jwtDecoder;
+    private final ReactiveJwtDecoder reactiveJwtDecoder;
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        var request = exchange.getRequest();
-        var path = request.getURI().getPath();
-
-        if (isPublicEndpoint(path)) {
+        if (isPublicEndpoint(exchange.getRequest().getURI().getPath())) {
             return chain.filter(exchange);
         }
 
-        var token = extractBearerToken(exchange);
-
-        if (token == null) {
-            return chain.filter(exchange);
-        }
-
-        try {
-            var jwt = jwtDecoder.decode(token);
-            var jti = jwt.getId();
-
-            if (jti == null) {
-                log.warn("JWT without JTI claim detected. Token might be invalid.");
-                return chain.filter(exchange);
-            }
-
-            return blacklistService.isTokenBlacklisted(jti)
+        return extractBearerToken(exchange)
+            .map(s -> reactiveJwtDecoder.decode(s)
+                .doOnNext(jwt -> {
+                    if (Objects.isNull(jwt.getId())) {
+                        log.warn("JWT without JTI claim detected. Token might be invalid.");
+                    }
+                })
+                .map(JwtClaimAccessor::getId)
+                .flatMap(jti -> blacklistService.isTokenBlacklisted(jti)
                 .flatMap(isBlacklisted -> {
                     if (Boolean.TRUE.equals(isBlacklisted)) {
                         log.warn("Blacklisted token attempted. JTI: {}, IP: {}, Path: {}",
                             jti,
-                            request.getRemoteAddress(),
-                            path
+                            exchange.getRequest().getRemoteAddress(),
+                            exchange.getRequest().getURI().getPath()
                         );
-                        return GatewayResponseUtil.writeErrorResponse(
-                            exchange,
-                            HttpStatus.UNAUTHORIZED,
-                            "Token has been revoked",
-                            "TOKEN_REVOKED",
-                            "This token has been revoked and is no longer valid"
-                        );
+                        return Mono.error(new TokenRevokedException("This token has been revoked and is no longer valid"));
                     }
                     return chain.filter(exchange);
-                });
+                })
+                )
+                .onErrorResume(JwtException.class, e -> {
+                    log.debug("JWT validation failed in blacklist filter: {}", e.getMessage());
+                    return chain.filter(exchange);
+                })
+            )
+            .orElseGet(() -> chain.filter(exchange));
 
-        } catch (JwtException e) {
-            log.debug("JWT validation failed in blacklist filter: {}", e.getMessage());
-            return chain.filter(exchange);
-        }
     }
 
     private boolean isPublicEndpoint(String path) {
@@ -81,12 +71,10 @@ public class JwtBlacklistGatewayFilter implements GlobalFilter, Ordered {
             path.startsWith("/oauth2/jwks");
     }
 
-    private String extractBearerToken(ServerWebExchange exchange) {
-        var authHeader = exchange.getRequest().getHeaders().getFirst("Authorization");
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            return authHeader.substring(7);
-        }
-        return null;
+    private Optional<String> extractBearerToken(ServerWebExchange exchange) {
+        return Optional.ofNullable(exchange.getRequest().getHeaders().getFirst("Authorization"))
+            .filter(header -> header.startsWith("Bearer "))
+            .map(header -> header.substring(7));
     }
 
     @Override
