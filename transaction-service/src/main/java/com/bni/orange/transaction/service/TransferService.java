@@ -1,4 +1,8 @@
 package com.bni.orange.transaction.service;
 
-public class TransferService {
+import com.bni.orange.transaction.model.request.TransferRequest;
+import com.bni.orange.transaction.model.response.TransferResponse;
+
+public interface TransferService {
+    TransferResponse processTransfer(TransferRequest request);
 }

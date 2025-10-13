@@ -10,5 +10,6 @@ import java.util.UUID;
 
 @Repository
 public interface TransferOltpRepository extends JpaRepository<TransferOltpEntity, UUID> {
+    Optional<TransferOltpEntity> findByTrxId(String trxId);
 
 }
