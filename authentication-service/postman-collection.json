@@ -1,0 +1,915 @@
+{
+  "info": {
+    "_postman_id": "auth-service-collection",
+    "name": "Authentication Service - BNI Orange E-Wallet",
+    "description": "Complete API collection for Authentication Service including user onboarding, login, PIN management, and session management. This version is enhanced with automated variable handling for a smoother workflow.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. User Onboarding Flow",
+      "item": [
+        {
+          "name": "1.1 Request OTP (New User)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// This script attempts to automatically capture the OTP from the response.",
+                  "// If the OTP is not in the response body (e.g., sent via SMS in production),",
+                  "// you will need to manually update the 'otp' collection variable.",
+                  "if (pm.response.code === 200) {",
+                  "    try {",
+                  "        var jsonData = pm.response.json();",
+                  "        if (jsonData.otp) {",
+                  "            pm.collectionVariables.set('otp', jsonData.otp);",
+                  "            console.log('OTP variable set from response:', jsonData.otp);",
+                  "        }",
+                  "    } catch (e) {",
+                  "        console.log('Could not parse response or find OTP.');",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"{{phoneNumber}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/request",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "request"
+              ]
+            },
+            "description": "Request OTP for new user registration. If phone number doesn't exist, creates new user with PENDING_VERIFICATION status."
+          },
+          "response": []
+        },
+        {
+          "name": "1.2 Verify OTP (New User)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('stateToken', jsonData.stateToken);",
+                  "    console.log('State Token saved:', jsonData.stateToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"{{phoneNumber}}\",\n  \"otp\": \"{{otp}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/verify",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "verify"
+              ]
+            },
+            "description": "Verify OTP for new user. Returns stateToken with PIN_SETUP scope (valid for 5 minutes)."
+          },
+          "response": []
+        },
+        {
+          "name": "1.3 Set PIN (First Time)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('accessToken', jsonData.accessToken);",
+                  "    pm.collectionVariables.set('refreshToken', jsonData.refreshToken);",
+                  "    console.log('Access Token saved');",
+                  "    console.log('Refresh Token saved');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{stateToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pin\": \"{{pin}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/pin",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "pin"
+              ]
+            },
+            "description": "Set PIN for first time. User status changes to ACTIVE. Returns accessToken and refreshToken."
+          },
+          "response": []
+        }
+      ],
+      "description": "Complete flow for new user registration: Request OTP → Verify OTP → Set PIN"
+    },
+    {
+      "name": "2. Login Flow (Existing User)",
+      "item": [
+        {
+          "name": "2.1 Request OTP (Login)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// This script attempts to automatically capture the OTP from the response.",
+                  "// If the OTP is not in the response body (e.g., sent via SMS in production),",
+                  "// you will need to manually update the 'otp' collection variable.",
+                  "if (pm.response.code === 200) {",
+                  "    try {",
+                  "        var jsonData = pm.response.json();",
+                  "        if (jsonData.otp) {",
+                  "            pm.collectionVariables.set('otp', jsonData.otp);",
+                  "            console.log('OTP variable set from response:', jsonData.otp);",
+                  "        }",
+                  "    } catch (e) {",
+                  "        console.log('Could not parse response or find OTP.');",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"{{phoneNumber}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/request",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "request"
+              ]
+            },
+            "description": "Request OTP for existing user login."
+          },
+          "response": []
+        },
+        {
+          "name": "2.2 Verify OTP (Login)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('stateToken', jsonData.stateToken);",
+                  "    console.log('State Token saved:', jsonData.stateToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"{{phoneNumber}}\",\n  \"otp\": \"{{otp}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/verify",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "verify"
+              ]
+            },
+            "description": "Verify OTP for login. Returns stateToken with PIN_LOGIN scope (valid for 5 minutes)."
+          },
+          "response": []
+        },
+        {
+          "name": "2.3 Authenticate with PIN",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('accessToken', jsonData.accessToken);",
+                  "    pm.collectionVariables.set('refreshToken', jsonData.refreshToken);",
+                  "    console.log('Access Token saved');",
+                  "    console.log('Refresh Token saved');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{stateToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pin\": \"{{pin}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/pin",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "pin"
+              ]
+            },
+            "description": "Authenticate with PIN for login. Returns accessToken and refreshToken."
+          },
+          "response": []
+        },
+        {
+          "name": "2.4 Resend OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"{{phoneNumber}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/resend-otp",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "resend-otp"
+              ]
+            },
+            "description": "Resend OTP if user didn't receive it. Has cooldown mechanism."
+          },
+          "response": []
+        }
+      ],
+      "description": "Complete login flow for existing user: Request OTP → Verify OTP → Input PIN"
+    },
+    {
+      "name": "3. Token Management",
+      "item": [
+        {
+          "name": "3.1 Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('accessToken', jsonData.accessToken);",
+                  "    pm.collectionVariables.set('refreshToken', jsonData.refreshToken);",
+                  "    console.log('New Access Token saved');",
+                  "    console.log('New Refresh Token saved');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/refresh",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "refresh"
+              ]
+            },
+            "description": "Refresh access token using refresh token. Old tokens are revoked, new tokens are generated."
+          },
+          "response": []
+        },
+        {
+          "name": "3.2 Logout",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/logout",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "Logout user. Blacklists both access token and refresh token."
+          },
+          "response": []
+        }
+      ],
+      "description": "Token refresh and logout functionality"
+    },
+    {
+      "name": "4. PIN Management",
+      "item": [
+        {
+          "name": "4.1 Change PIN",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// On successful PIN change, this script updates the 'pin' variable",
+                  "// to the 'newPin' value for subsequent requests.",
+                  "if (pm.response.code === 200) {",
+                  "    pm.collectionVariables.set('pin', pm.collectionVariables.get('newPin'));",
+                  "    console.log(\"Collection variable 'pin' has been updated to the new PIN.\");",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"oldPin\": \"{{pin}}\",\n  \"newPin\": \"{{newPin}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/pin/change",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "pin",
+                "change"
+              ]
+            },
+            "description": "Change PIN for authenticated user. Requires old PIN validation."
+          },
+          "response": []
+        },
+        {
+          "name": "4.2 Request PIN Reset",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// This script attempts to automatically capture the OTP from the response.",
+                  "// If the OTP is not in the response body (e.g., sent via SMS in production),",
+                  "// you will need to manually update the 'otp' collection variable.",
+                  "if (pm.response.code === 200) {",
+                  "    try {",
+                  "        var jsonData = pm.response.json();",
+                  "        if (jsonData.otp) {",
+                  "            pm.collectionVariables.set('otp', jsonData.otp);",
+                  "            console.log('OTP variable set from response:', jsonData.otp);",
+                  "        }",
+                  "    } catch (e) {",
+                  "        console.log('Could not parse response or find OTP.');",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"{{phoneNumber}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/pin/reset/request",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "pin",
+                "reset",
+                "request"
+              ]
+            },
+            "description": "Request OTP for PIN reset (forgot PIN scenario)."
+          },
+          "response": []
+        },
+        {
+          "name": "4.3 Verify PIN Reset OTP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('stateToken', jsonData.stateToken);",
+                  "    console.log('State Token (PIN_RESET) saved:', jsonData.stateToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"{{phoneNumber}}\",\n  \"otp\": \"{{otp}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/pin/reset/verify",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "pin",
+                "reset",
+                "verify"
+              ]
+            },
+            "description": "Verify OTP for PIN reset. Returns stateToken with PIN_RESET scope."
+          },
+          "response": []
+        },
+        {
+          "name": "4.4 Confirm PIN Reset",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// On successful PIN reset, this script updates the 'pin' variable",
+                  "// to the 'newPin' value for subsequent requests.",
+                  "if (pm.response.code === 200) {",
+                  "    pm.collectionVariables.set('pin', pm.collectionVariables.get('newPin'));",
+                  "    console.log(\"Collection variable 'pin' has been updated to the new PIN after reset.\");",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{stateToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newPin\": \"{{newPin}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/pin/reset/confirm",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "pin",
+                "reset",
+                "confirm"
+              ]
+            },
+            "description": "Set new PIN after successful OTP verification."
+          },
+          "response": []
+        }
+      ],
+      "description": "PIN change and reset functionality"
+    },
+    {
+      "name": "5. Session Management",
+      "item": [
+        {
+          "name": "5.1 Get Active Sessions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// This script finds a session ID from the response and saves it",
+                  "// as 'sessionId' to be used in the 'Terminate Session' request.",
+                  "if (pm.response.code === 200) {",
+                  "    try {",
+                  "        var sessions = pm.response.json();",
+                  "        if (sessions && sessions.length > 0) {",
+                  "            // Prefer to terminate a different session, not the current one.",
+                  "            var sessionToTerminate = sessions.find(s => s.isCurrent === false);",
+                  "            ",
+                  "            // If no other session exists, for testing purposes, we can use the current one.",
+                  "            if (!sessionToTerminate) {",
+                  "                sessionToTerminate = sessions[0]; ",
+                  "            }",
+                  "            ",
+                  "            pm.collectionVariables.set('sessionId', sessionToTerminate.sessionId);",
+                  "            console.log('Session ID for termination saved:', sessionToTerminate.sessionId);",
+                  "        } else {",
+                  "            console.log('No active sessions found to terminate.');",
+                  "        }",
+                  "    } catch (e) {",
+                  "        console.log('Could not parse session response.');",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Refresh-Token",
+                "value": "{{refreshToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/sessions",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "sessions"
+              ]
+            },
+            "description": "Get list of all active sessions for authenticated user. Current session marked with isCurrent=true."
+          },
+          "response": []
+        },
+        {
+          "name": "5.2 Terminate Session",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/sessions/{{sessionId}}",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "sessions",
+                "{{sessionId}}"
+              ]
+            },
+            "description": "Terminate specific session. Revokes all tokens associated with that session."
+          },
+          "response": []
+        }
+      ],
+      "description": "View and manage active user sessions"
+    },
+    {
+      "name": "6. Public Endpoints",
+      "item": [
+        {
+          "name": "6.1 Get JWKS",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/oauth2/jwks",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "oauth2",
+                "jwks"
+              ]
+            },
+            "description": "Get JSON Web Key Set (JWKS) for JWT signature verification. Used by other services to verify tokens."
+          },
+          "response": []
+        }
+      ],
+      "description": "Public endpoints that don't require authentication"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "phoneNumber",
+      "value": "081234567890",
+      "type": "string",
+      "description": "The phone number for the user account."
+    },
+    {
+      "key": "pin",
+      "value": "123456",
+      "type": "string",
+      "description": "The user's current 6-digit PIN."
+    },
+    {
+      "key": "newPin",
+      "value": "654321",
+      "type": "string",
+      "description": "The new PIN to be set when changing or resetting."
+    },
+    {
+      "key": "otp",
+      "value": "123456",
+      "type": "string",
+      "description": "The One-Time Password. Some requests might auto-fill this; otherwise, enter it manually."
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string",
+      "description": "Automatically set after successful login or PIN setup."
+    },
+    {
+      "key": "refreshToken",
+      "value": "",
+      "type": "string",
+      "description": "Automatically set after successful login or PIN setup."
+    },
+    {
+      "key": "stateToken",
+      "value": "",
+      "type": "string",
+      "description": "A temporary token for multi-step flows like registration or PIN reset."
+    },
+    {
+      "key": "sessionId",
+      "value": "",
+      "type": "string",
+      "description": "Automatically populated by 'Get Active Sessions' for use in 'Terminate Session'."
+    }
+  ]
+}
