@@ -17,13 +17,16 @@ import java.time.Instant;
 public class WhatsAppService {
 
     private final WahaApiClient wahaApiClient;
+    private final WahaSessionService wahaSessionService;
 
     public Mono<WahaMessageResponse> sendOtp(OtpNotificationEvent event) {
         log.info("Preparing to send OTP to user {} via phone {}", event.getUserId(), maskPhoneNumber(event.getPhoneNumber()));
 
         String message = formatOtpMessage(event.getOtpCode());
 
-        return wahaApiClient.sendTextMessage(event.getPhoneNumber(), message)
+        return wahaSessionService.waitForSessionReady(5, 3)
+            .doOnSuccess(session -> log.info("WhatsApp session ready for user {}", event.getUserId()))
+            .flatMap(session -> wahaApiClient.sendTextMessage(event.getPhoneNumber(), message))
             .doOnSuccess(response -> log.info("OTP successfully sent to user {}. Message ID: {}, Timestamp: {}",
                 event.getUserId(),
                 response.id(),
