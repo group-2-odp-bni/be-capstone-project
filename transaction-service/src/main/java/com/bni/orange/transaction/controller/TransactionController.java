@@ -11,16 +11,18 @@ import com.bni.orange.transaction.model.response.TransferResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.*;
 
 
-@RestController
-@RequiredArgsConstructor
-@RequestMapping("/trx")
+@Controller
+@RequestMapping("/api/transfer")
 public class TransactionController {
+
+    @GetMapping
+    public ResponseEntity<ApiResponse<Object>> test(){
+        return ResponseEntity.ok(new ApiResponse<>("200", "Inquiry success", null));
+    }
 
 
 //    @PostMapping("/inquiry")
@@ -42,14 +44,14 @@ public class TransactionController {
     @PostMapping("/transfer")
     public ResponseEntity<ApiResponse<TransferResponse>> transfer(@RequestBody @Valid TransferRequest request) {
 
-        TransferResponse response = new TransferResponse();
+//        TransferResponse response = null;
 
-        if(response == null){
-            return ResponseEntity.status(404).body(new ApiResponse<>("TRX-001", "User not found", null));
-        }
+//        if(response == null){
+//            return ResponseEntity.status(404).body(new ApiResponse<>("TRX-001", "User not found", null));
+//        }
 
         return ResponseEntity
-                .ok(new ApiResponse<>(null, "Inquiry success", response)
+                .ok(new ApiResponse<>(null, "Inquiry success", null)
                 );
     }
 
