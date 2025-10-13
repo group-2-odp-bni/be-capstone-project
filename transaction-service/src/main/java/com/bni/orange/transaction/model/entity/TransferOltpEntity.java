@@ -15,10 +15,10 @@ import java.util.UUID;
 
 @Data
 @Entity
-@SuperBuilder
+//@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "transfer_oltp")
+@Table(schema = "transfer_oltp", name = "transactions")
 @EqualsAndHashCode(callSuper = true)
 public class TransferOltpEntity extends BaseEntity{
     @Column(name = "wallet_id", nullable = false)

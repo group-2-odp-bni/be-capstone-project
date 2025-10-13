@@ -3,11 +3,23 @@ package com.bni.orange.transaction.model.entity;
 import com.bni.orange.transaction.model.enums.TxStatus;
 import com.bni.orange.transaction.model.enums.TxType;
 import jakarta.persistence.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.experimental.SuperBuilder;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
+@Getter
+@Setter
+@MappedSuperclass
+@SuperBuilder(toBuilder = true)
+@EntityListeners(AuditingEntityListener.class)
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class BaseEntity {
     @Id
     @Column(nullable = false, updatable = false)

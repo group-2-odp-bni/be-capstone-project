@@ -23,18 +23,34 @@ import org.springframework.web.bind.annotation.RestController;
 public class TransactionController {
 
 
-    @PostMapping("/inquiry")
-    public ResponseEntity<ApiResponse<InquiryResponse>> inquiry( TransferRequest request) {
-
-
-        return 0;
-    }
+//    @PostMapping("/inquiry")
+//    public ResponseEntity<ApiResponse<InquiryResponse>> inquiry( TransferRequest request) {
+//
+//        InquiryResponse
+//
+//
+//        if(response == null){
+//            return ResponseEntity
+//                    .status(404)
+//                    .body(new ApiResponse<>("404", "User not found", null));
+//        }
+//
+//        return ResponseEntity.ok(new ApiResponse<>("200", "Inquiry success", response)
+//                );
+//    }
 
     @PostMapping("/transfer")
     public ResponseEntity<ApiResponse<TransferResponse>> transfer(@RequestBody @Valid TransferRequest request) {
 
+        TransferResponse response = new TransferResponse();
 
-        return 0;
+        if(response == null){
+            return ResponseEntity.status(404).body(new ApiResponse<>("TRX-001", "User not found", null));
+        }
+
+        return ResponseEntity
+                .ok(new ApiResponse<>(null, "Inquiry success", response)
+                );
     }
 
 

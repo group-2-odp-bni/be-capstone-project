@@ -14,10 +14,10 @@ import java.util.UUID;
 
 @Data
 @Entity
-@SuperBuilder
+//@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "transfer_read")
+@Table(schema = "transfer_read", name = "transactions")
 @EqualsAndHashCode(callSuper = true)
 public class TransferReadEntity extends BaseEntity{
     @Column(name = "wallet_id", nullable = false)
