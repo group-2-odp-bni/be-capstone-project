@@ -24,52 +24,36 @@ public class WahaSessionController {
     private final WahaSessionService sessionService;
 
     @GetMapping("/status")
-    public Mono<ResponseEntity<WahaSessionResponse>> getStatus() {
-        return sessionService.getSessionStatus()
-            .map(ResponseEntity::ok)
-            .onErrorReturn(ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build());
+    public Mono<WahaSessionResponse> getStatus() {
+        return sessionService.getSessionStatus();
     }
 
     @PostMapping("/start")
     public Mono<ResponseEntity<String>> startSession() {
         return sessionService.startSession()
-            .then(Mono.just(ResponseEntity.ok("Session start initiated")))
-            .onErrorReturn(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("Failed to start session"));
+            .then(Mono.just(ResponseEntity.ok("Session start initiated")));
     }
 
     @PostMapping("/stop")
     public Mono<ResponseEntity<String>> stopSession(
         @RequestParam(defaultValue = "false") boolean logout) {
         return sessionService.stopSession(logout)
-            .then(Mono.just(ResponseEntity.ok("Session stopped (logout=" + logout + ")")))
-            .onErrorReturn(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("Failed to stop session"));
+            .then(Mono.just(ResponseEntity.ok("Session stopped (logout=" + logout + ")")));
     }
 
     @GetMapping("/qr")
-    public Mono<ResponseEntity<WahaQRCodeResponse>> getQRCode() {
-        return sessionService.getQRCode()
-            .map(ResponseEntity::ok)
-            .onErrorReturn(ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .build());
+    public Mono<WahaQRCodeResponse> getQRCode() {
+        return sessionService.getQRCode();
     }
 
     @GetMapping(value = "/qr/image", produces = MediaType.IMAGE_PNG_VALUE)
-    public Mono<ResponseEntity<byte[]>> getQRCodeImage() {
-        return sessionService.getQRCodeImage()
-            .map(bytes -> ResponseEntity.ok()
-                .contentType(MediaType.IMAGE_PNG)
-                .body(bytes))
-            .onErrorReturn(ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .build());
+    public Mono<byte[]> getQRCodeImage() {
+        return sessionService.getQRCodeImage();
     }
 
     @GetMapping("/ready")
-    public Mono<ResponseEntity<Boolean>> isReady() {
-        return sessionService.isSessionReady()
-            .map(ResponseEntity::ok)
-            .onErrorReturn(ResponseEntity.ok(false));
+    public Mono<Boolean> isReady() {
+        return sessionService.isSessionReady();
     }
 
     @GetMapping("/health")
@@ -79,10 +63,6 @@ public class WahaSessionController {
                 ? ResponseEntity.ok("WhatsApp session is READY")
                 : ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .body("WhatsApp session is NOT READY")
-            )
-            .onErrorResume(error ->
-                Mono.just(ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                    .body("WhatsApp session health check failed: " + error.getMessage()))
             );
     }
 }

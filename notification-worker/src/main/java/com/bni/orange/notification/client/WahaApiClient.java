@@ -13,15 +13,23 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.util.function.Function;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class WahaApiClient {
+
+    private static final String API_SEND_TEXT = "/api/sendText";
+    private static final String API_SESSIONS_TEMPLATE = "/api/sessions/{session}";
+    private static final String API_SESSIONS_START_TEMPLATE = "/api/sessions/{session}/start";
+    private static final String API_SESSIONS_STOP_TEMPLATE = "/api/sessions/{session}/stop";
+    private static final String API_AUTH_QR_TEMPLATE = "/api/{session}/auth/qr";
 
     private final WebClient webClient;
     private final WahaConfigProperties config;
@@ -39,28 +47,17 @@ public class WahaApiClient {
     public Mono<WahaMessageResponse> sendTextMessage(String phoneNumber, String message) {
         var chatId = formatChatId(phoneNumber);
         var requestBody = new WahaSendMessageRequest(chatId, message, config.sessionName(), false);
+        var context = "send message to " + phoneNumber;
 
         log.info("Sending WhatsApp message to {} via WAHA", phoneNumber);
 
         return webClient.post()
-            .uri("/api/sendText")
+            .uri(API_SEND_TEXT)
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(requestBody)
             .retrieve()
-            .onStatus(HttpStatusCode::is4xxClientError, response ->
-                response.bodyToMono(String.class)
-                    .flatMap(body -> {
-                        log.error("Client error sending message to {}: {}", phoneNumber, body);
-                        return Mono.error(new WahaClientException("Client error: " + body));
-                    })
-            )
-            .onStatus(HttpStatusCode::is5xxServerError, response ->
-                response.bodyToMono(String.class)
-                    .flatMap(body -> {
-                        log.error("Server error from WAHA: {}", body);
-                        return Mono.error(new WahaServiceException("WAHA service error: " + body));
-                    })
-            )
+            .onStatus(HttpStatusCode::is4xxClientError, handleClientError(context))
+            .onStatus(HttpStatusCode::is5xxServerError, handleServerError(context))
             .bodyToMono(WahaMessageResponse.class)
             .timeout(Duration.ofSeconds(30))
             .transformDeferred(RetryOperator.of(retry))
@@ -68,14 +65,16 @@ public class WahaApiClient {
             .doOnSuccess(response ->
                 log.info("Successfully sent WhatsApp message to {}. Message ID: {}", phoneNumber, response.id())
             )
-            .doOnError(err ->
-                log.error("Failed to send WhatsApp message to {} after all retries: {}", phoneNumber, err.getMessage())
-            );
+            .doOnError(err -> {
+                if (!(err instanceof WahaClientException || err instanceof WahaServiceException)) {
+                    log.error("Failed to send WhatsApp message to {} after all retries: {}", phoneNumber, err.getMessage());
+                }
+            });
     }
 
     public Mono<WahaSessionResponse> getSessionStatus() {
         return webClient.get()
-            .uri("/api/sessions/{session}", config.sessionName())
+            .uri(API_SESSIONS_TEMPLATE, config.sessionName())
             .retrieve()
             .bodyToMono(WahaSessionResponse.class)
             .timeout(Duration.ofSeconds(10))
@@ -85,7 +84,7 @@ public class WahaApiClient {
 
     public Mono<Void> startSession() {
         return webClient.post()
-            .uri("/api/sessions/{session}/start", config.sessionName())
+            .uri(API_SESSIONS_START_TEMPLATE, config.sessionName())
             .retrieve()
             .bodyToMono(Void.class)
             .timeout(Duration.ofSeconds(10))
@@ -96,7 +95,7 @@ public class WahaApiClient {
     public Mono<Void> stopSession(boolean logout) {
         return webClient.post()
             .uri(uriBuilder -> uriBuilder
-                .path("/api/sessions/{session}/stop")
+                .path(API_SESSIONS_STOP_TEMPLATE)
                 .queryParam("logout", logout)
                 .build(config.sessionName()))
             .retrieve()
@@ -108,7 +107,7 @@ public class WahaApiClient {
 
     public Mono<WahaQRCodeResponse> getQRCode() {
         return webClient.get()
-            .uri("/api/{session}/auth/qr", config.sessionName())
+            .uri(API_AUTH_QR_TEMPLATE, config.sessionName())
             .accept(MediaType.APPLICATION_JSON)
             .retrieve()
             .bodyToMono(WahaQRCodeResponse.class)
@@ -119,7 +118,7 @@ public class WahaApiClient {
 
     public Mono<byte[]> getQRCodeImage() {
         return webClient.get()
-            .uri("/api/{session}/auth/qr", config.sessionName())
+            .uri(API_AUTH_QR_TEMPLATE, config.sessionName())
             .accept(MediaType.IMAGE_PNG)
             .retrieve()
             .bodyToMono(byte[].class)
@@ -136,6 +135,24 @@ public class WahaApiClient {
         }
 
         return cleanNumber + "@c.us";
+    }
+
+    private Function<ClientResponse, Mono<? extends Throwable>> handleClientError(String context) {
+        return response -> response.bodyToMono(String.class)
+            .switchIfEmpty(Mono.just("[no body]"))
+            .flatMap(body -> {
+                log.error("Client error for {}: {}", context, body);
+                return Mono.error(new WahaClientException("Client error: " + body));
+            });
+    }
+
+    private Function<ClientResponse, Mono<? extends Throwable>> handleServerError(String context) {
+        return response -> response.bodyToMono(String.class)
+            .switchIfEmpty(Mono.just("[no body]"))
+            .flatMap(body -> {
+                log.error("Server error for {}: {}", context, body);
+                return Mono.error(new WahaServiceException("WAHA service error: " + body));
+            });
     }
 
     public static class WahaClientException extends RuntimeException {

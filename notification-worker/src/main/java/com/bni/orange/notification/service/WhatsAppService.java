@@ -24,19 +24,15 @@ public class WhatsAppService {
         String message = formatOtpMessage(event.getOtpCode());
 
         return wahaApiClient.sendTextMessage(event.getPhoneNumber(), message)
-            .doOnSuccess(response -> {
-                log.info("OTP successfully sent to user {}. Message ID: {}, Timestamp: {}",
-                    event.getUserId(),
-                    response.id(),
-                    Instant.ofEpochSecond(response.timestamp())
-                );
-            })
-            .doOnError(error -> {
-                log.error("Failed to send OTP to user {}: {}",
-                    event.getUserId(),
-                    error.getMessage()
-                );
-            })
+            .doOnSuccess(response -> log.info("OTP successfully sent to user {}. Message ID: {}, Timestamp: {}",
+                event.getUserId(),
+                response.id(),
+                Instant.ofEpochSecond(response.timestamp())
+            ))
+            .doOnError(error -> log.error("Failed to send OTP to user {}: {}",
+                event.getUserId(),
+                error.getMessage()
+            ))
             .timeout(Duration.ofSeconds(35));
     }
 

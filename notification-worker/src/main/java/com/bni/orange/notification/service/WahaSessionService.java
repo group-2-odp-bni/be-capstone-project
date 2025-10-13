@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
+import reactor.util.retry.Retry;
 
 import java.time.Duration;
 
@@ -69,21 +70,25 @@ public class WahaSessionService {
     }
 
     public Mono<WahaSessionResponse> waitForSessionReady(int maxAttempts, int delaySeconds) {
-        return Mono.defer(() -> getSessionStatus())
+        return getSessionStatus()
             .flatMap(session -> {
                 if ("WORKING".equalsIgnoreCase(session.status())) {
                     log.info("Session is ready!");
                     return Mono.just(session);
-                } else if ("FAILED".equalsIgnoreCase(session.status())) {
+                }
+                if ("FAILED".equalsIgnoreCase(session.status())) {
                     log.error("Session failed! Manual intervention required.");
                     return Mono.error(new IllegalStateException("Session is in FAILED state"));
-                } else {
-                    log.info("Session status: {}. Waiting...", session.status());
-                    return Mono.error(new SessionNotReadyException(session.status()));
                 }
+                log.info("Session status: {}. Waiting...", session.status());
+                return Mono.error(new SessionNotReadyException(session.status()));
             })
-            .retry(maxAttempts)
-            .delaySubscription(Duration.ofSeconds(delaySeconds));
+            .retryWhen(Retry.backoff(maxAttempts, Duration.ofSeconds(delaySeconds))
+                .filter(throwable -> throwable instanceof SessionNotReadyException)
+                .onRetryExhaustedThrow((retryBackoffSpec, retrySignal) ->
+                    new IllegalStateException("Session did not become ready after " + maxAttempts + " attempts.", retrySignal.failure())
+                )
+            );
     }
 
     public static class SessionNotReadyException extends RuntimeException {
