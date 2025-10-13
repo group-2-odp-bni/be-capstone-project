@@ -44,14 +44,14 @@ public class TransactionController {
     @PostMapping("/transfer")
     public ResponseEntity<ApiResponse<TransferResponse>> transfer(@RequestBody @Valid TransferRequest request) {
 
-//        TransferResponse response = null;
+        TransferResponse response = null;
 
-//        if(response == null){
-//            return ResponseEntity.status(404).body(new ApiResponse<>("TRX-001", "User not found", null));
-//        }
+        if(response == null){
+            return ResponseEntity.status(404).body(new ApiResponse<>("TRX-001", "User not found", null));
+        }
 
         return ResponseEntity
-                .ok(new ApiResponse<>(null, "Inquiry success", null)
+                .ok(new ApiResponse<>(null, "Transfer Success", null)
                 );
     }
 
