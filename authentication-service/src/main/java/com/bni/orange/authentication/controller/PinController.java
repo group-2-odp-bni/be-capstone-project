@@ -4,10 +4,12 @@ import com.bni.orange.authentication.model.request.AuthRequest;
 import com.bni.orange.authentication.model.request.OtpVerifyRequest;
 import com.bni.orange.authentication.model.request.PinChangeRequest;
 import com.bni.orange.authentication.model.request.PinResetConfirmRequest;
-import com.bni.orange.authentication.model.response.MessageResponse;
+import com.bni.orange.authentication.model.response.ApiResponse;
+import com.bni.orange.authentication.model.response.OtpResponse;
 import com.bni.orange.authentication.model.response.StateTokenResponse;
 import com.bni.orange.authentication.service.AuthFlowService;
 import com.bni.orange.authentication.service.PinService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -31,27 +33,40 @@ public class PinController {
 
     @PostMapping("/change")
     @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
-    public ResponseEntity<MessageResponse> changePin(Authentication authentication, @RequestBody @Valid PinChangeRequest request) {
+    public ResponseEntity<ApiResponse<Void>> changePin(
+        Authentication authentication,
+        @RequestBody @Valid PinChangeRequest request,
+        HttpServletRequest servletRequest
+    ) {
         var userId = UUID.fromString(authentication.getName());
-        return ResponseEntity.ok(pinService.changePin(userId, request));
+        return ResponseEntity.ok(pinService.changePin(userId, request, servletRequest));
     }
 
     @PostMapping("/reset/request")
-    public ResponseEntity<MessageResponse> requestPinReset(@RequestBody @Valid AuthRequest request) {
-        return ResponseEntity.ok(authFlowService.requestOtp(request));
+    public ResponseEntity<ApiResponse<OtpResponse>> requestPinReset(
+        @RequestBody @Valid AuthRequest request,
+        HttpServletRequest servletRequest
+    ) {
+        return ResponseEntity.ok(authFlowService.requestOtp(request, servletRequest));
     }
 
-
     @PostMapping("/reset/verify")
-    public ResponseEntity<StateTokenResponse> verifyPinResetOtp(@RequestBody @Valid OtpVerifyRequest request) {
-        return ResponseEntity.ok(authFlowService.verifyOtp(request, "RESET"));
+    public ResponseEntity<ApiResponse<StateTokenResponse>> verifyPinResetOtp(
+        @RequestBody @Valid OtpVerifyRequest request,
+        HttpServletRequest servletRequest
+    ) {
+        return ResponseEntity.ok(authFlowService.verifyOtp(request, "RESET", servletRequest));
     }
 
     @PostMapping("/reset/confirm")
     @PreAuthorize("hasAuthority('SCOPE_PIN_RESET')")
-    public ResponseEntity<MessageResponse> confirmPinReset(Authentication authentication, @RequestBody @Valid PinResetConfirmRequest request) {
+    public ResponseEntity<ApiResponse<Void>> confirmPinReset(
+        Authentication authentication,
+        @RequestBody @Valid PinResetConfirmRequest request,
+        HttpServletRequest servletRequest
+    ) {
         var jwt = (Jwt) authentication.getPrincipal();
         var userId = UUID.fromString(jwt.getSubject());
-        return ResponseEntity.ok(pinService.confirmPinReset(userId, request));
+        return ResponseEntity.ok(pinService.confirmPinReset(userId, request, servletRequest));
     }
 }

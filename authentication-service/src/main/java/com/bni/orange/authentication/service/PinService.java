@@ -4,10 +4,12 @@ import com.bni.orange.authentication.error.BusinessException;
 import com.bni.orange.authentication.error.ErrorCode;
 import com.bni.orange.authentication.model.request.PinChangeRequest;
 import com.bni.orange.authentication.model.request.PinResetConfirmRequest;
-import com.bni.orange.authentication.model.response.MessageResponse;
+import com.bni.orange.authentication.model.response.ApiResponse;
 import com.bni.orange.authentication.repository.RefreshTokenRepository;
 import com.bni.orange.authentication.repository.UserRepository;
+import com.bni.orange.authentication.util.ResponseBuilder;
 import com.bni.orange.authentication.validator.PinValidator;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -25,7 +27,7 @@ public class PinService {
     private final PinValidator pinValidator;
 
     @Transactional
-    public MessageResponse changePin(UUID userId, PinChangeRequest request) {
+    public ApiResponse<Void> changePin(UUID userId, PinChangeRequest request, HttpServletRequest servletRequest) {
         var user = userRepository.findById(userId)
             .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
@@ -40,13 +42,11 @@ public class PinService {
 
         refreshTokenRepository.revokeAllByUser(user);
 
-        return MessageResponse.builder()
-            .message("PIN has been successfully changed. All other sessions have been logged out.")
-            .build();
+        return ResponseBuilder.success("PIN changed successfully", servletRequest);
     }
 
     @Transactional
-    public MessageResponse confirmPinReset(UUID userId, PinResetConfirmRequest request) {
+    public ApiResponse<Void> confirmPinReset(UUID userId, PinResetConfirmRequest request, HttpServletRequest servletRequest) {
         var user = userRepository.findById(userId)
             .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
@@ -55,8 +55,6 @@ public class PinService {
         user.setUserPins(passwordEncoder.encode(request.newPin()));
         userRepository.save(user);
 
-        return MessageResponse.builder()
-            .message("PIN has been successfully reset.")
-            .build();
+        return ResponseBuilder.success("PIN reset successfully", servletRequest);
     }
 }
