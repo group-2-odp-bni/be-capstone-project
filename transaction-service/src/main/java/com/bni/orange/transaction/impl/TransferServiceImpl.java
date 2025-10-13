@@ -7,11 +7,12 @@ import com.bni.orange.transaction.model.request.TransferRequest;
 import com.bni.orange.transaction.model.response.TransferResponse;
 import com.bni.orange.transaction.repository.TransferOltpRepository;
 import com.bni.orange.transaction.service.TransferService;
+import com.bni.orange.transaction.utils.TransactionIdGenerator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
 import java.util.UUID;
+import java.util.stream.DoubleStream;
 
 @Service
 @RequiredArgsConstructor
@@ -21,11 +22,13 @@ public class TransferServiceImpl implements TransferService {
 
     @Override
     public TransferResponse processTransfer(TransferRequest request) {
-
         // build entity
+        String trxId = TransactionIdGenerator.generate(request.walletId());
+
         TransferOltpEntity entity = new TransferOltpEntity();
         entity.setId(UUID.randomUUID());
         entity.setWalletId(request.walletId());
+        entity.setTrxId(trxId);
         entity.setType(TxType.TRANSFER);
         entity.setAmount(request.amount());
         entity.setStatus(TxStatus.PENDING);
