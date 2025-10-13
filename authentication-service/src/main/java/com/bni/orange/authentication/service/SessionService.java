@@ -2,10 +2,13 @@ package com.bni.orange.authentication.service;
 
 import com.bni.orange.authentication.error.BusinessException;
 import com.bni.orange.authentication.error.ErrorCode;
+import com.bni.orange.authentication.model.response.ApiResponse;
 import com.bni.orange.authentication.model.response.SessionResponse;
 import com.bni.orange.authentication.repository.RefreshTokenRepository;
 import com.bni.orange.authentication.repository.UserRepository;
-import com.bni.orange.authentication.utils.SecurityUtils;
+import com.bni.orange.authentication.util.ResponseBuilder;
+import com.bni.orange.authentication.util.SecurityUtils;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,7 +25,7 @@ public class SessionService {
     private final RefreshTokenRepository refreshTokenRepository;
 
     @Transactional(readOnly = true)
-    public List<SessionResponse> getUserSessions(UUID userId, String currentRefreshToken) {
+    public ApiResponse<List<SessionResponse>> getUserSessions(UUID userId, String currentRefreshToken, HttpServletRequest servletRequest) {
         if (currentRefreshToken == null || currentRefreshToken.isBlank()) {
             throw new IllegalArgumentException("Current refresh token is required");
         }
@@ -32,7 +35,7 @@ public class SessionService {
 
         final var currentTokenHash = SecurityUtils.hashToken(currentRefreshToken);
 
-        return refreshTokenRepository.findAllByUserAndIsRevokedFalse(user).stream()
+        var sessions = refreshTokenRepository.findAllByUserAndIsRevokedFalse(user).stream()
             .map(token -> SessionResponse.builder()
                 .sessionId(token.getId())
                 .ipAddress(token.getIpAddress())
@@ -42,10 +45,12 @@ public class SessionService {
                 .build()
             )
             .collect(Collectors.toList());
+
+        return ResponseBuilder.success("Active sessions retrieved successfully", sessions, servletRequest);
     }
 
     @Transactional
-    public void terminateSession(UUID userId, UUID sessionId) {
+    public ApiResponse<Void> terminateSession(UUID userId, UUID sessionId, HttpServletRequest servletRequest) {
         var token = refreshTokenRepository.findById(sessionId)
             .orElseThrow(() -> new BusinessException(ErrorCode.SESSION_NOT_FOUND));
 
@@ -56,5 +61,7 @@ public class SessionService {
         token.setRevoked(true);
         token.setRevokedAt(java.time.Instant.now());
         refreshTokenRepository.save(token);
+
+        return ResponseBuilder.success("Session terminated successfully", servletRequest);
     }
 }

@@ -1,7 +1,9 @@
 package com.bni.orange.authentication.controller;
 
+import com.bni.orange.authentication.model.response.ApiResponse;
 import com.bni.orange.authentication.model.response.SessionResponse;
 import com.bni.orange.authentication.service.SessionService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -25,18 +27,22 @@ public class SessionController {
     private final SessionService sessionService;
 
     @GetMapping
-    public ResponseEntity<List<SessionResponse>> getActiveSessions(
+    public ResponseEntity<ApiResponse<List<SessionResponse>>> getActiveSessions(
         Authentication authentication,
-        @RequestHeader("X-Refresh-Token") String currentRefreshToken
+        @RequestHeader("X-Refresh-Token") String currentRefreshToken,
+        HttpServletRequest servletRequest
     ) {
         var userId = UUID.fromString(authentication.getName());
-        return ResponseEntity.ok(sessionService.getUserSessions(userId, currentRefreshToken));
+        return ResponseEntity.ok(sessionService.getUserSessions(userId, currentRefreshToken, servletRequest));
     }
 
     @DeleteMapping("/{sessionId}")
-    public ResponseEntity<?> terminateSession(Authentication authentication, @PathVariable UUID sessionId) {
+    public ResponseEntity<ApiResponse<Void>> terminateSession(
+        Authentication authentication,
+        @PathVariable UUID sessionId,
+        HttpServletRequest servletRequest
+    ) {
         var userId = UUID.fromString(authentication.getName());
-        sessionService.terminateSession(userId, sessionId);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok(sessionService.terminateSession(userId, sessionId, servletRequest));
     }
 }

@@ -8,10 +8,12 @@ import com.bni.orange.authentication.model.enums.TokenScope;
 import com.bni.orange.authentication.model.enums.UserStatus;
 import com.bni.orange.authentication.model.request.AuthRequest;
 import com.bni.orange.authentication.model.request.OtpVerifyRequest;
-import com.bni.orange.authentication.model.response.MessageResponse;
+import com.bni.orange.authentication.model.response.ApiResponse;
+import com.bni.orange.authentication.model.response.OtpResponse;
 import com.bni.orange.authentication.model.response.StateTokenResponse;
 import com.bni.orange.authentication.model.response.TokenResponse;
 import com.bni.orange.authentication.repository.UserRepository;
+import com.bni.orange.authentication.util.ResponseBuilder;
 import com.bni.orange.authentication.validator.PinValidator;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -23,7 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Optional;
 import java.util.UUID;
 
-import static com.bni.orange.authentication.utils.PhoneNumberUtil.normalizePhoneNumber;
+import static com.bni.orange.authentication.util.PhoneNumberUtil.normalizePhoneNumber;
 
 @Slf4j
 @Service
@@ -41,7 +43,7 @@ public class AuthFlowService {
     private final EventPublisher eventPublisher;
 
     @Transactional
-    public MessageResponse requestOtp(AuthRequest request) {
+    public ApiResponse<OtpResponse> requestOtp(AuthRequest request, HttpServletRequest servletRequest) {
         var normalizedPhoneNumber = normalizePhoneNumber(request.phoneNumber());
         if (otpService.isCooldown(normalizedPhoneNumber)) {
             throw new BusinessException(ErrorCode.OTP_COOLDOWN);
@@ -74,13 +76,16 @@ public class AuthFlowService {
 
         otpService.setCooldown(user.getPhoneNumber());
 
-        return MessageResponse.builder()
-            .message("OTP has been sent to your WhatsApp")
+        var data = OtpResponse.builder()
+            .channel("whatsapp")
+            .expiresIn(300)
             .build();
+
+        return ResponseBuilder.success("OTP sent successfully", data, servletRequest);
     }
 
     @Transactional
-    public StateTokenResponse verifyOtp(OtpVerifyRequest request, String purpose) {
+    public ApiResponse<StateTokenResponse> verifyOtp(OtpVerifyRequest request, String purpose, HttpServletRequest servletRequest) {
         var normalizedPhoneNumber = normalizePhoneNumber(request.phoneNumber());
         if (!otpService.isOtpValid(normalizedPhoneNumber, request.otp())) {
             throw new BusinessException(ErrorCode.INVALID_OTP);
@@ -92,15 +97,17 @@ public class AuthFlowService {
         var scope = determineTokenScope(user, purpose);
         var stateToken = tokenService.generateStateToken(user, scope);
 
-        return StateTokenResponse.builder()
+        var data = StateTokenResponse.builder()
             .stateToken(stateToken)
             .expiresIn(STATE_TOKEN_EXPIRES_IN_SECONDS)
             .build();
+
+        return ResponseBuilder.success("OTP verified successfully", data, servletRequest);
     }
 
     @Transactional
-    public StateTokenResponse verifyOtp(OtpVerifyRequest request) {
-        return verifyOtp(request, null);
+    public ApiResponse<StateTokenResponse> verifyOtp(OtpVerifyRequest request, HttpServletRequest servletRequest) {
+        return verifyOtp(request, null, servletRequest);
     }
 
     private String determineTokenScope(User user, String purpose) {
@@ -112,7 +119,7 @@ public class AuthFlowService {
     }
 
     @Transactional
-    public TokenResponse authenticateWithPin(UUID userId, String pin, String scope, String jti, HttpServletRequest request) {
+    public ApiResponse<TokenResponse> authenticateWithPin(UUID userId, String pin, String scope, String jti, HttpServletRequest request) {
         tokenService.consumeStateToken(jti);
 
         if (loginAttemptService.isLocked(userId.toString())) {
@@ -149,6 +156,8 @@ public class AuthFlowService {
         var ipAddress = Optional.ofNullable(request.getHeader("X-FORWARDED-FOR")).orElse(request.getRemoteAddr());
         var userAgent = request.getHeader("User-Agent");
 
-        return tokenService.generateTokens(user, ipAddress, userAgent);
+        var tokenResponse = tokenService.generateTokens(user, ipAddress, userAgent);
+
+        return ResponseBuilder.success("Authentication successful", tokenResponse, request);
     }
 }

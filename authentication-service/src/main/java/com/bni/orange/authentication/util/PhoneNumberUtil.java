@@ -1,4 +1,4 @@
-package com.bni.orange.authentication.utils;
+package com.bni.orange.authentication.util;
 
 
 public final class PhoneNumberUtil {

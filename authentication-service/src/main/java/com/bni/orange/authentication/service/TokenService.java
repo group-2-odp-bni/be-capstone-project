@@ -7,9 +7,11 @@ import com.bni.orange.authentication.error.ErrorCode;
 import com.bni.orange.authentication.model.entity.RefreshToken;
 import com.bni.orange.authentication.model.entity.User;
 import com.bni.orange.authentication.model.enums.TokenScope;
+import com.bni.orange.authentication.model.response.ApiResponse;
 import com.bni.orange.authentication.model.response.TokenResponse;
 import com.bni.orange.authentication.repository.RefreshTokenRepository;
-import com.bni.orange.authentication.utils.SecurityUtils;
+import com.bni.orange.authentication.util.ResponseBuilder;
+import com.bni.orange.authentication.util.SecurityUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -26,7 +28,7 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.Optional;
 
-import static com.bni.orange.authentication.utils.SecurityUtils.hashToken;
+import static com.bni.orange.authentication.util.SecurityUtils.hashToken;
 
 @Service
 @RequiredArgsConstructor
@@ -45,7 +47,6 @@ public class TokenService {
         var now = Instant.now();
         var jti = java.util.UUID.randomUUID().toString();
 
-        // Store state token JTI in Redis for single-use validation
         var stateTokenKey = redisProperties.prefix().stateToken() + jti;
         redisTemplate.opsForValue().set(stateTokenKey, "active", jwtProperties.stateTokenDuration());
 
@@ -78,7 +79,7 @@ public class TokenService {
 
 
     @Transactional
-    public TokenResponse rotateRefreshToken(String oldRefreshTokenString, HttpServletRequest request) {
+    public ApiResponse<TokenResponse> rotateRefreshToken(String oldRefreshTokenString, HttpServletRequest request) {
         var oldTokenHash = SecurityUtils.hashToken(oldRefreshTokenString);
 
         var activeTokenOpt = refreshTokenRepository.findByTokenHashAndIsRevokedFalse(oldTokenHash);
@@ -99,7 +100,8 @@ public class TokenService {
             var ipAddress = Optional.ofNullable(request.getHeader("X-FORWARDED-FOR")).orElse(request.getRemoteAddr());
             var userAgent = request.getHeader("User-Agent");
 
-            return generateTokens(user, ipAddress, userAgent);
+            var tokenResponse = generateTokens(user, ipAddress, userAgent);
+            return ResponseBuilder.success("Token refreshed successfully", tokenResponse, request);
         }
 
         // TODO --- SECURITY ALERT ---
@@ -114,7 +116,7 @@ public class TokenService {
     }
 
     @Transactional
-    public void logout(Jwt jwt, String refreshTokenString) {
+    public ApiResponse<Void> logout(Jwt jwt, String refreshTokenString, HttpServletRequest request) {
         var jti = jwt.getId();
         var expiresAt = jwt.getExpiresAt();
         if (expiresAt != null) {
@@ -128,6 +130,8 @@ public class TokenService {
             var tokenHash = hashToken(refreshTokenString);
             refreshTokenRepository.findByTokenHash(tokenHash).ifPresent(refreshTokenRepository::delete);
         }
+
+        return ResponseBuilder.success("Successfully logged out", request);
     }
 
     public TokenResponse generateTokens(User user, String ipAddress, String userAgent) {
