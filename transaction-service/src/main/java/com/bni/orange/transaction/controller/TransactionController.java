@@ -1,11 +1,13 @@
 package com.bni.orange.transaction.controller;
 
 //request
+import com.bni.orange.transaction.model.request.TopupRequest;
 import com.bni.orange.transaction.model.request.TransferRequest;
 
 //response
 import com.bni.orange.transaction.model.response.ApiResponse;
 import com.bni.orange.transaction.model.response.InquiryResponse;
+import com.bni.orange.transaction.model.response.TopupResponse;
 import com.bni.orange.transaction.model.response.TransferResponse;
 
 import jakarta.validation.Valid;
@@ -16,7 +18,7 @@ import org.springframework.web.bind.annotation.*;
 
 
 @Controller
-@RequestMapping("/api/transfer")
+@RequestMapping("/api/v1/transaction")
 public class TransactionController {
 
     @GetMapping
@@ -25,21 +27,21 @@ public class TransactionController {
     }
 
 
-//    @PostMapping("/inquiry")
-//    public ResponseEntity<ApiResponse<InquiryResponse>> inquiry( TransferRequest request) {
-//
-//        InquiryResponse
-//
-//
-//        if(response == null){
-//            return ResponseEntity
-//                    .status(404)
-//                    .body(new ApiResponse<>("404", "User not found", null));
-//        }
-//
-//        return ResponseEntity.ok(new ApiResponse<>("200", "Inquiry success", response)
-//                );
-//    }
+    @PostMapping("/inquiry")
+    public ResponseEntity<ApiResponse<InquiryResponse>> inquiry( TransferRequest request) {
+
+        InquiryResponse response = null;
+
+
+        if(response == null){
+            return ResponseEntity
+                    .status(404)
+                    .body(new ApiResponse<>("404", "User not found", null));
+        }
+
+        return ResponseEntity.ok(new ApiResponse<>("200", "Inquiry success", response)
+                );
+    }
 
     @PostMapping("/transfer")
     public ResponseEntity<ApiResponse<TransferResponse>> transfer(@RequestBody @Valid TransferRequest request) {
@@ -47,7 +49,21 @@ public class TransactionController {
         TransferResponse response = null;
 
         if(response == null){
-            return ResponseEntity.status(404).body(new ApiResponse<>("TRX-001", "User not found", null));
+            return ResponseEntity.status(404).body(new ApiResponse<>("TRX-002", "User not found", null));
+        }
+
+        return ResponseEntity
+                .ok(new ApiResponse<>(null, "Transfer Success", null)
+                );
+    }
+
+    @PostMapping("/topup")
+    public ResponseEntity<ApiResponse<TopupResponse>> topup(@RequestBody @Valid TopupRequest request) {
+
+        TopupResponse response = null;
+
+        if(response == null){
+            return ResponseEntity.status(404).body(new ApiResponse<>("TRX-003", "User not found", null));
         }
 
         return ResponseEntity
