@@ -27,7 +27,7 @@ public class WebhookSecurityService {
 
         try {
             var expectedSignature = calculateHmacSha512(payload);
-            boolean isValid = MessageDigest.isEqual(
+            var isValid = MessageDigest.isEqual(
                 expectedSignature.getBytes(StandardCharsets.UTF_8),
                 signature.getBytes(StandardCharsets.UTF_8)
             );
@@ -40,7 +40,6 @@ public class WebhookSecurityService {
             }
 
             return isValid;
-
         } catch (Exception e) {
             log.error("Error verifying webhook signature", e);
             return false;
@@ -55,7 +54,7 @@ public class WebhookSecurityService {
         );
         hmacSha512.init(secretKey);
 
-        byte[] hash = hmacSha512.doFinal(payload.getBytes(StandardCharsets.UTF_8));
+        var hash = hmacSha512.doFinal(payload.getBytes(StandardCharsets.UTF_8));
         return "sha512=" + bytesToHex(hash);
     }
 
