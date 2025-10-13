@@ -5,12 +5,11 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import java.util.stream.Collectors;
+import java.util.HashMap;
 
 @Slf4j
 @RestControllerAdvice
@@ -37,7 +36,6 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Void>> handleAccessDenied(
-        AccessDeniedException ex,
         HttpServletRequest request
     ) {
         var errorCode = ErrorCode.FORBIDDEN_ACCESS;
@@ -59,8 +57,10 @@ public class GlobalExceptionHandler {
         MethodArgumentNotValidException ex,
         HttpServletRequest request
     ) {
-        var validationErrors = ex.getBindingResult().getFieldErrors().stream()
-            .collect(Collectors.toMap(FieldError::getField, FieldError::getDefaultMessage));
+        var validationErrors = new HashMap<>();
+        ex.getBindingResult()
+            .getFieldErrors()
+            .forEach(error -> validationErrors.put(error.getField(), error.getDefaultMessage()));
 
         var response = ApiResponse.<Void>builder()
             .message("Validation failed")

@@ -3,8 +3,6 @@ package com.bni.orange.authentication.util;
 import com.bni.orange.authentication.model.response.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 
-import java.io.Serializable;
-
 public final class ResponseBuilder {
 
     private ResponseBuilder() {
