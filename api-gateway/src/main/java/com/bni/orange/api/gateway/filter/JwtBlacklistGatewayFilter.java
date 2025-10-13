@@ -1,13 +1,13 @@
 package com.bni.orange.api.gateway.filter;
 
 import com.bni.orange.api.gateway.service.BlacklistService;
+import com.bni.orange.api.gateway.util.GatewayResponseUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.stereotype.Component;
@@ -54,7 +54,13 @@ public class JwtBlacklistGatewayFilter implements GlobalFilter, Ordered {
                             request.getRemoteAddress(),
                             path
                         );
-                        return respondUnauthorized(exchange, "TOKEN_REVOKED", "This token has been revoked");
+                        return GatewayResponseUtil.writeErrorResponse(
+                            exchange,
+                            HttpStatus.UNAUTHORIZED,
+                            "Token has been revoked",
+                            "TOKEN_REVOKED",
+                            "This token has been revoked and is no longer valid"
+                        );
                     }
                     return chain.filter(exchange);
                 });
@@ -81,21 +87,6 @@ public class JwtBlacklistGatewayFilter implements GlobalFilter, Ordered {
             return authHeader.substring(7);
         }
         return null;
-    }
-
-    private Mono<Void> respondUnauthorized(ServerWebExchange exchange, String code, String message) {
-        var response = exchange.getResponse();
-        response.setStatusCode(HttpStatus.UNAUTHORIZED);
-        response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
-
-        var errorJson = String.format(
-            "{\"error\":{\"code\":\"%s\",\"message\":\"%s\"}}",
-            code,
-            message
-        );
-
-        var buffer = response.bufferFactory().wrap(errorJson.getBytes());
-        return response.writeWith(Mono.just(buffer));
     }
 
     @Override
