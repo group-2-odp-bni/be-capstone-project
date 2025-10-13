@@ -32,11 +32,17 @@ orange:
       otp-whatsapp: "notification.otp.whatsapp"
       otp-whatsapp-dlq: "notification.otp.whatsapp.dlq"
   waha-client:
-    base-url: ${WAHA_BASE_URL:https://5f88a0f1-7800-4aec-b27a-9887d057994a.mock.pstmn.io}
-    session-name: "default"
+    base-url: ${WAHA_BASE_URL:http://waha:3000}
+    api-key: ${WAHA_API_KEY:secret-api-key}
+    session-name: ${WAHA_SESSION_NAME:default}
+    timeout: 30s
     retry:
       max-attempts: 3
-      backoff-duration: 1s
+      initial-backoff: 2s
+      max-backoff: 10s
+      multiplier: 2.0
+  webhook:
+    hmac-secret: ${WAHA_WEBHOOK_HMAC_SECRET:webhook-secret}
 
 server:
   port: 8085

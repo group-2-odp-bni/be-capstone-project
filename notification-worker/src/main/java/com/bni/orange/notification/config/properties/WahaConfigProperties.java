@@ -10,11 +10,15 @@ import java.time.Duration;
 @ConfigurationProperties(prefix = "orange.waha-client")
 public record WahaConfigProperties(
     @NotBlank String baseUrl,
+    @NotBlank String apiKey,
     @NotBlank String sessionName,
+    @NotNull Duration timeout,
     @NotNull RetryConfig retry
 ) {
     public record RetryConfig(
         int maxAttempts,
-        @NotNull Duration backoffDuration
+        @NotNull Duration initialBackoff,
+        @NotNull Duration maxBackoff,
+        double multiplier
     ) {}
 }
