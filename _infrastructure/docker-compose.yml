@@ -69,17 +69,11 @@ services:
     container_name: orange-waha
     image: devlikeapro/waha:latest
     restart: unless-stopped
-    # DNS configuration for web.whatsapp.com resolution
-    dns:
-      - 1.1.1.1
-      - 8.8.8.8
-    # Log rotation to prevent disk filling
     logging:
       driver: 'json-file'
       options:
         max-size: '100m'
         max-file: '5'
-    # Bind to localhost only - NEVER expose directly to internet
     ports:
       - '127.0.0.1:3000:3000'
     volumes:
@@ -87,29 +81,21 @@ services:
       - ./waha/media:/app/.media
 
     environment:
-      # Base URL for webhook media links
       - WAHA_BASE_URL=http://waha:3000
       - WHATSAPP_API_PORT=3000
       - TZ=Asia/Jakarta
-      # Security - CHANGE THESE VALUES IN PRODUCTION
       - WAHA_API_KEY=${WAHA_API_KEY:-your-secret-api-key-here}
       - WAHA_DASHBOARD_USERNAME=${WAHA_DASHBOARD_USERNAME:-admin}
       - WAHA_DASHBOARD_PASSWORD=${WAHA_DASHBOARD_PASSWORD:-change-me-in-production}
-      # Engine selection (WEBJS recommended for production)
       - WHATSAPP_DEFAULT_ENGINE=WEBJS
-      # Logging
       - WAHA_LOG_FORMAT=JSON
       - WAHA_LOG_LEVEL=info
-      # Session storage (local files for WAHA Core)
       - WAHA_LOCAL_STORE_BASE_DIR=/app/.sessions
-      # Media storage
       - WHATSAPP_FILES_FOLDER=/app/.media
-      - WHATSAPP_FILES_LIFETIME=0  # Never delete (or 180 for 3-minute TTL)
-      # Webhook configuration - sends events to Spring Boot
+      - WHATSAPP_FILES_LIFETIME=0
       - WHATSAPP_HOOK_URL=http://notification-worker:8085/api/webhooks/waha
       - WHATSAPP_HOOK_EVENTS=message,message.any,session.status,message.ack
       - WHATSAPP_HOOK_HMAC_KEY=${WAHA_WEBHOOK_HMAC_SECRET:-your-webhook-hmac-secret}
-      # Session restart behavior
       - WAHA_AUTO_START_DELAY_SECONDS=5
       - WHATSAPP_RESTART_ALL_SESSIONS=True
       - WAHA_WORKER_ID=waha-main
@@ -155,12 +141,12 @@ services:
 #      kafka:
 #        condition: service_healthy
 #    healthcheck:
-#      test: ["CMD", "curl", "-f", "http://localhost:8085/api/whatsapp/session/health"]
+#      test: [ "CMD", "curl", "-f", "http://localhost:8085/api/whatsapp/session/health" ]
 #      interval: 30s
 #      timeout: 10s
 #      retries: 3
 #      start_period: 60s
-
+#
 #  api-gateway:
 #    build:
 #      context: ../api-gateway
@@ -186,7 +172,7 @@ services:
 #    networks:
 #      - orange-network
 #    healthcheck:
-#      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
+#      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/actuator/health" ]
 #      interval: 30s
 #      timeout: 10s
 #      retries: 3

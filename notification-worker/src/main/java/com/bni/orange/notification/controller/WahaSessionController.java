@@ -36,7 +36,8 @@ public class WahaSessionController {
 
     @PostMapping("/stop")
     public Mono<ResponseEntity<String>> stopSession(
-        @RequestParam(defaultValue = "false") boolean logout) {
+        @RequestParam(defaultValue = "false") boolean logout
+    ) {
         return sessionService.stopSession(logout)
             .then(Mono.just(ResponseEntity.ok("Session stopped (logout=" + logout + ")")));
     }
