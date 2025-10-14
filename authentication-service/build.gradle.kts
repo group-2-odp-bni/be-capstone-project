@@ -65,3 +65,15 @@ protobuf {
         artifact = "com.google.protobuf:protoc:4.31.1"
     }
 }
+
+sourceSets {
+    main {
+        proto {
+            srcDir("src/main/proto")
+        }
+    }
+}
+
+tasks.named<ProcessResources>("processResources") {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
