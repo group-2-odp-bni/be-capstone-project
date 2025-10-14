@@ -93,3 +93,9 @@ orange:
 
 server:
   port: 8081
+
+logging:
+  level:
+    com.bni.orange.users: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.kafka: INFO
