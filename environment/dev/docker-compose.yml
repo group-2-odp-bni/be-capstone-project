@@ -1,0 +1,135 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    networks:
+      - app-network
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    deploy:
+      resources:
+        reservations: { cpus: "0.5", memory: "512M" }
+        limits: { cpus: "1.0", memory: "1.5G" }
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  oracle:
+    image: gvenzl/oracle-free:23-slim
+    container_name: oracle-db
+    networks:
+      - app-network
+    ports:
+      - "1521:1521"
+    volumes:
+      - oracle-data:/opt/oracle/oradata
+    environment:
+      ORACLE_PASSWORD: ${ORACLE_PASSWORD}
+    deploy:
+      resources:
+        reservations: { cpus: "1.0", memory: "2G" }
+        limits: { cpus: "2.0", memory: "4G" }
+    healthcheck:
+      test: ["CMD-SHELL", "$${ORACLE_BASE}/healthcheck.sh"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  mongo:
+    image: mongo:7.0
+    container_name: mongo
+    networks:
+      - app-network
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+    command: mongod --bind_ip_all --auth
+    deploy:
+      resources:
+        reservations: { cpus: "0.5", memory: "512M" }
+        limits: { cpus: "1.0", memory: "1.5G" }
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 15m
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis-cache
+    networks:
+      - app-network
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --requirepass ${REDIS_PASSWORD} --save 60 1
+    deploy:
+      resources:
+        reservations: { cpus: "0.25", memory: "256M" }
+        limits: { cpus: "0.50", memory: "512M" }
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: kafka
+    networks:
+      - app-network
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    environment:
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_NODE_ID: 1
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      KAFKA_LISTENERS: "INTERNAL://:29092,CONTROLLER://:9093,EXTERNAL://:9092"
+      KAFKA_ADVERTISED_LISTENERS: "INTERNAL://kafka:29092,EXTERNAL://localhost:9092"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "INTERNAL"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT"
+      CLUSTER_ID: "ci-U-5kDSr-iVbA5sWgoSg"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_INSYNC_REPLICAS: 1
+    deploy:
+      resources:
+        reservations: { cpus: "0.75", memory: "1G" }
+        limits: { cpus: "1.5", memory: "2G" }
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  postgres-data: {}
+  oracle-data: {}
+  mongo-data: {}
+  redis-data: {}
+  kafka-data: {}

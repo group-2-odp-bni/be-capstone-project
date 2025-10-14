@@ -5,9 +5,12 @@ spring:
   application:
     name: transaction-service
   datasource:
-    url: jdbc:postgresql://localhost:5432/orange_db
-    username: mikasa
-    password: mikasa
+    # url: jdbc:postgresql://localhost:5432/orange_db
+    # username: mikasa
+    # password: mikasa
+    url: jdbc:postgresql://localhost:5432/postgres
+    username: postgres
+    password:
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:

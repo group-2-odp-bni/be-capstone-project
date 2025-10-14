@@ -35,4 +35,7 @@ out/
 
 ### VS Code ###
 .vscode/
-/authentication-service/src/main/resources/keys/
+/authentication-service/src/main/resources/keys/private.pem
+/authentication-service/src/main/resources/keys/public.pem
+
+daemon
