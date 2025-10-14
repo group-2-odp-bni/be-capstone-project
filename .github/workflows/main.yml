@@ -71,7 +71,7 @@ jobs:
       - name: Generate test report
         if: always()
         working-directory: ${{ matrix.service }}
-        #run: ./gradlew jacocoTestReport --no-daemon
+        run: ./gradlew jacocoTestReport --no-daemon
 
       - name: Upload test results
         if: always()
