@@ -1,36 +1,167 @@
-name: SonarQube
+name: CI/CD Pipeline
+
 on:
   push:
     branches:
       - main
+      - develop
+      - 'feature/**'
   pull_request:
     types: [opened, synchronize, reopened]
+
+env:
+  JAVA_VERSION: '21'
+  JAVA_DISTRIBUTION: 'temurin'
+
 jobs:
-  build:
-    name: Build and analyze
+  build-and-test:
+    name: Build & Test - ${{ matrix.service }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - api-gateway
+          - authentication-service
+          - user-service
+          - wallet-service
+          - transaction-service
+          - notification-worker
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
-      - name: Set up JDK 21 (Temurin)
+          fetch-depth: 0
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
         with:
-          java-version: 17
-          distribution: 'zulu' # Alternative distribution options are available
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ matrix.service }}-${{ hashFiles(format('{0}/**/*.gradle*', matrix.service), format('{0}/**/gradle-wrapper.properties', matrix.service)) }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-${{ matrix.service }}-
+            ${{ runner.os }}-gradle-
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x ${{ matrix.service }}/gradlew
+
+      - name: Build ${{ matrix.service }}
+        working-directory: ${{ matrix.service }}
+        run: ./gradlew build --no-daemon --stacktrace
+
+      - name: Run tests for ${{ matrix.service }}
+        working-directory: ${{ matrix.service }}
+        run: ./gradlew test --no-daemon --stacktrace
+        continue-on-error: false
+
+      - name: Generate test report
+        if: always()
+        working-directory: ${{ matrix.service }}
+        run: ./gradlew jacocoTestReport --no-daemon
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.service }}
+          path: ${{ matrix.service }}/build/test-results/test/
+          retention-days: 30
+
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-${{ matrix.service }}
+          path: ${{ matrix.service }}/build/reports/jacoco/
+          retention-days: 30
+
+      - name: Upload build artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts-${{ matrix.service }}
+          path: ${{ matrix.service }}/build/libs/*.jar
+          retention-days: 7
+
+  sonarqube-analysis:
+    name: SonarQube Analysis
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full clone for better analysis
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+
       - name: Cache SonarQube packages
         uses: actions/cache@v4
         with:
           path: ~/.sonar/cache
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
+
       - name: Cache Gradle packages
         uses: actions/cache@v4
         with:
-          path: ~/.gradle/caches
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle') }}
-          restore-keys: ${{ runner.os }}-gradle
-      - name: Build and analyze
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: ${{ runner.os }}-gradle-
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build and analyze with SonarQube
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: ./gradlew build sonar --info
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        run: ./gradlew build sonar --info --no-daemon
+
+      - name: SonarQube Quality Gate check
+        uses: sonarsource/sonarqube-quality-gate-action@master
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        continue-on-error: true
+
+  build-summary:
+    name: Build Summary
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: always()
+
+    steps:
+      - name: Check build status
+        run: |
+          echo "Build summary for all services"
+          echo "================================"
+          if [ "${{ needs.build-and-test.result }}" == "success" ]; then
+            echo "✅ All services built successfully"
+            exit 0
+          else
+            echo "❌ Some services failed to build"
+            exit 1
+            fi
