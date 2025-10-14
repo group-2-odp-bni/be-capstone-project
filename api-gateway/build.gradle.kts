@@ -4,6 +4,17 @@ plugins {
 	id("io.spring.dependency-management") version "1.1.7"
 }
 
+plugins {
+  id("org.sonarqube") version "6.3.1.5724"
+}
+
+sonar {
+  properties {
+    property("sonar.projectKey", "group-2-odp-bni_be-capstone-project")
+    property("sonar.organization", "group-2-odp-bni")
+  }
+}
+
 group = "com.bni.orange"
 version = "0.0.1-SNAPSHOT"
 description = "api-gateway"
