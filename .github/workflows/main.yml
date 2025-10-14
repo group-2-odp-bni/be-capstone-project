@@ -68,10 +68,10 @@ jobs:
         run: ./gradlew test --no-daemon --stacktrace
         continue-on-error: false
 
-      - name: Generate test report
-        if: always()
-        working-directory: ${{ matrix.service }}
-        run: ./gradlew jacocoTestReport --no-daemon
+      #- name: Generate test report
+        #if: always()
+        #working-directory: ${{ matrix.service }}
+        #run: ./gradlew jacocoTestReport --no-daemon
 
       - name: Upload test results
         if: always()
@@ -81,13 +81,13 @@ jobs:
           path: ${{ matrix.service }}/build/test-results/test/
           retention-days: 30
 
-      - name: Upload coverage reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report-${{ matrix.service }}
-          path: ${{ matrix.service }}/build/reports/jacoco/
-          retention-days: 30
+      #- name: Upload coverage reports
+        #if: always()
+        #uses: actions/upload-artifact@v4
+        #with:
+          #name: coverage-report-${{ matrix.service }}
+          #path: ${{ matrix.service }}/build/reports/jacoco/
+          #retention-days: 30
 
       - name: Upload build artifacts
         if: success()
