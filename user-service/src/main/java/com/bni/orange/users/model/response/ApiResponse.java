@@ -1,49 +1,70 @@
 package com.bni.orange.users.model.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.Getter;
 
-@Data
+import java.time.Instant;
+
+@Getter
 @Builder
-@NoArgsConstructor
-@AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ApiResponse<T> {
-    private Boolean success;
-    private String message;
-    private T data;
-    private Object errors;
+
+    private final String message;
+    private final T data;
+    private final ErrorDetail error;
+    @Builder.Default
+    private final Instant timestamp = Instant.now();
+    private final String path;
 
     public static <T> ApiResponse<T> success(T data) {
         return ApiResponse.<T>builder()
-            .success(true)
+            .message("Success")
             .data(data)
             .build();
     }
 
     public static <T> ApiResponse<T> success(T data, String message) {
         return ApiResponse.<T>builder()
-            .success(true)
             .message(message)
             .data(data)
             .build();
     }
 
-    public static <T> ApiResponse<T> error(String message) {
+    public static <T> ApiResponse<T> success(String message) {
         return ApiResponse.<T>builder()
-            .success(false)
             .message(message)
             .build();
     }
 
-    public static <T> ApiResponse<T> error(String message, Object errors) {
+    public static <T> ApiResponse<T> error(String code, String message) {
         return ApiResponse.<T>builder()
-            .success(false)
-            .message(message)
-            .errors(errors)
+            .message("Request failed")
+            .error(ErrorDetail.builder()
+                .code(code)
+                .message(message)
+                .build())
             .build();
+    }
+
+    public static <T> ApiResponse<T> error(String code, String message, Object details) {
+        return ApiResponse.<T>builder()
+            .message("Request failed")
+            .error(ErrorDetail.builder()
+                .code(code)
+                .message(message)
+                .details(details)
+                .build())
+            .build();
+    }
+
+    @Getter
+    @Builder
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class ErrorDetail {
+        private final String code;
+        private final String message;
+        private final Object details;
     }
 }

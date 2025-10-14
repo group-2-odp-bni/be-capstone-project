@@ -1,6 +1,7 @@
 package com.bni.orange.users.service;
 
-import com.bni.orange.users.exception.UserNotFoundException;
+import com.bni.orange.users.error.BusinessException;
+import com.bni.orange.users.error.ErrorCode;
 import com.bni.orange.users.model.response.UserProfileResponse;
 import com.bni.orange.users.repository.UserProfileViewRepository;
 import lombok.RequiredArgsConstructor;
@@ -23,14 +24,14 @@ public class UserQueryService {
 
         var userProfile = userProfileViewRepository.findById(userId)
             .orElseThrow(() -> {
-                log.error("User not found with ID: {}", userId);
-                return new UserNotFoundException("User not found with ID: " + userId);
+                log.warn("User profile not found for ID: {}", userId);
+                return new BusinessException(ErrorCode.USER_NOT_FOUND);
             });
 
         return UserProfileResponse.builder()
             .id(userProfile.getId())
             .name(userProfile.getName())
-            .email(null)
+            .email(userProfile.getEmail())
             .phoneNumber(userProfile.getPhoneNumber())
             .profileImageUrl(userProfile.getProfileImageUrl())
             .emailVerified(userProfile.getEmailVerified())

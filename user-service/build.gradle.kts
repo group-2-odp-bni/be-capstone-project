@@ -2,6 +2,7 @@ plugins {
 	java
 	id("org.springframework.boot") version "3.5.6"
 	id("io.spring.dependency-management") version "1.1.7"
+	id("com.google.protobuf") version "0.9.4"
 }
 
 group = "com.bni.orange"
@@ -26,6 +27,7 @@ repositories {
 
 dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+	implementation("org.springframework.boot:spring-boot-starter-data-redis")
 	implementation("org.springframework.boot:spring-boot-starter-mail")
     implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
 	implementation("org.springframework.boot:spring-boot-starter-thymeleaf")
@@ -45,4 +47,22 @@ dependencies {
 
 tasks.withType<Test> {
 	useJUnitPlatform()
+}
+
+protobuf {
+	protoc {
+		artifact = "com.google.protobuf:protoc:4.29.2"
+	}
+}
+
+sourceSets {
+	main {
+		proto {
+			srcDir("src/main/proto")
+		}
+	}
+}
+
+tasks.named<ProcessResources>("processResources") {
+	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }

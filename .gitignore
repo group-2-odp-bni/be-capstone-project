@@ -35,5 +35,6 @@ out/
 
 ### VS Code ###
 .vscode/
-.docs/**
 /authentication-service/src/main/resources/keys/
+/_research
+.docs

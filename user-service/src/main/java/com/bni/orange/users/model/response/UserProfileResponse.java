@@ -19,6 +19,8 @@ public class UserProfileResponse {
     private String name;
     private String email;
     private String phoneNumber;
+    private String bio;
+    private String address;
     private String profileImageUrl;
     private Boolean emailVerified;
     private Boolean phoneVerified;
