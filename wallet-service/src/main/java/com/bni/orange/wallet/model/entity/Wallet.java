@@ -2,17 +2,17 @@ package com.bni.orange.wallet.model.entity;
 
 import com.bni.orange.wallet.model.enums.WalletStatus;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
 
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
-
-
 @Entity
-@Table(name = "wallets", schema = "wallet_oltp")
+@Table(name = "wallets", schema = "wallet_oltp",
+       uniqueConstraints = @UniqueConstraint(name = "uq_wallet_user_currency", columnNames = {"user_id","currency"}))
 public class Wallet {
 
     @Id
@@ -23,11 +23,10 @@ public class Wallet {
 
     @Column(nullable = false, length = 3)
     private String currency = "IDR";
-    
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
-    @Column(name = "status", nullable = false, columnDefinition = "wallet_oltp.wallet_status")
+    @Column(name = "status", nullable = false, columnDefinition = "domain.wallet_status")
     private WalletStatus status = WalletStatus.ACTIVE;
 
     @Column(name = "balance_snapshot", nullable = false, precision = 20, scale = 2)
@@ -43,25 +42,22 @@ public class Wallet {
     public void prePersist() {
         var now = OffsetDateTime.now(ZoneOffset.UTC);
         if (id == null) id = UUID.randomUUID();
-        createdAt = now;
-        updatedAt = now;
+        createdAt = now; updatedAt = now;
     }
-
-    @PreUpdate
-    public void preUpdate() {
+    @PreUpdate public void preUpdate() {
         updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
     }
 
-    public UUID getId() { return id; }
-    public void setId(UUID id) { this.id = id; }
-    public UUID getUserId() { return userId; }
-    public void setUserId(UUID userId) { this.userId = userId; }
-    public String getCurrency() { return currency; }
-    public void setCurrency(String currency) { this.currency = currency; }
-    public WalletStatus getStatus() { return status; }
-    public void setStatus(WalletStatus status) { this.status = status; }
-    public BigDecimal getBalanceSnapshot() { return balanceSnapshot; }
-    public void setBalanceSnapshot(BigDecimal balanceSnapshot) { this.balanceSnapshot = balanceSnapshot; }
-    public OffsetDateTime getCreatedAt() { return createdAt; }
-    public OffsetDateTime getUpdatedAt() { return updatedAt; }
+    public UUID getId(){ return id; }
+    public void setId(UUID id){ this.id=id; }
+    public UUID getUserId(){ return userId; }
+    public void setUserId(UUID userId){ this.userId=userId; }
+    public String getCurrency(){ return currency; }
+    public void setCurrency(String currency){ this.currency=currency; }
+    public WalletStatus getStatus(){ return status; }
+    public void setStatus(WalletStatus status){ this.status=status; }
+    public BigDecimal getBalanceSnapshot(){ return balanceSnapshot; }
+    public void setBalanceSnapshot(BigDecimal balanceSnapshot){ this.balanceSnapshot=balanceSnapshot; }
+    public OffsetDateTime getCreatedAt(){ return createdAt; }
+    public OffsetDateTime getUpdatedAt(){ return updatedAt; }
 }
