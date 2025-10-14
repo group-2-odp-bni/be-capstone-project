@@ -23,10 +23,8 @@ jobs:
         service:
           - api-gateway
           - authentication-service
-          - user-service
           - wallet-service
           - transaction-service
-          - notification-worker
 
     steps:
       - name: Checkout code
