@@ -1,4 +1,4 @@
-package com.bni.orange.user;
+package com.bni.orange.users;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
