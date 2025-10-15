@@ -142,8 +142,7 @@ jobs:
     needs: discover-services
     if: |
       needs.discover-services.outputs.changed-services != '[]' &&
-      needs.discover-services.outputs.changed-services != '[""]' &&
-      secrets.SONAR_TOKEN != ''
+      needs.discover-services.outputs.changed-services != '[""]'
     strategy:
       fail-fast: false
       matrix:
@@ -174,6 +173,12 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
+          if [ -z "$SONAR_TOKEN" ]; then
+            echo "⚠️  SONAR_TOKEN not set, skipping SonarCloud setup"
+            echo "exists=skip" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
           PROJECT_KEY="${{ steps.extract-config.outputs.project_key }}"
 
           echo "🔍 Checking if project exists: $PROJECT_KEY"
@@ -198,6 +203,11 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
+          if [ -z "$SONAR_TOKEN" ]; then
+            echo "⚠️  SONAR_TOKEN not set, skipping project creation"
+            exit 0
+          fi
+
           PROJECT_KEY="${{ steps.extract-config.outputs.project_key }}"
           ORG="${{ steps.extract-config.outputs.organization }}"
           SERVICE_NAME="${{ matrix.service }}"
@@ -230,9 +240,7 @@ jobs:
       - discover-services
       - build-and-test
       - sonar-project-setup
-    if: |
-      needs.build-and-test.result == 'success' &&
-      secrets.SONAR_TOKEN != ''
+    if: needs.build-and-test.result == 'success'
     strategy:
       fail-fast: false
       matrix:
@@ -268,5 +276,10 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
+          if [ -z "$SONAR_TOKEN" ]; then
+            echo "⚠️  SONAR_TOKEN not set, skipping SonarCloud analysis"
+            exit 0
+          fi
+
           chmod +x gradlew
           ./gradlew build sonar --info
