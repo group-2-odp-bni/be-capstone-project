@@ -169,7 +169,6 @@ jobs:
       - name: Check if SonarCloud Project Exists
         id: check-project
         if: steps.extract-config.outputs.project_key != ''
-        continue-on-error: true
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
@@ -180,20 +179,28 @@ jobs:
           fi
 
           PROJECT_KEY="${{ steps.extract-config.outputs.project_key }}"
+          ORG="${{ steps.extract-config.outputs.organization }}"
 
           echo "🔍 Checking if project exists: $PROJECT_KEY"
 
-          RESPONSE=$(curl -s -u "$SONAR_TOKEN:" \
-            "https://sonarcloud.io/api/projects/search?projects=$PROJECT_KEY")
+          HTTP_CODE=$(curl -s -o /tmp/response.json -w "%{http_code}" -u "$SONAR_TOKEN:" \
+            "https://sonarcloud.io/api/projects/search?projects=$PROJECT_KEY&organization=$ORG")
 
-          COUNT=$(echo "$RESPONSE" | jq -r '.components | length // 0')
+          if [ "$HTTP_CODE" = "200" ]; then
+            COUNT=$(jq -r '.components | length // 0' /tmp/response.json)
+            echo "📊 API Response: HTTP $HTTP_CODE, Found $COUNT project(s)"
 
-          if [ "$COUNT" -gt 0 ]; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-            echo "✅ Project exists"
+            if [ "$COUNT" -gt 0 ]; then
+              echo "exists=true" >> $GITHUB_OUTPUT
+              echo "✅ Project already exists in SonarCloud"
+            else
+              echo "exists=false" >> $GITHUB_OUTPUT
+              echo "⚠️  Project does not exist, will create"
+            fi
           else
-            echo "exists=false" >> $GITHUB_OUTPUT
-            echo "⚠️  Project does not exist, will create"
+            echo "⚠️  Failed to check project existence (HTTP $HTTP_CODE)"
+            cat /tmp/response.json
+            echo "exists=unknown" >> $GITHUB_OUTPUT
           fi
 
       - name: Create SonarCloud Project
@@ -213,9 +220,9 @@ jobs:
           SERVICE_NAME="${{ matrix.service }}"
           DISPLAY_NAME=$(echo "$SERVICE_NAME" | sed 's/-/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2))}1')
 
-          echo "🚀 Creating SonarCloud project: $PROJECT_KEY"
+          echo "🚀 Creating SonarCloud project: $PROJECT_KEY in organization: $ORG"
 
-          RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST \
+          HTTP_CODE=$(curl -s -o /tmp/create_response.json -w "%{http_code}" -X POST \
             -u "$SONAR_TOKEN:" \
             "https://sonarcloud.io/api/projects/create" \
             -d "organization=$ORG" \
@@ -223,14 +230,20 @@ jobs:
             -d "name=$DISPLAY_NAME" \
             -d "mainBranch=main")
 
-          HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE:" | cut -d':' -f2)
-
           if [ "$HTTP_CODE" = "200" ]; then
             echo "✅ Project created successfully"
+          elif [ "$HTTP_CODE" = "400" ]; then
+            ERROR_MSG=$(jq -r '.errors[0].msg // "Unknown error"' /tmp/create_response.json)
+            if echo "$ERROR_MSG" | grep -q "already exists"; then
+              echo "ℹ️  Project already exists (HTTP $HTTP_CODE)"
+            else
+              echo "⚠️  Project creation failed: $ERROR_MSG"
+              echo "::warning::Project creation failed: $ERROR_MSG"
+            fi
           else
             echo "⚠️  Project creation returned HTTP $HTTP_CODE"
-            echo "$RESPONSE" | sed '/HTTP_CODE:/d'
-            echo "::warning::Project creation failed but continuing (might already exist)"
+            cat /tmp/create_response.json
+            echo "::warning::Project creation failed with HTTP $HTTP_CODE"
           fi
 
   sonar-analysis:
