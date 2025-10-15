@@ -1,5 +1,6 @@
 plugins {
     java
+    id("org.sonarqube") version "6.3.1.5724"
     id("org.springframework.boot") version "3.5.6"
     id("io.spring.dependency-management") version "1.1.7"
 }
@@ -46,4 +47,11 @@ dependencyManagement {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+sonar {
+    properties {
+        property("sonar.projectKey", "group-2-odp-bni_be-capstone-project")
+        property("sonar.organization", "group-2-odp-bni")
+    }
 }
