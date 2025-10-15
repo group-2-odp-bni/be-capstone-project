@@ -311,5 +311,19 @@ erDiagram
 
 ```
 
+# 🚀 GitHub Workflow Guide
 
+Dokumentasi ini menjelaskan alur kerja dasar dalam proyek ini menggunakan GitHub. Workflow ini dirancang untuk menjaga kualitas kode, memudahkan kolaborasi, dan mendukung integrasi dengan CI/CD.
+
+    A[Start] --> B[Clone Repository]: git clone https://github.com/username/repo-name.git
+    B --> C[Create New Branch]: git checkout -b (nama branch)
+    C --> D[Make Changes to Code]
+    D --> E[Stage Changes (git add)]: git add (masukkan file yang diberikan perubahan)
+    E --> F[Commit Changes (git commit)]: git commit -m "Keterangan"
+    F --> G[Push Branch to GitHub]: git push origin (branch)
+    G --> H[Create Pull Request]: Klik "Compare & Pull Request" (Repository di Github)
+    H --> I[Code Review & Discussion]
+    I --> J[Merge to Main Branch]: Klik "Merge pull request"
+    J --> K[Delete Feature Branch (optional)]
+    K --> L[End]
 
