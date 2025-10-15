@@ -6,13 +6,6 @@ plugins {
     id("com.google.protobuf") version "0.9.5"
 }
 
-sonar {
-  properties {
-    property("sonar.projectKey", "group-2-odp-bni_be-capstone-project")
-    property("sonar.organization", "group-2-odp-bni")
-  }
-}
-
 group = "com.bni.orange"
 version = "0.0.1-SNAPSHOT"
 description = "authentication-service"
@@ -31,7 +24,6 @@ configurations {
 
 repositories {
     mavenCentral()
-    maven { url = uri("https://packages.confluent.io/maven/") }
 }
 
 dependencies {
@@ -71,5 +63,12 @@ tasks.withType<Test> {
 protobuf {
     protoc {
         artifact = "com.google.protobuf:protoc:4.31.1"
+    }
+}
+
+sonar {
+    properties {
+        property("sonar.projectKey", "group-2-odp-bni_be-capstone-project")
+        property("sonar.organization", "group-2-odp-bni")
     }
 }

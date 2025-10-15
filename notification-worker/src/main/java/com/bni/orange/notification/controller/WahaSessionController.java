@@ -1,7 +1,7 @@
 package com.bni.orange.notification.controller;
 
-import com.bni.orange.notification.dto.WahaQRCodeResponse;
-import com.bni.orange.notification.dto.WahaSessionResponse;
+import com.bni.orange.notification.model.response.WahaQRCodeResponse;
+import com.bni.orange.notification.model.response.WahaSessionResponse;
 import com.bni.orange.notification.service.WahaSessionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

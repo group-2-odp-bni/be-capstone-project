@@ -1,9 +1,9 @@
 package com.bni.orange.notification.client;
 
 import com.bni.orange.notification.config.properties.WahaConfigProperties;
-import com.bni.orange.notification.dto.WahaMessageResponse;
-import com.bni.orange.notification.dto.WahaQRCodeResponse;
-import com.bni.orange.notification.dto.WahaSessionResponse;
+import com.bni.orange.notification.model.response.WahaMessageResponse;
+import com.bni.orange.notification.model.response.WahaQRCodeResponse;
+import com.bni.orange.notification.model.response.WahaSessionResponse;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.reactor.circuitbreaker.operator.CircuitBreakerOperator;
 import io.github.resilience4j.reactor.retry.RetryOperator;

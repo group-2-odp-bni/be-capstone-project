@@ -1,6 +1,6 @@
 package com.bni.orange.notification.controller;
 
-import com.bni.orange.notification.dto.WahaWebhookEvent;
+import com.bni.orange.notification.model.WahaWebhookEvent;
 import com.bni.orange.notification.security.WebhookSecurityService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;

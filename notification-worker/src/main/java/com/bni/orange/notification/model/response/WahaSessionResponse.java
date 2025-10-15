@@ -1,4 +1,4 @@
-package com.bni.orange.notification.dto;
+package com.bni.orange.notification.model.response;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 

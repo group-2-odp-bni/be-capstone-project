@@ -2,7 +2,7 @@ package com.bni.orange.notification.service;
 
 import com.bni.orange.authentication.proto.OtpNotificationEvent;
 import com.bni.orange.notification.client.WahaApiClient;
-import com.bni.orange.notification.dto.WahaMessageResponse;
+import com.bni.orange.notification.model.response.WahaMessageResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
