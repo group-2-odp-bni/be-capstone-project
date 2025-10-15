@@ -281,5 +281,16 @@ jobs:
             exit 0
           fi
 
+          if [ ! -f gradle.properties ]; then
+            echo "⚠️ No gradle.properties found, skipping SonarCloud analysis"
+            exit 0
+          fi
+
+          ORG=$(grep "sonar.organization=" gradle.properties | cut -d'=' -f2)
+          KEY=$(grep "sonar.projectKey=" gradle.properties | cut -d'=' -f2)
+
           chmod +x gradlew
-          ./gradlew build sonar --info
+          ./gradlew build sonar --info \
+            -Dsonar.organization=$ORG \
+            -Dsonar.projectKey=$KEY \
+            -Dsonar.token=$SONAR_TOKEN
