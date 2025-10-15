@@ -1,14 +1,14 @@
 plugins {
     java
     id("org.sonarqube") version "6.3.1.5724"
+    id("com.google.protobuf") version "0.9.5"
     id("org.springframework.boot") version "3.5.6"
     id("io.spring.dependency-management") version "1.1.7"
-    id("com.google.protobuf") version "0.9.5"
 }
 
-group = "com.bni.orange"
-version = "0.0.1-SNAPSHOT"
-description = "authentication-service"
+group = property("group") as String
+version = property("version") as String
+description = property("description") as String
 
 java {
     toolchain {
@@ -69,6 +69,14 @@ sonar {
     properties {
         property("sonar.projectKey", "group-2-odp-bni_be-capstone-project")
         property("sonar.organization", "group-2-odp-bni")
+    }
+}
+
+sourceSets {
+    main {
+        proto {
+            srcDir("src/main/proto")
+        }
     }
 }
 

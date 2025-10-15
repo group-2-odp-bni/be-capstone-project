@@ -5,21 +5,19 @@ plugins {
     id("io.spring.dependency-management") version "1.1.7"
 }
 
-group = "com.bni.orange"
-version = "0.0.1-SNAPSHOT"
-description = "api-gateway"
+group = property("group") as String
+version = property("version") as String
+description = property("description") as String
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
+        languageVersion = JavaLanguageVersion.of(property("javaVersion").toString().toInt())
     }
 }
 
 repositories {
     mavenCentral()
 }
-
-extra["springCloudVersion"] = "2025.0.0"
 
 dependencies {
     implementation("org.springframework.cloud:spring-cloud-starter-gateway-server-webflux")
@@ -47,11 +45,4 @@ dependencyManagement {
 
 tasks.withType<Test> {
     useJUnitPlatform()
-}
-
-sonar {
-    properties {
-        property("sonar.projectKey", "group-2-odp-bni_be-capstone-project")
-        property("sonar.organization", "group-2-odp-bni")
-    }
 }

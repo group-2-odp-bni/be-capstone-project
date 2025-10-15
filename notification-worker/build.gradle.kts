@@ -6,9 +6,9 @@ plugins {
     id("org.sonarqube") version "6.3.1.5724"
 }
 
-group = "com.bni.orange"
-version = "0.0.1-SNAPSHOT"
-description = "notification-worker"
+group = property("group") as String
+version = property("version") as String
+description = property("description") as String
 
 java {
 	toolchain {
@@ -44,12 +44,5 @@ tasks.withType<Test> {
 protobuf {
     protoc {
         artifact = "com.google.protobuf:protoc:4.31.1"
-    }
-}
-
-sonar {
-    properties {
-        property("sonar.projectKey", "group-2-odp-bni_be-capstone-project")
-        property("sonar.organization", "group-2-odp-bni")
     }
 }

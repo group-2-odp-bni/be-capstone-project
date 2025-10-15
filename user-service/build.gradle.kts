@@ -1,13 +1,14 @@
 plugins {
 	java
+    id("org.sonarqube") version "6.3.1.5724"
+	id("com.google.protobuf") version "0.9.4"
 	id("org.springframework.boot") version "3.5.6"
 	id("io.spring.dependency-management") version "1.1.7"
-	id("com.google.protobuf") version "0.9.4"
 }
 
-group = "com.bni.orange"
-version = "0.0.1-SNAPSHOT"
-description = "user-service"
+group = property("group") as String
+version = property("version") as String
+description = property("description") as String
 
 java {
 	toolchain {
