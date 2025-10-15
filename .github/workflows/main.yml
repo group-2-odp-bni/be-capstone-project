@@ -85,7 +85,7 @@ jobs:
         working-directory: ${{ matrix.service }}
         run: |
           chmod +x gradlew
-          ./gradlew build test --no-daemon --stacktrace
+          ./gradlew build --no-daemon --stacktrace --info
 
       - name: Upload test results
         if: always()
