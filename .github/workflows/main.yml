@@ -136,13 +136,103 @@ jobs:
             echo "✅ All builds passed or were skipped."
           fi
 
+  sonar-project-setup:
+    name: Setup SonarCloud Projects
+    runs-on: ubuntu-latest
+    needs: discover-services
+    if: |
+      needs.discover-services.outputs.changed-services != '[]' &&
+      needs.discover-services.outputs.changed-services != '[""]' &&
+      secrets.SONAR_TOKEN != ''
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJson(needs.discover-services.outputs.changed-services) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract SonarCloud Configuration
+        id: extract-config
+        working-directory: ${{ matrix.service }}
+        run: |
+          if [ -f gradle.properties ]; then
+            PROJECT_KEY=$(grep "sonar.projectKey=" gradle.properties | cut -d'=' -f2)
+            ORG=$(grep "sonar.organization=" gradle.properties | cut -d'=' -f2)
+            echo "project_key=$PROJECT_KEY" >> $GITHUB_OUTPUT
+            echo "organization=$ORG" >> $GITHUB_OUTPUT
+            echo "✅ Found project key: $PROJECT_KEY"
+          else
+            echo "⚠️  No gradle.properties found, skipping"
+            echo "project_key=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check if SonarCloud Project Exists
+        id: check-project
+        if: steps.extract-config.outputs.project_key != ''
+        continue-on-error: true
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          PROJECT_KEY="${{ steps.extract-config.outputs.project_key }}"
+
+          echo "🔍 Checking if project exists: $PROJECT_KEY"
+
+          RESPONSE=$(curl -s -u "$SONAR_TOKEN:" \
+            "https://sonarcloud.io/api/projects/search?projects=$PROJECT_KEY")
+
+          COUNT=$(echo "$RESPONSE" | jq -r '.components | length // 0')
+
+          if [ "$COUNT" -gt 0 ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "✅ Project exists"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "⚠️  Project does not exist, will create"
+          fi
+
+      - name: Create SonarCloud Project
+        if: |
+          steps.extract-config.outputs.project_key != '' &&
+          steps.check-project.outputs.exists == 'false'
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          PROJECT_KEY="${{ steps.extract-config.outputs.project_key }}"
+          ORG="${{ steps.extract-config.outputs.organization }}"
+          SERVICE_NAME="${{ matrix.service }}"
+          DISPLAY_NAME=$(echo "$SERVICE_NAME" | sed 's/-/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2))}1')
+
+          echo "🚀 Creating SonarCloud project: $PROJECT_KEY"
+
+          RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST \
+            -u "$SONAR_TOKEN:" \
+            "https://sonarcloud.io/api/projects/create" \
+            -d "organization=$ORG" \
+            -d "project=$PROJECT_KEY" \
+            -d "name=$DISPLAY_NAME" \
+            -d "mainBranch=main")
+
+          HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE:" | cut -d':' -f2)
+
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✅ Project created successfully"
+          else
+            echo "⚠️  Project creation returned HTTP $HTTP_CODE"
+            echo "$RESPONSE" | sed '/HTTP_CODE:/d'
+            echo "::warning::Project creation failed but continuing (might already exist)"
+          fi
+
   sonar-analysis:
     name: SonarQube Analysis
     runs-on: ubuntu-latest
     needs:
       - discover-services
       - build-and-test
-    if: needs.build-and-test.result == 'success'
+      - sonar-project-setup
+    if: |
+      needs.build-and-test.result == 'success' &&
+      secrets.SONAR_TOKEN != ''
     strategy:
       fail-fast: false
       matrix:
