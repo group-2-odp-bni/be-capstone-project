@@ -1,13 +1,14 @@
 plugins {
     java
+    jacoco
     id("org.sonarqube") version "6.3.1.5724"
     id("org.springframework.boot") version "3.5.6"
     id("io.spring.dependency-management") version "1.1.7"
 }
 
-group = "com.bni.orange"
-version = "0.0.1-SNAPSHOT"
-description = "api-gateway"
+group = property("group") as String
+version = property("version") as String
+description = property("description") as String
 
 java {
     toolchain {
@@ -18,8 +19,6 @@ java {
 repositories {
     mavenCentral()
 }
-
-extra["springCloudVersion"] = "2025.0.0"
 
 dependencies {
     implementation("org.springframework.cloud:spring-cloud-starter-gateway-server-webflux")
@@ -41,17 +40,33 @@ dependencies {
 
 dependencyManagement {
     imports {
-        mavenBom("org.springframework.cloud:spring-cloud-dependencies:${property("springCloudVersion")}")
+        mavenBom("org.springframework.cloud:spring-cloud-dependencies:2025.0.0")
     }
 }
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    finalizedBy(tasks.jacocoTestReport)
+}
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+        csv.required.set(false)
+    }
+}
+
+jacoco {
+    toolVersion = "0.8.12"
 }
 
 sonar {
     properties {
-        property("sonar.projectKey", "group-2-odp-bni_be-capstone-project")
-        property("sonar.organization", "group-2-odp-bni")
+        property("sonar.sources", "src/main/java")
+        property("sonar.tests", "src/test/java")
+        property("sonar.java.binaries", "build/classes/java/main")
+        property("sonar.coverage.jacoco.xmlReportPaths", "build/reports/jacoco/test/jacocoTestReport.xml")
     }
 }
