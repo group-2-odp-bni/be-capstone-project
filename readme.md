@@ -1,5 +1,3 @@
-
-
 ## Kebutuhan 1 : user bisa login
 
 ### Post /auth/login
@@ -312,12 +310,6 @@ erDiagram
     USERS ||--o{ OTP_SESSIONS : "has many (via phone)"
 
 ```
-
-
-
-
-
-
 
 
 

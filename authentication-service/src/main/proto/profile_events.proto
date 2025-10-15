@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package com.bni.orange.users.proto;
+
+option java_package = "com.bni.orange.users.proto";
+option java_multiple_files = true;
+
+// Event: User email has been verified and updated
+message UserProfileEmailVerifiedEvent {
+  string event_id = 1;
+  string user_id = 2;
+  string email = 3;
+  int64 verified_at = 4;
+}
+
+// Event: User phone number has been verified and updated
+message UserProfilePhoneVerifiedEvent {
+  string event_id = 1;
+  string user_id = 2;
+  string phone_number = 3;
+  int64 verified_at = 4;
+}
+
+// Event: User name has been updated (non-sensitive, no verification needed)
+message UserProfileNameUpdatedEvent {
+  string event_id = 1;
+  string user_id = 2;
+  string name = 3;
+  int64 updated_at = 4;
+}
+
+// Event: Request OTP for email verification
+message OtpEmailNotificationEvent {
+  string email = 1;
+  string otp_code = 2;
+  string user_id = 3;
+  int64 event_created_at = 4;
+}
+
+// Event: Request OTP for phone verification (WhatsApp/SMS)
+message OtpPhoneNotificationEvent {
+  string phone_number = 1;
+  string otp_code = 2;
+  string user_id = 3;
+  int64 event_created_at = 4;
+}
