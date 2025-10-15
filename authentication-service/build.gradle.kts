@@ -52,6 +52,7 @@ dependencies {
     runtimeOnly("org.postgresql:postgresql")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.springframework.security:spring-security-test")
     testImplementation("org.springframework.kafka:spring-kafka-test")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
@@ -84,8 +85,11 @@ sonar {
     properties {
         property("sonar.sources", "src/main/java")
         property("sonar.tests", "src/test/java")
-        property("sonar.java.binaries", "build/classes/java/main")
+        property("sonar.java.binaries", "build/classes/java/main,build/classes")
+        property("sonar.java.test.binaries", "build/classes/java/test")
         property("sonar.coverage.jacoco.xmlReportPaths", "build/reports/jacoco/test/jacocoTestReport.xml")
+        property("sonar.exclusions", "**/generated/**,**/*Proto.java,**/*OuterClass.java")
+        property("sonar.coverage.exclusions", "**/generated/**,**/*Proto.java,**/*OuterClass.java")
     }
 }
 
@@ -100,3 +104,12 @@ sourceSets {
 tasks.named<ProcessResources>("processResources") {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
+
+tasks.withType<Test>().configureEach {
+    doFirst {
+        configurations.testRuntimeClasspath.get()
+            .find { it.name.contains("mockito-core") }
+            ?.let { jvmArgs("-javaagent:${it.absolutePath}") }
+    }
+}
+

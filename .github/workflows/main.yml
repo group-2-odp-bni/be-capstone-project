@@ -64,6 +64,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -85,7 +87,16 @@ jobs:
         working-directory: ${{ matrix.service }}
         run: |
           chmod +x gradlew
-          ./gradlew build --no-daemon --stacktrace --info
+          ./gradlew clean build jacocoTestReport --no-daemon --stacktrace --info
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.service }}
+          path: |
+            ${{ matrix.service }}/build/
+          retention-days: 1
+          if-no-files-found: warn
 
       - name: Upload test results
         if: always()
@@ -100,7 +111,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-${{ matrix.service }}
+          name: coverage-reports-${{ matrix.service }}
           path: ${{ matrix.service }}/build/reports/
           retention-days: 30
           if-no-files-found: ignore
@@ -247,7 +258,7 @@ jobs:
           fi
 
   sonar-analysis:
-    name: SonarQube Analysis
+    name: SonarCloud Analysis
     runs-on: ubuntu-latest
     needs:
       - discover-services
@@ -270,7 +281,7 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: ${{ env.JAVA_DISTRIBUTION }}
 
-      - name: Cache SonarQube packages
+      - name: Cache SonarCloud packages
         uses: actions/cache@v4
         with:
           path: ~/.sonar/cache
@@ -284,6 +295,12 @@ jobs:
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: ${{ runner.os }}-gradle
 
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-${{ matrix.service }}
+          path: ${{ matrix.service }}/build/
+
       - name: Check if test directory exists
         id: check-test-dir
         working-directory: ${{ matrix.service }}
@@ -296,11 +313,33 @@ jobs:
             echo "⚠️ No 'src/test' directory found in ${{ matrix.service }}, skipping SonarCloud analysis"
           fi
 
-      - name: Build and analyze ${{ matrix.service }} with SonarQube
+      - name: Verify build artifacts
+        if: steps.check-test-dir.outputs.has_tests == 'true'
+        working-directory: ${{ matrix.service }}
+        run: |
+          echo "📦 Verifying downloaded artifacts..."
+          echo ""
+          echo "Build classes:"
+          ls -lah build/classes/java/main/ 2>/dev/null || echo "⚠️ No main classes found"
+          echo ""
+          echo "Test results:"
+          ls -lah build/test-results/test/ 2>/dev/null || echo "⚠️ No test results found"
+          echo ""
+          echo "JaCoCo reports:"
+          ls -lah build/reports/jacoco/test/ 2>/dev/null || echo "⚠️ No JaCoCo reports found"
+          echo ""
+          if [ -f "build/reports/jacoco/test/jacocoTestReport.xml" ]; then
+            echo "✅ JaCoCo XML report found for SonarCloud"
+          else
+            echo "⚠️ JaCoCo XML report not found, coverage may not be reported"
+          fi
+
+      - name: Run SonarCloud analysis for ${{ matrix.service }}
         if: steps.check-test-dir.outputs.has_tests == 'true'
         working-directory: ${{ matrix.service }}
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ -z "$SONAR_TOKEN" ]; then
             echo "⚠️  SONAR_TOKEN not set, skipping SonarCloud analysis"
@@ -315,8 +354,36 @@ jobs:
           ORG=$(grep "sonar.organization=" gradle.properties | cut -d'=' -f2)
           KEY=$(grep "sonar.projectKey=" gradle.properties | cut -d'=' -f2)
 
+          # Determine analysis type and configure parameters accordingly
+          SONAR_ARGS=""
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo "🔍 Running SonarCloud PR analysis for ${{ matrix.service }}"
+            echo "   Type: Pull Request #${{ github.event.pull_request.number }}"
+            echo "   Source Branch: ${{ github.head_ref }}"
+            echo "   Target Branch: ${{ github.base_ref }}"
+            SONAR_ARGS="-Dsonar.pullrequest.key=${{ github.event.pull_request.number }} \
+              -Dsonar.pullrequest.branch=${{ github.head_ref }} \
+              -Dsonar.pullrequest.base=${{ github.base_ref }}"
+          else
+            echo "🔍 Running SonarCloud branch analysis for ${{ matrix.service }}"
+            echo "   Type: Branch Push"
+            echo "   Branch: ${{ github.ref_name }}"
+            SONAR_ARGS="-Dsonar.branch.name=${{ github.ref_name }}"
+          fi
+
+          echo "   Organization: $ORG"
+          echo "   Project Key: $KEY"
+          echo "   Host: https://sonarcloud.io"
+          echo ""
+
           chmod +x gradlew
-          ./gradlew build sonar --info \
+
+          # Run sonar analysis only (skip build and test since we have artifacts)
+          ./gradlew sonar --no-daemon --info \
+            -Dsonar.host.url=https://sonarcloud.io \
             -Dsonar.organization=$ORG \
             -Dsonar.projectKey=$KEY \
-            -Dsonar.token=$SONAR_TOKEN
+            -Dsonar.token=$SONAR_TOKEN \
+            -Dsonar.scm.provider=git \
+            $SONAR_ARGS \
+            -x test -x build
