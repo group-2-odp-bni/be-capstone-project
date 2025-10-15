@@ -39,6 +39,9 @@ public class User extends BaseEntity {
     @Column(nullable = false, unique = true)
     private String phoneNumber;
 
+    @Column(unique = true)
+    private String email;
+
     @Column(nullable = false)
     private String userPins;
 

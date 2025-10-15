@@ -1,5 +1,6 @@
 package com.bni.orange.authentication.service;
 
+import com.bni.orange.authentication.config.properties.KafkaTopicProperties;
 import com.bni.orange.authentication.error.BusinessException;
 import com.bni.orange.authentication.error.ErrorCode;
 import com.bni.orange.authentication.event.DomainEventFactory;
@@ -41,6 +42,7 @@ public class AuthFlowService {
     private final PasswordEncoder passwordEncoder;
     private final PinValidator pinValidator;
     private final EventPublisher eventPublisher;
+    private final KafkaTopicProperties topicProperties;
 
     @Transactional
     public ApiResponse<OtpResponse> requestOtp(AuthRequest request, HttpServletRequest servletRequest) {
@@ -68,7 +70,8 @@ public class AuthFlowService {
             user.getId().toString()
         );
 
-        eventPublisher.publish("notification.otp.whatsapp", user.getPhoneNumber(), otpEvent);
+        var topicName = topicProperties.definitions().get("otp-notification").name();
+        eventPublisher.publish(topicName, user.getPhoneNumber(), otpEvent);
 
         if (log.isDebugEnabled()) {
             log.debug("DEV MODE - OTP for {}: {}", user.getPhoneNumber(), otp);
@@ -140,7 +143,8 @@ public class AuthFlowService {
             userRepository.save(user);
 
             var userRegisteredEvent = DomainEventFactory.createUserRegisteredEvent(user);
-            eventPublisher.publish("user-registered", user.getId().toString(), userRegisteredEvent);
+            var userRegisteredTopic = topicProperties.definitions().get("user-registered").name();
+            eventPublisher.publish(userRegisteredTopic, user.getId().toString(), userRegisteredEvent);
         } else if (TokenScope.PIN_LOGIN.getValue().equals(scope) && user.getStatus() == UserStatus.ACTIVE) {
             if (!passwordEncoder.matches(pin, user.getUserPins())) {
                 loginAttemptService.loginFailed(userId.toString());

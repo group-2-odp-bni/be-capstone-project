@@ -1,6 +1,6 @@
 spring:
   application:
-    name: authentication-service
+    name: user-service
   threads:
     virtual:
       enabled: true
@@ -17,6 +17,7 @@ spring:
       max-lifetime: 1800000
       validation-timeout: 5000
       leak-detection-threshold: 60000
+
   jpa:
     hibernate:
       ddl-auto: validate
@@ -24,53 +25,75 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+        default_schema: public
+
   flyway:
     enabled: true
-    schemas: auth_oltp
-    default-schema: auth_oltp
+    schemas: public
+    default-schema: public
     locations: classpath:db/migration
     baseline-on-migrate: true
     password: ${spring.datasource.password}
     user: ${spring.datasource.username}
+
+  security:
+    oauth2:
+      resource-server:
+        jwt:
+          jwk-set-uri: ${AUTH_SERVICE_JWK_URI:http://localhost:8081/oauth2/jwks}
 
   data:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
 
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: user-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
+      enable-auto-commit: false
+    listener:
+      ack-mode: manual
+
 orange:
-  jwt:
-    access-token-duration: 15m
-    refresh-token-duration: 30d
-    state-token-duration: 5m
-  rsa:
-    public-key: classpath:keys/public.pem
-    private-key: classpath:keys/private.pem
   redis:
     prefix:
-      otp: "otp:"
-      otp-cooldown: "otp_cooldown:"
-      otp-fail-count: "otp_fail_count:"
-      otp-locked: "otp_locked:"
-      pin-fail-count: "pin_fail_count:"
-      pin-locked: "pin_locked:"
-      jwt-blacklist: "jwt_blacklist:"
-      state-token: "state_token:"
+      otp-email: "otp:email:"
+      otp-phone: "otp:phone:"
+      otp-email-cooldown: "otp:email:cooldown:"
+      otp-phone-cooldown: "otp:phone:cooldown:"
+      otp-email-fail-count: "otp:email:fail:"
+      otp-phone-fail-count: "otp:phone:fail:"
+      otp-email-locked: "otp:email:locked:"
+      otp-phone-locked: "otp:phone:locked:"
   kafka:
     topics:
       definitions:
-        otp-notification:
-          name: "notification.otp.whatsapp"
+        profile-email-verified:
+          name: "user.profile.email-verified"
           partitions: 3
           replicas: 1
           compact: false
-        user-registered:
-          name: "user.registered"
+        profile-phone-verified:
+          name: "user.profile.phone-verified"
           partitions: 3
           replicas: 1
-          compact: true
-        user-login:
-          name: "user.login.events"
+          compact: false
+        profile-name-updated:
+          name: "user.profile.name-updated"
+          partitions: 3
+          replicas: 1
+          compact: false
+        otp-email-notification:
+          name: "notification.otp.email"
+          partitions: 3
+          replicas: 1
+          compact: false
+        otp-whatsapp-notification:
+          name: "notification.otp.whatsapp"
           partitions: 3
           replicas: 1
           compact: false
@@ -92,7 +115,7 @@ orange:
         batch-size: 32768
 
 server:
-  port: 8081
+  port: ${SERVER_PORT:8082}
 
 logging:
   level:

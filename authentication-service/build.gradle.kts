@@ -72,3 +72,15 @@ sonar {
         property("sonar.organization", "group-2-odp-bni")
     }
 }
+
+sourceSets {
+    main {
+        proto {
+            srcDir("src/main/proto")
+        }
+    }
+}
+
+tasks.named<ProcessResources>("processResources") {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}

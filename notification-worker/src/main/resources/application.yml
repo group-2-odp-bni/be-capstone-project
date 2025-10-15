@@ -29,11 +29,11 @@ spring:
 orange:
   kafka:
     topics:
-      otp-whatsapp: "notification.otp.whatsapp"
-      otp-whatsapp-dlq: "notification.otp.whatsapp.dlq"
+      otp-whatsapp: notification.otp.whatsapp
+      otp-whatsapp-dlq: notification.otp.whatsapp.dlq
   waha-client:
-    base-url: ${WAHA_BASE_URL:http://waha:3000}
-    api-key: ${WAHA_API_KEY:secret-api-key}
+    base-url: ${WAHA_BASE_URL:http://localhost:3000}
+    api-key: ${WAHA_API_KEY:f5010a544c324fc483623e2031b2b92f}
     session-name: ${WAHA_SESSION_NAME:default}
     timeout: 30s
     retry:
@@ -42,7 +42,13 @@ orange:
       max-backoff: 10s
       multiplier: 2.0
   webhook:
-    hmac-secret: ${WAHA_WEBHOOK_HMAC_SECRET:webhook-secret}
+    hmac-secret: ${WAHA_WEBHOOK_HMAC_SECRET:64eb6963dd30bbe9786cb9193f9eabee6ddac7e9aeb0deb6fc72a1bd065abb52}
 
 server:
   port: 8085
+
+logging:
+  level:
+    com.bni.orange.users: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.kafka: INFO
