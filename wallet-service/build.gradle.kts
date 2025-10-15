@@ -66,8 +66,6 @@ jacoco {
 
 sonar {
 	properties {
-        property("sonar.projectKey", "orange-sonar-api-gateway")
-        property("sonar.organization", "orange-sonarcube-group")
 		property("sonar.sources", "src/main/java")
 		property("sonar.tests", "src/test/java")
 		property("sonar.java.binaries", "build/classes/java/main")

@@ -271,7 +271,20 @@ jobs:
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: ${{ runner.os }}-gradle
 
+      - name: Check if test directory exists
+        id: check-test-dir
+        working-directory: ${{ matrix.service }}
+        run: |
+          if [ -d "src/test" ]; then
+            echo "has_tests=true" >> $GITHUB_OUTPUT
+            echo "✅ Test directory found, will run SonarCloud analysis"
+          else
+            echo "has_tests=false" >> $GITHUB_OUTPUT
+            echo "⚠️ No 'src/test' directory found in ${{ matrix.service }}, skipping SonarCloud analysis"
+          fi
+
       - name: Build and analyze ${{ matrix.service }} with SonarQube
+        if: steps.check-test-dir.outputs.has_tests == 'true'
         working-directory: ${{ matrix.service }}
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
