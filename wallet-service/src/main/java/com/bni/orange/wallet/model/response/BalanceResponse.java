@@ -9,4 +9,4 @@ public record BalanceResponse(
         String currency,
         BigDecimal balance,
         OffsetDateTime as_of
-) { }
+) {}
