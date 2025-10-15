@@ -43,7 +43,6 @@ dependencies {
     implementation("org.bouncycastle:bcprov-jdk18on:1.82")
     implementation("com.google.protobuf:protobuf-java:4.31.1")
     implementation("com.google.protobuf:protobuf-java-util:4.31.1")
-    implementation("io.confluent:kafka-protobuf-serializer:7.8.0")
 
     runtimeOnly("io.jsonwebtoken:jjwt-impl:0.13.0")
     runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.13.0")
@@ -70,14 +69,6 @@ sonar {
     properties {
         property("sonar.projectKey", "group-2-odp-bni_be-capstone-project")
         property("sonar.organization", "group-2-odp-bni")
-    }
-}
-
-sourceSets {
-    main {
-        proto {
-            srcDir("src/main/proto")
-        }
     }
 }
 
