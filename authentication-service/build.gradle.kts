@@ -52,6 +52,7 @@ dependencies {
     runtimeOnly("org.postgresql:postgresql")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.springframework.security:spring-security-test")
     testImplementation("org.springframework.kafka:spring-kafka-test")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
@@ -100,3 +101,12 @@ sourceSets {
 tasks.named<ProcessResources>("processResources") {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
+
+tasks.withType<Test>().configureEach {
+    doFirst {
+        configurations.testRuntimeClasspath.get()
+            .find { it.name.contains("mockito-core") }
+            ?.let { jvmArgs("-javaagent:${it.absolutePath}") }
+    }
+}
+

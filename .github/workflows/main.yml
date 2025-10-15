@@ -315,8 +315,14 @@ jobs:
           ORG=$(grep "sonar.organization=" gradle.properties | cut -d'=' -f2)
           KEY=$(grep "sonar.projectKey=" gradle.properties | cut -d'=' -f2)
 
+          echo "🔍 Running SonarCloud analysis for ${{ matrix.service }}"
+          echo "   Organization: $ORG"
+          echo "   Project Key: $KEY"
+          echo "   Host: https://sonarcloud.io"
+
           chmod +x gradlew
           ./gradlew build sonar --info \
+            -Dsonar.host.url=https://sonarcloud.io \
             -Dsonar.organization=$ORG \
             -Dsonar.projectKey=$KEY \
             -Dsonar.token=$SONAR_TOKEN
