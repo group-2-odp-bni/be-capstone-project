@@ -1,18 +1,25 @@
 package com.bni.orange.api.gateway.filter;
 
+import com.bni.orange.api.gateway.exception.JwtAuthenticationException;
+import com.bni.orange.api.gateway.exception.TokenRevokedException;
 import com.bni.orange.api.gateway.service.BlacklistService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.BadJwtException;
+import org.springframework.security.oauth2.jwt.JwtClaimAccessor;
+import org.springframework.security.oauth2.jwt.JwtEncodingException;
 import org.springframework.security.oauth2.jwt.JwtException;
+import org.springframework.security.oauth2.jwt.JwtValidationException;
+import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
+
+import java.util.Objects;
+import java.util.Optional;
 
 @Slf4j
 @Component
@@ -20,49 +27,61 @@ import reactor.core.publisher.Mono;
 public class JwtBlacklistGatewayFilter implements GlobalFilter, Ordered {
 
     private final BlacklistService blacklistService;
-    private final JwtDecoder jwtDecoder;
+    private final ReactiveJwtDecoder reactiveJwtDecoder;
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        var request = exchange.getRequest();
-        var path = request.getURI().getPath();
+        final String path = exchange.getRequest().getURI().getPath();
 
         if (isPublicEndpoint(path)) {
             return chain.filter(exchange);
         }
 
-        var token = extractBearerToken(exchange);
-
-        if (token == null) {
-            return chain.filter(exchange);
-        }
-
-        try {
-            var jwt = jwtDecoder.decode(token);
-            var jti = jwt.getId();
-
-            if (jti == null) {
-                log.warn("JWT without JTI claim detected. Token might be invalid.");
-                return chain.filter(exchange);
-            }
-
-            return blacklistService.isTokenBlacklisted(jti)
-                .flatMap(isBlacklisted -> {
-                    if (Boolean.TRUE.equals(isBlacklisted)) {
-                        log.warn("Blacklisted token attempted. JTI: {}, IP: {}, Path: {}",
-                            jti,
-                            request.getRemoteAddress(),
-                            path
-                        );
-                        return respondUnauthorized(exchange, "TOKEN_REVOKED", "This token has been revoked");
+        return extractBearerToken(exchange)
+            .map(token -> reactiveJwtDecoder.decode(token)
+                .doOnNext(jwt -> {
+                    if (Objects.isNull(jwt.getId())) {
+                        log.warn("JWT without JTI claim detected. Token might be invalid.");
                     }
-                    return chain.filter(exchange);
-                });
+                })
+                .map(JwtClaimAccessor::getId)
+                .flatMap(jti -> blacklistService
+                    .isTokenBlacklisted(jti)
+                    .flatMap(isBlacklisted -> {
+                        if (Boolean.TRUE.equals(isBlacklisted)) {
+                            log.warn("Blacklisted token attempted. JTI: {}, IP: {}, Path: {}", jti, exchange.getRequest().getRemoteAddress(), path);
+                            return Mono.error(new TokenRevokedException("This token has been revoked and is no longer valid"));
+                        }
+                        return chain.filter(exchange);
+                    })
+                )
+                .onErrorResume(JwtException.class, e -> {
+                    log.debug("JWT validation failed: {}", e.getMessage());
+                    return Mono.error(handleJwtException(e));
+                })
+            )
+            .orElseGet(() -> Mono.error(JwtAuthenticationException.tokenMissing()));
+    }
 
-        } catch (JwtException e) {
-            log.debug("JWT validation failed in blacklist filter: {}", e.getMessage());
-            return chain.filter(exchange);
-        }
+    private JwtAuthenticationException handleJwtException(JwtException ex) {
+        return switch (ex) {
+            case JwtValidationException jve when jve.getMessage().contains("Jwt expired") -> {
+                log.debug("Token expired");
+                yield JwtAuthenticationException.tokenExpired();
+            }
+            case BadJwtException ignored -> {
+                log.debug("Bad JWT token: {}", ex.getMessage());
+                yield JwtAuthenticationException.tokenInvalid();
+            }
+            case JwtEncodingException ignored -> {
+                log.debug("JWT encoding error: {}", ex.getMessage());
+                yield JwtAuthenticationException.tokenMalformed();
+            }
+            default -> {
+                log.debug("JWT validation failed: {}", ex.getMessage());
+                yield JwtAuthenticationException.tokenInvalid();
+            }
+        };
     }
 
     private boolean isPublicEndpoint(String path) {
@@ -75,27 +94,10 @@ public class JwtBlacklistGatewayFilter implements GlobalFilter, Ordered {
             path.startsWith("/oauth2/jwks");
     }
 
-    private String extractBearerToken(ServerWebExchange exchange) {
-        var authHeader = exchange.getRequest().getHeaders().getFirst("Authorization");
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            return authHeader.substring(7);
-        }
-        return null;
-    }
-
-    private Mono<Void> respondUnauthorized(ServerWebExchange exchange, String code, String message) {
-        var response = exchange.getResponse();
-        response.setStatusCode(HttpStatus.UNAUTHORIZED);
-        response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
-
-        var errorJson = String.format(
-            "{\"error\":{\"code\":\"%s\",\"message\":\"%s\"}}",
-            code,
-            message
-        );
-
-        var buffer = response.bufferFactory().wrap(errorJson.getBytes());
-        return response.writeWith(Mono.just(buffer));
+    private Optional<String> extractBearerToken(ServerWebExchange exchange) {
+        return Optional.ofNullable(exchange.getRequest().getHeaders().getFirst("Authorization"))
+            .filter(header -> header.startsWith("Bearer "))
+            .map(header -> header.substring(7));
     }
 
     @Override

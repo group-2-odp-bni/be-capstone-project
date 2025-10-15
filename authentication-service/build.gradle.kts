@@ -6,13 +6,6 @@ plugins {
     id("com.google.protobuf") version "0.9.5"
 }
 
-sonar {
-  properties {
-    property("sonar.projectKey", "group-2-odp-bni_be-capstone-project")
-    property("sonar.organization", "group-2-odp-bni")
-  }
-}
-
 group = "com.bni.orange"
 version = "0.0.1-SNAPSHOT"
 description = "authentication-service"
@@ -31,7 +24,6 @@ configurations {
 
 repositories {
     mavenCentral()
-    maven { url = uri("https://packages.confluent.io/maven/") }
 }
 
 dependencies {
@@ -51,7 +43,6 @@ dependencies {
     implementation("org.bouncycastle:bcprov-jdk18on:1.82")
     implementation("com.google.protobuf:protobuf-java:4.31.1")
     implementation("com.google.protobuf:protobuf-java-util:4.31.1")
-    implementation("io.confluent:kafka-protobuf-serializer:7.8.0")
 
     runtimeOnly("io.jsonwebtoken:jjwt-impl:0.13.0")
     runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.13.0")
@@ -72,4 +63,15 @@ protobuf {
     protoc {
         artifact = "com.google.protobuf:protoc:4.31.1"
     }
+}
+
+sonar {
+    properties {
+        property("sonar.projectKey", "group-2-odp-bni_be-capstone-project")
+        property("sonar.organization", "group-2-odp-bni")
+    }
+}
+
+tasks.named<ProcessResources>("processResources") {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }

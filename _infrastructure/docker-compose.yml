@@ -1,0 +1,191 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: orange-postgres
+    environment:
+      POSTGRES_DB: orange_db
+      POSTGRES_USER: mikasa
+      POSTGRES_PASSWORD: mikasa
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./db/init:/docker-entrypoint-initdb.d
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - orange-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d orange_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: orange-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    networks:
+      - orange-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: orange-kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_NODE_ID: 1
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      KAFKA_LISTENERS: "INTERNAL://:29092,CONTROLLER://:9093,EXTERNAL://:9092"
+      KAFKA_ADVERTISED_LISTENERS: "INTERNAL://kafka:29092,EXTERNAL://localhost:9092"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "INTERNAL"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT"
+      CLUSTER_ID: "v8xF6a1cRMi5zR6AK1bldA"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_INSYNC_REPLICAS: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    volumes:
+      - kafkadata:/var/lib/kafka/data
+    networks:
+      - orange-network
+    healthcheck:
+      test: [ "CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list" ]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  waha:
+    container_name: orange-waha
+    image: devlikeapro/waha:latest
+    restart: unless-stopped
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '100m'
+        max-file: '5'
+    ports:
+      - '127.0.0.1:3000:3000'
+    volumes:
+      - ./waha/sessions:/app/.sessions
+      - ./waha/media:/app/.media
+
+    environment:
+      - WAHA_BASE_URL=http://waha:3000
+      - WHATSAPP_API_PORT=3000
+      - TZ=Asia/Jakarta
+      - WAHA_API_KEY=${WAHA_API_KEY:-your-secret-api-key-here}
+      - WAHA_DASHBOARD_USERNAME=${WAHA_DASHBOARD_USERNAME:-admin}
+      - WAHA_DASHBOARD_PASSWORD=${WAHA_DASHBOARD_PASSWORD:-change-me-in-production}
+      - WHATSAPP_DEFAULT_ENGINE=WEBJS
+      - WAHA_LOG_FORMAT=JSON
+      - WAHA_LOG_LEVEL=info
+      - WAHA_LOCAL_STORE_BASE_DIR=/app/.sessions
+      - WHATSAPP_FILES_FOLDER=/app/.media
+      - WHATSAPP_FILES_LIFETIME=0
+      - WHATSAPP_HOOK_URL=http://notification-worker:8085/api/webhooks/waha
+      - WHATSAPP_HOOK_EVENTS=message,message.any,session.status,message.ack
+      - WHATSAPP_HOOK_HMAC_KEY=${WAHA_WEBHOOK_HMAC_SECRET:-your-webhook-hmac-secret}
+      - WAHA_AUTO_START_DELAY_SECONDS=5
+      - WHATSAPP_RESTART_ALL_SESSIONS=True
+      - WAHA_WORKER_ID=waha-main
+      - WAHA_PRINT_QR=True
+    networks:
+      - orange-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+#  notification-worker:
+#    container_name: orange-notification-worker
+#    build:
+#      context: ../notification-worker
+#      dockerfile: Dockerfile
+#    restart: unless-stopped
+#    ports:
+#      - '127.0.0.1:8085:8085'
+#    environment:
+#      # Spring Boot Configuration
+#      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev}
+#      - SERVER_PORT=8085
+#      # Kafka Configuration
+#      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+#      # WAHA Integration Configuration
+#      - WAHA_BASE_URL=http://waha:3000
+#      - WAHA_API_KEY=${WAHA_API_KEY:-your-secret-api-key-here}
+#      - WAHA_SESSION_NAME=default
+#      - WAHA_WEBHOOK_HMAC_SECRET=${WAHA_WEBHOOK_HMAC_SECRET:-your-webhook-hmac-secret}
+#      # Logging
+#      - LOGGING_LEVEL_ROOT=INFO
+#      - LOGGING_LEVEL_COM_BNI_ORANGE=DEBUG
+#    volumes:
+#      - ./notification-worker/logs:/app/logs
+#    networks:
+#      - orange-network
+#    depends_on:
+#      waha:
+#        condition: service_healthy
+#      kafka:
+#        condition: service_healthy
+#    healthcheck:
+#      test: [ "CMD", "curl", "-f", "http://localhost:8085/api/whatsapp/session/health" ]
+#      interval: 30s
+#      timeout: 10s
+#      retries: 3
+#      start_period: 60s
+#
+#  api-gateway:
+#    build:
+#      context: ../api-gateway
+#      dockerfile: Dockerfile
+#    container_name: orange-api-gateway
+#    ports:
+#      - "8080:8080"
+#    environment:
+#      SPRING_PROFILES_ACTIVE: prod
+#      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/orange_db
+#      SPRING_DATASOURCE_USERNAME: mikasa
+#      SPRING_DATASOURCE_PASSWORD: mikasa
+#      SPRING_DATA_REDIS_HOST: redis
+#      SPRING_DATA_REDIS_PORT: 6379
+#      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+#    depends_on:
+#      postgres:
+#        condition: service_healthy
+#      redis:
+#        condition: service_healthy
+#      kafka:
+#        condition: service_healthy
+#    networks:
+#      - orange-network
+#    healthcheck:
+#      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/actuator/health" ]
+#      interval: 30s
+#      timeout: 10s
+#      retries: 3
+#      start_period: 40s
+
+networks:
+  orange-network:
+    driver: bridge
+
+volumes:
+  pgdata:
+  redisdata:
+  kafkadata:
+  grafanadata:
+  waha_sessions:
+  waha_media:

@@ -31,9 +31,20 @@ spring:
 
   security:
     oauth2:
-      resourceserver:
+      resource-server:
         jwt:
           jwk-set-uri: http://localhost:8081/oauth2/jwks
 
+orange:
+  cors:
+    allowed-origins:
+      - "http://localhost:3000"
+
 server:
   port: 8080
+
+logging:
+  level:
+    com.bni.orange.users: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.kafka: INFO

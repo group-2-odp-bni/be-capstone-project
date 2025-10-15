@@ -1,5 +1,10 @@
+-- V1: Initial consolidated schema for authentication-service
+-- This script sets up the complete initial schema, consolidating all previous migration files.
+
+-- Create ENUM type for user status
 CREATE TYPE auth_oltp.user_status AS ENUM ('PENDING_VERIFICATION', 'ACTIVE', 'SUSPENDED', 'LOCKED');
 
+-- Create users table, incorporating the 'email' column from the start
 CREATE TABLE auth_oltp.users
 (
     id                UUID PRIMARY KEY               DEFAULT uuid_generate_v4(),
@@ -8,6 +13,7 @@ CREATE TABLE auth_oltp.users
     user_pins         VARCHAR(255)          NOT NULL,
     status            auth_oltp.user_status NOT NULL DEFAULT 'PENDING_VERIFICATION',
     profile_image_url TEXT,
+    email             VARCHAR(255) UNIQUE,
     email_verified    BOOLEAN                        DEFAULT FALSE,
     phone_verified    BOOLEAN                        DEFAULT FALSE,
     last_login_at     TIMESTAMPTZ,
@@ -15,11 +21,11 @@ CREATE TABLE auth_oltp.users
     updated_at        TIMESTAMPTZ,
     created_by        VARCHAR(100),
     updated_by        VARCHAR(100),
-
-    CONSTRAINT chk_phone_format CHECK (phone_number ~ '^\+[1-9]\d{1,14}$'
+    CONSTRAINT chk_phone_format CHECK (phone_number ~ '^\\+[1-9]\\d{1,14}$'
 )
     );
 
+-- Create refresh_tokens table with all columns included from the start
 CREATE TABLE auth_oltp.refresh_tokens
 (
     id           UUID PRIMARY KEY      DEFAULT uuid_generate_v4(),
@@ -35,10 +41,12 @@ CREATE TABLE auth_oltp.refresh_tokens
     updated_at   TIMESTAMPTZ,
     created_by   VARCHAR(100),
     updated_by   VARCHAR(100),
-
     CONSTRAINT chk_token_expiry CHECK (expiry_date > now())
 );
 
+-- Add comments for documentation
+COMMENT
+ON COLUMN auth_oltp.users.email IS 'User email address, unique and optional, used for profile updates and notifications';
 COMMENT
 ON COLUMN auth_oltp.refresh_tokens.created_at IS 'Timestamp when the refresh token was created';
 COMMENT
@@ -46,6 +54,30 @@ ON COLUMN auth_oltp.users.created_by IS 'Identifier for the user/system that cre
 COMMENT
 ON COLUMN auth_oltp.users.updated_by IS 'Identifier for the user/system that last updated the record';
 
+-- Create all necessary indexes
 CREATE INDEX idx_users_phone_number ON auth_oltp.users (phone_number);
+CREATE INDEX idx_users_email ON auth_oltp.users (email) WHERE email IS NOT NULL;
 CREATE INDEX idx_refresh_tokens_user_id ON auth_oltp.refresh_tokens (user_id);
 CREATE INDEX idx_refresh_tokens_hash ON auth_oltp.refresh_tokens (token_hash);
+
+-- Create cleanup function for old, revoked refresh tokens
+CREATE
+OR REPLACE FUNCTION auth_oltp.cleanup_old_tokens()
+    RETURNS INTEGER AS
+$$
+DECLARE
+deleted_count INTEGER;
+BEGIN
+DELETE
+FROM auth_oltp.refresh_tokens
+WHERE is_revoked = TRUE
+  AND revoked_at < (now() - INTERVAL '30 days');
+
+GET DIAGNOSTICS deleted_count = ROW_COUNT;
+RETURN deleted_count;
+END;
+$$
+LANGUAGE plpgsql;
+
+COMMENT
+ON FUNCTION auth_oltp.cleanup_old_tokens() IS 'Permanently remove revoked refresh tokens older than 30 days.';

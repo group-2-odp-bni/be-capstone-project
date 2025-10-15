@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package com.bni.orange.authentication.proto;
+
+option java_package = "com.bni.orange.authentication.proto";
+option java_multiple_files = true;
+
+message OtpNotificationEvent {
+  string phone_number = 1;
+  string otp_code = 2;
+  string user_id = 3;
+  int64 event_created_at = 4;
+}
