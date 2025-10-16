@@ -1,0 +1,228 @@
+name: CI - Build & Test
+
+on:
+  pull_request:
+    branches: [main, develop]
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [main, develop]
+
+env:
+  JAVA_VERSION: '21'
+
+jobs:
+  # Auto-discover services dynamically
+  discover-services:
+    name: Discover Changed Services
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      has-changes: ${{ steps.set-matrix.outputs.has-changes }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed services
+        id: set-matrix
+        run: |
+          # Determine base commit for comparison
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          else
+            # For push events
+            if [[ "${{ github.event.before }}" == "0000000000000000000000000000000000000000" ]]; then
+              # New branch - check all services
+              BASE_SHA="HEAD~1"
+            else
+              BASE_SHA="${{ github.event.before }}"
+            fi
+            HEAD_SHA="${{ github.sha }}"
+          fi
+
+          echo "Comparing $BASE_SHA...$HEAD_SHA"
+
+          # Get changed files
+          CHANGED_FILES=$(git diff --name-only $BASE_SHA $HEAD_SHA 2>/dev/null || git ls-tree -r --name-only HEAD)
+
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+
+          # Find all services (directories with build.gradle.kts or Dockerfile)
+          ALL_SERVICES=$(find . -maxdepth 2 \( -name "build.gradle.kts" -o -name "Dockerfile" \) | \
+            sed 's|/[^/]*$||' | sed 's|^\./||' | \
+            grep -vE '^\.|^_infrastructure|^\.github' | \
+            sort -u)
+
+          echo "All available services:"
+          echo "$ALL_SERVICES"
+
+          # Build matrix for changed services
+          MATRIX_INCLUDE="[]"
+          HAS_CHANGES="false"
+
+          for SERVICE_PATH in $ALL_SERVICES; do
+            SERVICE_NAME=$(basename "$SERVICE_PATH")
+
+            # Check if this service has changes
+            if echo "$CHANGED_FILES" | grep -q "^$SERVICE_PATH/"; then
+              echo "✓ $SERVICE_NAME has changes"
+              HAS_CHANGES="true"
+
+              # Add to matrix
+              MATRIX_INCLUDE=$(echo "$MATRIX_INCLUDE" | jq -c \
+                --arg name "$SERVICE_NAME" \
+                --arg path "$SERVICE_PATH" \
+                '. += [{"name": $name, "path": $path}]')
+            else
+              echo "- $SERVICE_NAME: no changes"
+            fi
+          done
+
+          # Check for shared/root level changes that affect all services
+          if echo "$CHANGED_FILES" | grep -qE "^(gradle/|build.gradle|settings.gradle|gradlew)"; then
+            echo "⚠️ Shared build files changed - rebuilding all services"
+            HAS_CHANGES="true"
+            MATRIX_INCLUDE="[]"
+            for SERVICE_PATH in $ALL_SERVICES; do
+              SERVICE_NAME=$(basename "$SERVICE_PATH")
+              MATRIX_INCLUDE=$(echo "$MATRIX_INCLUDE" | jq -c \
+                --arg name "$SERVICE_NAME" \
+                --arg path "$SERVICE_PATH" \
+                '. += [{"name": $name, "path": $path}]')
+            done
+          fi
+
+          echo "has-changes=$HAS_CHANGES" >> $GITHUB_OUTPUT
+          echo "matrix={\"include\":$MATRIX_INCLUDE}" >> $GITHUB_OUTPUT
+
+          echo "Final matrix: {\"include\":$MATRIX_INCLUDE}"
+          echo "Has changes: $HAS_CHANGES"
+
+  # Run build and test for each changed service
+  build-test:
+    name: Build & Test
+    needs: discover-services
+    if: needs.discover-services.outputs.has-changes == 'true'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.discover-services.outputs.matrix) }}
+    uses: ./.github/workflows/_reusable-build-test.yml
+    with:
+      service-name: ${{ matrix.name }}
+      service-path: ${{ matrix.path }}
+      java-version: '21'
+      run-sonar: ${{ github.event_name == 'pull_request' }}
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_ORGANIZATION: ${{ secrets.SONAR_ORGANIZATION }}
+
+  # Security scan for changed services
+  security-scan:
+    name: Security Scan
+    needs: discover-services
+    if: needs.discover-services.outputs.has-changes == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.discover-services.outputs.matrix) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy filesystem scan (table format)
+        uses: aquasecurity/trivy-action@0.28.0
+        continue-on-error: true
+        with:
+          scan-type: 'fs'
+          scan-ref: '${{ matrix.path }}'
+          format: 'table'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+
+      - name: Run Trivy filesystem scan (SARIF for artifacts)
+        uses: aquasecurity/trivy-action@0.28.0
+        continue-on-error: true
+        with:
+          scan-type: 'fs'
+          scan-ref: '${{ matrix.path }}'
+          format: 'sarif'
+          output: 'trivy-fs-${{ matrix.name }}.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+
+      - name: Upload Trivy results as artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-scan-${{ matrix.name }}
+          path: 'trivy-fs-${{ matrix.name }}.sarif'
+          retention-days: 30
+
+  # PR validation checks
+  pr-checks:
+    name: PR Validation
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    steps:
+      - name: Check PR size
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const changes = pr.additions + pr.deletions;
+            const maxChanges = 1000;
+
+            if (changes > maxChanges) {
+              core.warning(`⚠️ Large PR: ${changes} changes. Consider breaking it into smaller PRs.`);
+            } else {
+              core.info(`✅ PR size is reasonable: ${changes} changes`);
+            }
+
+      - name: Validate PR title
+        run: |
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          echo "PR Title: $PR_TITLE"
+
+          if echo "$PR_TITLE" | grep -qE "^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?:.+"; then
+            echo "✅ PR title follows conventional commits format"
+          else
+            echo "ℹ️ PR title does not follow conventional commits format (optional)"
+          fi
+
+  # Quality gate - must pass before merge
+  quality-gate:
+    name: Quality Gate
+    needs: [discover-services, build-test, security-scan]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check build status
+        run: |
+          echo "=========================================="
+          echo "Quality Gate Check"
+          echo "=========================================="
+          echo ""
+          echo "Build & Test: ${{ needs.build-test.result }}"
+          echo "Security Scan: ${{ needs.security-scan.result }}"
+          echo ""
+
+          # Only fail on build-test failure
+          # Security scan is informational (may fail due to permissions)
+          if [[ "${{ needs.build-test.result }}" == "failure" ]]; then
+            echo "❌ Quality gate FAILED - Build/Test failed"
+            exit 1
+          elif [[ "${{ needs.discover-services.outputs.has-changes }}" == "false" ]]; then
+            echo "ℹ️ No service changes detected - skipping"
+            exit 0
+          else
+            echo "✅ Quality gate PASSED"
+            if [[ "${{ needs.security-scan.result }}" == "failure" ]]; then
+              echo "⚠️ Note: Security scan had issues (check artifacts for reports)"
+            fi
+          fi

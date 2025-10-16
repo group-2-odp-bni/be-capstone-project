@@ -1,0 +1,113 @@
+name: Reusable Build & Test
+
+on:
+  workflow_call:
+    inputs:
+      service-name:
+        required: true
+        type: string
+        description: 'Service name to build and test'
+      service-path:
+        required: true
+        type: string
+        description: 'Path to the service directory'
+      java-version:
+        required: false
+        type: string
+        default: '21'
+        description: 'Java version to use'
+      run-sonar:
+        required: false
+        type: boolean
+        default: false
+        description: 'Run SonarCloud analysis'
+    secrets:
+      SONAR_TOKEN:
+        required: false
+      SONAR_ORGANIZATION:
+        required: false
+
+jobs:
+  build-test:
+    name: Build & Test ${{ inputs.service-name }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK ${{ inputs.java-version }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ inputs.java-version }}
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ inputs.service-name }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-${{ inputs.service-name }}-
+            ${{ runner.os }}-gradle-
+
+      - name: Grant execute permission for gradlew
+        working-directory: ${{ inputs.service-path }}
+        run: chmod +x gradlew || true
+
+      - name: Run tests with coverage
+        working-directory: ${{ inputs.service-path }}
+        run: ./gradlew test jacocoTestReport --no-daemon --stacktrace
+
+      - name: Build application
+        working-directory: ${{ inputs.service-path }}
+        run: ./gradlew bootJar --no-daemon --stacktrace
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ inputs.service-name }}
+          path: ${{ inputs.service-path }}/build/reports/tests/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ inputs.service-name }}
+          path: ${{ inputs.service-path }}/build/reports/jacoco/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Upload JAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jar-${{ inputs.service-name }}
+          path: ${{ inputs.service-path }}/build/libs/*.jar
+          retention-days: 7
+
+      - name: Cache SonarCloud packages
+        if: inputs.run-sonar
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar-${{ inputs.service-name }}
+          restore-keys: ${{ runner.os }}-sonar-
+
+      - name: SonarCloud Scan
+        if: inputs.run-sonar
+        working-directory: ${{ inputs.service-path }}
+        continue-on-error: true
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          ./gradlew sonar \
+            -Dsonar.host.url=https://sonarcloud.io \
+            --no-daemon --stacktrace || echo "⚠️ SonarCloud scan failed, continuing..."
