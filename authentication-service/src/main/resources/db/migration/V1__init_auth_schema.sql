@@ -21,8 +21,7 @@ CREATE TABLE auth_oltp.users
     updated_at        TIMESTAMPTZ,
     created_by        VARCHAR(100),
     updated_by        VARCHAR(100),
-    CONSTRAINT chk_phone_format CHECK (phone_number ~ '^\\+[1-9]\\d{1,14}$'
-)
+    CONSTRAINT chk_phone_format CHECK (phone_number ~ '^\+[1-9]\d{1,14}$')
     );
 
 -- Create refresh_tokens table with all columns included from the start
