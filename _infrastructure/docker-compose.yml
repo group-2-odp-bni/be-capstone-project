@@ -18,6 +18,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
 
   redis:
     image: redis:7-alpine
@@ -33,6 +38,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
 
   kafka:
     image: confluentinc/cp-kafka:7.6.1
@@ -64,6 +74,11 @@ services:
       timeout: 10s
       retries: 10
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 512M
 
   waha:
     container_name: orange-waha
@@ -108,75 +123,53 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
 
-#  notification-worker:
-#    container_name: orange-notification-worker
-#    build:
-#      context: ../notification-worker
-#      dockerfile: Dockerfile
-#    restart: unless-stopped
-#    ports:
-#      - '127.0.0.1:8085:8085'
-#    environment:
-#      # Spring Boot Configuration
-#      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev}
-#      - SERVER_PORT=8085
-#      # Kafka Configuration
-#      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-#      # WAHA Integration Configuration
-#      - WAHA_BASE_URL=http://waha:3000
-#      - WAHA_API_KEY=${WAHA_API_KEY:-your-secret-api-key-here}
-#      - WAHA_SESSION_NAME=default
-#      - WAHA_WEBHOOK_HMAC_SECRET=${WAHA_WEBHOOK_HMAC_SECRET:-your-webhook-hmac-secret}
-#      # Logging
-#      - LOGGING_LEVEL_ROOT=INFO
-#      - LOGGING_LEVEL_COM_BNI_ORANGE=DEBUG
-#    volumes:
-#      - ./notification-worker/logs:/app/logs
-#    networks:
-#      - orange-network
-#    depends_on:
-#      waha:
-#        condition: service_healthy
-#      kafka:
-#        condition: service_healthy
-#    healthcheck:
-#      test: [ "CMD", "curl", "-f", "http://localhost:8085/api/whatsapp/session/health" ]
-#      interval: 30s
-#      timeout: 10s
-#      retries: 3
-#      start_period: 60s
-#
-#  api-gateway:
-#    build:
-#      context: ../api-gateway
-#      dockerfile: Dockerfile
-#    container_name: orange-api-gateway
-#    ports:
-#      - "8080:8080"
-#    environment:
-#      SPRING_PROFILES_ACTIVE: prod
-#      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/orange_db
-#      SPRING_DATASOURCE_USERNAME: mikasa
-#      SPRING_DATASOURCE_PASSWORD: mikasa
-#      SPRING_DATA_REDIS_HOST: redis
-#      SPRING_DATA_REDIS_PORT: 6379
-#      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-#    depends_on:
-#      postgres:
-#        condition: service_healthy
-#      redis:
-#        condition: service_healthy
-#      kafka:
-#        condition: service_healthy
-#    networks:
-#      - orange-network
-#    healthcheck:
-#      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/actuator/health" ]
-#      interval: 30s
-#      timeout: 10s
-#      retries: 3
-#      start_period: 40s
+  api-gateway:
+    image: orange-pay/api-gateway:latest
+    container_name: orange-api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=http://authentication-service:8081/oauth2/jwks
+    depends_on:
+      authentication-service:
+        condition: service_started
+    networks:
+      - orange-network
+    healthcheck:
+      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/actuator/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  authentication-service:
+    image: orange-pay/authentication-service:latest
+    container_name: orange-authentication-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - DB_URL=jdbc:postgresql://postgres:5432/orange_db
+      - DB_USERNAME=mikasa
+      - DB_PASSWORD=mikasa
+      - REDIS_HOST=redis
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - SERVER_PORT=8081
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - orange-network
 
 networks:
   orange-network:
