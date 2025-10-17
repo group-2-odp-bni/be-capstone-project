@@ -210,6 +210,10 @@ jobs:
     name: Build & Push Production Docker
     needs: [discover-services, build-test, security-scan]
     if: needs.discover-services.outputs.has-changes == 'true'
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
     strategy:
       fail-fast: true
       matrix: ${{ fromJson(needs.discover-services.outputs.matrix) }}
