@@ -199,11 +199,12 @@ jobs:
 
       - name: Upload Trivy results as artifact
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: trivy-production-${{ matrix.name }}
           path: 'trivy-${{ matrix.name }}.sarif'
-          retention-days: 90
+          retention-days: 1
 
   # Build and push Docker images for production
   docker-build-push:

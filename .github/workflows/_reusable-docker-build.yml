@@ -96,10 +96,11 @@ jobs:
       - name: Upload Trivy scan as artifact
         uses: actions/upload-artifact@v4
         if: always()
+        continue-on-error: true
         with:
           name: trivy-docker-${{ inputs.service-name }}-${{ inputs.environment }}
           path: 'trivy-results-${{ inputs.service-name }}.sarif'
-          retention-days: 30
+          retention-days: 1
 
       - name: Generate SBOM
         uses: anchore/sbom-action@v0
@@ -110,7 +111,8 @@ jobs:
 
       - name: Upload SBOM artifact
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: sbom-${{ inputs.service-name }}-${{ inputs.environment }}
           path: 'sbom-${{ inputs.service-name }}.spdx.json'
-          retention-days: 30
+          retention-days: 1

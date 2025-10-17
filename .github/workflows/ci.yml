@@ -157,10 +157,11 @@ jobs:
       - name: Upload Trivy results as artifact
         uses: actions/upload-artifact@v4
         if: always()
+        continue-on-error: true
         with:
           name: trivy-scan-${{ matrix.name }}
           path: 'trivy-fs-${{ matrix.name }}.sarif'
-          retention-days: 30
+          retention-days: 1
 
   # PR validation checks
   pr-checks:
