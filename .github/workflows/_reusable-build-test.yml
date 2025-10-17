@@ -178,4 +178,7 @@ jobs:
         run: |
           ./gradlew sonar \
             -Dsonar.host.url=https://sonarcloud.io \
+            -Dsonar.branch.name=main \
+            -Dsonar.organization=${{ steps.sonar-config.outputs.organization }} \
+            -Dsonar.projectKey=${{ steps.sonar-config.outputs.projectKey }} \
             --no-daemon --stacktrace || echo "⚠️ SonarCloud scan failed, continuing..."
