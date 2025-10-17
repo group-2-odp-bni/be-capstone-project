@@ -77,10 +77,11 @@ jobs:
       - name: Upload Trivy results as artifact
         uses: actions/upload-artifact@v4
         if: always()
+        continue-on-error: true
         with:
           name: trivy-fs-report-${{ matrix.name }}
           path: 'trivy-fs-${{ matrix.name }}.sarif'
-          retention-days: 30
+          retention-days: 1
 
   # Dependency check
   dependency-check:
@@ -115,10 +116,11 @@ jobs:
       - name: Upload dependency report
         uses: actions/upload-artifact@v4
         if: always()
+        continue-on-error: true
         with:
           name: dependency-report-${{ matrix.name }}
           path: ${{ matrix.path }}/build/dependencyUpdates/
-          retention-days: 30
+          retention-days: 1
           if-no-files-found: ignore
 
   # Docker image scan (scan latest production images)
@@ -163,10 +165,11 @@ jobs:
       - name: Upload Docker scan as artifact
         uses: actions/upload-artifact@v4
         if: always()
+        continue-on-error: true
         with:
           name: trivy-docker-scan-${{ matrix.name }}
           path: 'trivy-image-${{ matrix.name }}.sarif'
-          retention-days: 30
+          retention-days: 1
 
   # Security scan summary
   security-summary:

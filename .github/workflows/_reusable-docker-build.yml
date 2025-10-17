@@ -68,8 +68,9 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ inputs.service-name }}:buildcache
-          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ inputs.service-name }}:buildcache,mode=max
+          # Use inline cache (stored in image) - more efficient for GitHub Free
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ inputs.service-name }}:${{ inputs.environment }}
+          cache-to: type=inline
           platforms: linux/amd64
           build-args: |
             BUILD_DATE=${{ github.event.head_commit.timestamp }}
@@ -96,10 +97,11 @@ jobs:
       - name: Upload Trivy scan as artifact
         uses: actions/upload-artifact@v4
         if: always()
+        continue-on-error: true
         with:
           name: trivy-docker-${{ inputs.service-name }}-${{ inputs.environment }}
           path: 'trivy-results-${{ inputs.service-name }}.sarif'
-          retention-days: 30
+          retention-days: 1
 
       - name: Generate SBOM
         uses: anchore/sbom-action@v0
@@ -110,7 +112,8 @@ jobs:
 
       - name: Upload SBOM artifact
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: sbom-${{ inputs.service-name }}-${{ inputs.environment }}
           path: 'sbom-${{ inputs.service-name }}.spdx.json'
-          retention-days: 30
+          retention-days: 1
