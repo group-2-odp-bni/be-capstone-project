@@ -1,0 +1,240 @@
+name: CD - Deploy to Staging
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+    inputs:
+      services:
+        description: 'Services to deploy (comma-separated, or "all")'
+        required: false
+        default: 'all'
+
+env:
+  ENVIRONMENT: staging
+
+jobs:
+  # Discover which services changed (or all if manual)
+  discover-services:
+    name: Discover Services to Deploy
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      has-changes: ${{ steps.set-matrix.outputs.has-changes }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine services to deploy
+        id: set-matrix
+        run: |
+          # Find all available services
+          ALL_SERVICES=$(find . -maxdepth 2 \( -name "build.gradle.kts" -o -name "Dockerfile" \) | \
+            sed 's|/[^/]*$||' | sed 's|^\./||' | \
+            grep -vE '^\.|^_infrastructure|^\.github' | \
+            sort -u)
+
+          echo "All available services:"
+          echo "$ALL_SERVICES"
+
+          MATRIX_INCLUDE="[]"
+          HAS_CHANGES="false"
+
+          # Check if manual trigger with specific services
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            MANUAL_SERVICES="${{ github.event.inputs.services }}"
+
+            if [[ "$MANUAL_SERVICES" == "all" || -z "$MANUAL_SERVICES" ]]; then
+              echo "Manual trigger: Deploying ALL services"
+              for SERVICE_PATH in $ALL_SERVICES; do
+                SERVICE_NAME=$(basename "$SERVICE_PATH")
+                MATRIX_INCLUDE=$(echo "$MATRIX_INCLUDE" | jq -c \
+                  --arg name "$SERVICE_NAME" \
+                  --arg path "$SERVICE_PATH" \
+                  '. += [{"name": $name, "path": $path}]')
+              done
+              HAS_CHANGES="true"
+            else
+              echo "Manual trigger: Deploying specific services: $MANUAL_SERVICES"
+              IFS=',' read -ra SELECTED_SERVICES <<< "$MANUAL_SERVICES"
+              for SERVICE_NAME in "${SELECTED_SERVICES[@]}"; do
+                SERVICE_NAME=$(echo "$SERVICE_NAME" | xargs) # trim whitespace
+                SERVICE_PATH=$(echo "$ALL_SERVICES" | grep -E "(^|/)$SERVICE_NAME$" | head -1)
+
+                if [[ -n "$SERVICE_PATH" ]]; then
+                  echo "✓ Adding $SERVICE_NAME to deploy"
+                  MATRIX_INCLUDE=$(echo "$MATRIX_INCLUDE" | jq -c \
+                    --arg name "$SERVICE_NAME" \
+                    --arg path "$SERVICE_PATH" \
+                    '. += [{"name": $name, "path": $path}]')
+                  HAS_CHANGES="true"
+                else
+                  echo "⚠️ Service not found: $SERVICE_NAME"
+                fi
+              done
+            fi
+          else
+            # Auto trigger: Only deploy changed services
+            echo "Auto trigger: Detecting changed services"
+
+            if [[ "${{ github.event.before }}" == "0000000000000000000000000000000000000000" ]]; then
+              CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+            else
+              CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
+            fi
+
+            echo "Changed files:"
+            echo "$CHANGED_FILES"
+
+            for SERVICE_PATH in $ALL_SERVICES; do
+              SERVICE_NAME=$(basename "$SERVICE_PATH")
+
+              if echo "$CHANGED_FILES" | grep -q "^$SERVICE_PATH/"; then
+                echo "✓ $SERVICE_NAME has changes - will deploy"
+                HAS_CHANGES="true"
+                MATRIX_INCLUDE=$(echo "$MATRIX_INCLUDE" | jq -c \
+                  --arg name "$SERVICE_NAME" \
+                  --arg path "$SERVICE_PATH" \
+                  '. += [{"name": $name, "path": $path}]')
+              fi
+            done
+
+            # Check for shared dependencies
+            if echo "$CHANGED_FILES" | grep -qE "^(gradle/|build.gradle|settings.gradle)"; then
+              echo "⚠️ Shared build files changed - deploying all services"
+              HAS_CHANGES="true"
+              MATRIX_INCLUDE="[]"
+              for SERVICE_PATH in $ALL_SERVICES; do
+                SERVICE_NAME=$(basename "$SERVICE_PATH")
+                MATRIX_INCLUDE=$(echo "$MATRIX_INCLUDE" | jq -c \
+                  --arg name "$SERVICE_NAME" \
+                  --arg path "$SERVICE_PATH" \
+                  '. += [{"name": $name, "path": $path}]')
+              done
+            fi
+          fi
+
+          echo "has-changes=$HAS_CHANGES" >> $GITHUB_OUTPUT
+          echo "matrix={\"include\":$MATRIX_INCLUDE}" >> $GITHUB_OUTPUT
+
+          echo "Final deployment matrix:"
+          echo "{\"include\":$MATRIX_INCLUDE}"
+
+  # Build and test before deploying
+  build-test:
+    name: Build & Test
+    needs: discover-services
+    if: needs.discover-services.outputs.has-changes == 'true'
+    strategy:
+      fail-fast: true
+      matrix: ${{ fromJson(needs.discover-services.outputs.matrix) }}
+    uses: ./.github/workflows/_reusable-build-test.yml
+    with:
+      service-name: ${{ matrix.name }}
+      service-path: ${{ matrix.path }}
+      java-version: '21'
+      run-sonar: false
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_ORGANIZATION: ${{ secrets.SONAR_ORGANIZATION }}
+
+  # Build and push Docker images
+  docker-build-push:
+    name: Build & Push Docker
+    needs: [discover-services, build-test]
+    if: needs.discover-services.outputs.has-changes == 'true'
+    strategy:
+      fail-fast: true
+      matrix: ${{ fromJson(needs.discover-services.outputs.matrix) }}
+    uses: ./.github/workflows/_reusable-docker-build.yml
+    with:
+      service-name: ${{ matrix.name }}
+      service-path: ${{ matrix.path }}
+      environment: staging
+      image-tag: ${{ github.sha }}
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  # Deploy to staging environment
+  deploy-staging:
+    name: Deploy to Staging
+    needs: [discover-services, build-test, docker-build-push]
+    if: needs.discover-services.outputs.has-changes == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: https://staging.orange-pay.example.com
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.discover-services.outputs.matrix) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy ${{ matrix.name }} to Staging
+        run: |
+          echo "=========================================="
+          echo "Deploying to Staging Environment"
+          echo "=========================================="
+          echo ""
+          echo "Service: ${{ matrix.name }}"
+          echo "Image: ${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ matrix.name }}:staging"
+          echo "Commit: ${{ github.sha }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo ""
+          echo "TODO: Add your deployment commands here"
+          echo "Examples:"
+          echo "  - kubectl set image deployment/${{ matrix.name }} ${{ matrix.name }}=..."
+          echo "  - helm upgrade ${{ matrix.name }} ./charts/${{ matrix.name }} ..."
+          echo "  - docker-compose pull && docker-compose up -d"
+          echo "  - ssh deploy@staging 'cd /app && docker-compose pull && docker-compose up -d'"
+          echo ""
+          echo "✅ Deployment placeholder completed"
+
+      # TODO: Uncomment and configure when ready to deploy
+      # - name: Deploy with kubectl
+      #   run: |
+      #     kubectl set image deployment/${{ matrix.name }} \
+      #       ${{ matrix.name }}=${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ matrix.name }}:staging \
+      #       -n staging
+
+      # - name: Verify deployment
+      #   run: |
+      #     kubectl rollout status deployment/${{ matrix.name }} -n staging
+      #     kubectl get pods -n staging -l app=${{ matrix.name }}
+
+  # Deployment summary
+  deployment-summary:
+    name: Deployment Summary
+    needs: [discover-services, deploy-staging]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Summary
+        run: |
+          echo "=========================================="
+          echo "Staging Deployment Summary"
+          echo "=========================================="
+          echo ""
+          echo "Environment: STAGING"
+          echo "Trigger: ${{ github.event_name }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+          echo ""
+          echo "Services deployed:"
+          echo '${{ needs.discover-services.outputs.matrix }}' | jq -r '.include[].name' | while read service; do
+            echo "  ✓ $service"
+          done
+          echo ""
+          echo "Deployment Status: ${{ needs.deploy-staging.result }}"
+          echo ""
+
+          if [[ "${{ needs.deploy-staging.result }}" == "failure" ]]; then
+            echo "❌ Deployment FAILED"
+            exit 1
+          else
+            echo "✅ Deployment SUCCESSFUL"
+          fi

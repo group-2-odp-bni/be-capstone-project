@@ -1,5 +1,6 @@
 plugins {
     java
+    jacoco
     id("org.springframework.boot") version "3.5.6"
     id("io.spring.dependency-management") version "1.1.7"
     id("com.google.protobuf") version "0.9.5"
@@ -39,10 +40,36 @@ dependencies {
 
 tasks.withType<Test> {
 	useJUnitPlatform()
+	finalizedBy(tasks.jacocoTestReport)
+}
+
+tasks.jacocoTestReport {
+	dependsOn(tasks.test)
+	reports {
+		xml.required.set(true)
+		html.required.set(true)
+		csv.required.set(false)
+	}
+}
+
+jacoco {
+	toolVersion = "0.8.12"
 }
 
 protobuf {
     protoc {
         artifact = "com.google.protobuf:protoc:4.31.1"
     }
+}
+
+sonar {
+	properties {
+		property("sonar.sources", "src/main/java")
+		property("sonar.tests", "src/test/java")
+		property("sonar.java.binaries", "build/classes/java/main,build/classes")
+		property("sonar.java.test.binaries", "build/classes/java/test")
+		property("sonar.coverage.jacoco.xmlReportPaths", "build/reports/jacoco/test/jacocoTestReport.xml")
+		property("sonar.exclusions", "**/generated/**,**/*Proto.java,**/*OuterClass.java")
+		property("sonar.coverage.exclusions", "**/generated/**,**/*Proto.java,**/*OuterClass.java")
+	}
 }
