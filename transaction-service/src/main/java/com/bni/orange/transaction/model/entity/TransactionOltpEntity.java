@@ -14,9 +14,9 @@ import java.util.UUID;
 @Entity
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(schema = "transfer_oltp", name = "transactions")
+@Table(schema = "transaction_oltp", name = "transactions")
 @EqualsAndHashCode(callSuper = true)
-public class TransferOltpEntity extends BaseEntity {
+public class TransactionOltpEntity extends BaseEntity {
 
     @Column(name = "wallet_id", nullable = false)
     private UUID walletId;

@@ -1,31 +1,30 @@
 package com.bni.orange.transaction.impl;
 
-import com.bni.orange.transaction.model.entity.TransferOltpEntity;
+import com.bni.orange.transaction.model.entity.TransactionOltpEntity;
 import com.bni.orange.transaction.model.enums.TxStatus;
 import com.bni.orange.transaction.model.enums.TxType;
 import com.bni.orange.transaction.model.request.TransferRequest;
 import com.bni.orange.transaction.model.response.TransferResponse;
-import com.bni.orange.transaction.repository.TransferOltpRepository;
-import com.bni.orange.transaction.service.TransferService;
+import com.bni.orange.transaction.repository.TransactionOltpRepository;
+import com.bni.orange.transaction.service.TransactionService;
 import com.bni.orange.transaction.utils.TransactionIdGenerator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
-import java.util.stream.DoubleStream;
 
 @Service
 @RequiredArgsConstructor
-public class TransferServiceImpl implements TransferService {
+public class TransactionServiceImpl implements TransactionService {
 
-    private final TransferOltpRepository transferOltpRepository;
+    private final TransactionOltpRepository transactionOltpRepository;
 
     @Override
     public TransferResponse processTransfer(TransferRequest request) {
         // build entity
         String trxId = TransactionIdGenerator.generate(request.walletId());
 
-        TransferOltpEntity entity = new TransferOltpEntity();
+        TransactionOltpEntity entity = new TransactionOltpEntity();
         entity.setId(UUID.randomUUID());
         entity.setWalletId(request.walletId());
         entity.setTrxId(trxId);
@@ -35,7 +34,7 @@ public class TransferServiceImpl implements TransferService {
         entity.setInitiatedBy(request.senderId());
 
         // save to DB
-        TransferOltpEntity saved = transferOltpRepository.save(entity);
+        TransactionOltpEntity saved = transactionOltpRepository.save(entity);
 
         // build response
         return new TransferResponse(
