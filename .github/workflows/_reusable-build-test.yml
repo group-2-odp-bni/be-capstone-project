@@ -43,17 +43,16 @@ jobs:
         with:
           java-version: ${{ inputs.java-version }}
           distribution: 'temurin'
-          cache: 'gradle'
 
+      # Shared Gradle cache across all services (no duplicate caching)
       - name: Cache Gradle packages
         uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ inputs.service-name }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: |
-            ${{ runner.os }}-gradle-${{ inputs.service-name }}-
             ${{ runner.os }}-gradle-
 
       - name: Grant execute permission for gradlew
@@ -70,35 +69,39 @@ jobs:
 
       - name: Upload test results
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: test-results-${{ inputs.service-name }}
           path: ${{ inputs.service-path }}/build/reports/tests/
-          retention-days: 7
+          retention-days: 1
           if-no-files-found: ignore
 
       - name: Upload coverage report
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: coverage-${{ inputs.service-name }}
           path: ${{ inputs.service-path }}/build/reports/jacoco/
-          retention-days: 7
+          retention-days: 1
           if-no-files-found: ignore
 
       - name: Upload JAR artifact
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: jar-${{ inputs.service-name }}
           path: ${{ inputs.service-path }}/build/libs/*.jar
-          retention-days: 7
+          retention-days: 1
 
+      # Shared SonarCloud cache across all services
       - name: Cache SonarCloud packages
         if: inputs.run-sonar
         uses: actions/cache@v4
         with:
           path: ~/.sonar/cache
-          key: ${{ runner.os }}-sonar-${{ inputs.service-name }}
+          key: ${{ runner.os }}-sonar-${{ hashFiles('**/*.gradle*') }}
           restore-keys: ${{ runner.os }}-sonar-
 
       - name: Extract SonarCloud project configuration

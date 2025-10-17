@@ -68,8 +68,9 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ inputs.service-name }}:buildcache
-          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ inputs.service-name }}:buildcache,mode=max
+          # Use inline cache (stored in image) - more efficient for GitHub Free
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ inputs.service-name }}:${{ inputs.environment }}
+          cache-to: type=inline
           platforms: linux/amd64
           build-args: |
             BUILD_DATE=${{ github.event.head_commit.timestamp }}
