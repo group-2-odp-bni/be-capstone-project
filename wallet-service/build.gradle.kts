@@ -65,10 +65,22 @@ jacoco {
 }
 
 sonar {
-	properties {
-		property("sonar.sources", "src/main/java")
-		property("sonar.tests", "src/test/java")
-		property("sonar.java.binaries", "build/classes/java/main")
-		property("sonar.coverage.jacoco.xmlReportPaths", "build/reports/jacoco/test/jacocoTestReport.xml")
-	}
+    properties {
+        property("sonar.sources", "src/main/java")
+        property("sonar.tests", "src/test/java")
+        property("sonar.java.binaries", "build/classes/java/main,build/classes")
+        property("sonar.java.test.binaries", "build/classes/java/test")
+        property("sonar.coverage.jacoco.xmlReportPaths", "build/reports/jacoco/test/jacocoTestReport.xml")
+        property("sonar.exclusions", "**/generated/**,**/*Proto.java,**/*OuterClass.java")
+        property("sonar.coverage.exclusions", "**/generated/**,**/*Proto.java,**/*OuterClass.java")
+    }
 }
+
+tasks.withType<Test>().configureEach {
+    doFirst {
+        configurations.testRuntimeClasspath.get()
+            .find { it.name.contains("mockito-core") }
+            ?.let { jvmArgs("-javaagent:${it.absolutePath}") }
+    }
+}
+

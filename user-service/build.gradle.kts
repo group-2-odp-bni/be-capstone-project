@@ -94,3 +94,12 @@ sonar {
 		property("sonar.coverage.exclusions", "**/generated/**,**/*Proto.java,**/*OuterClass.java")
 	}
 }
+
+tasks.withType<Test>().configureEach {
+    doFirst {
+        configurations.testRuntimeClasspath.get()
+            .find { it.name.contains("mockito-core") }
+            ?.let { jvmArgs("-javaagent:${it.absolutePath}") }
+    }
+}
+

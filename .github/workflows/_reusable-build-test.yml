@@ -101,6 +101,71 @@ jobs:
           key: ${{ runner.os }}-sonar-${{ inputs.service-name }}
           restore-keys: ${{ runner.os }}-sonar-
 
+      - name: Extract SonarCloud project configuration
+        if: inputs.run-sonar
+        id: sonar-config
+        working-directory: ${{ inputs.service-path }}
+        run: |
+          # Extract organization and projectKey from gradle.properties
+          SONAR_ORG=$(grep '^sonar.organization=' gradle.properties | cut -d'=' -f2 | tr -d '[:space:]')
+          SONAR_PROJECT_KEY=$(grep '^sonar.projectKey=' gradle.properties | cut -d'=' -f2 | tr -d '[:space:]')
+
+          echo "organization=$SONAR_ORG" >> $GITHUB_OUTPUT
+          echo "projectKey=$SONAR_PROJECT_KEY" >> $GITHUB_OUTPUT
+
+          echo "📋 SonarCloud Configuration:"
+          echo "  Organization: $SONAR_ORG"
+          echo "  Project Key: $SONAR_PROJECT_KEY"
+
+      - name: Auto-register SonarCloud project
+        if: inputs.run-sonar
+        continue-on-error: true
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_ORG: ${{ steps.sonar-config.outputs.organization }}
+          SONAR_PROJECT_KEY: ${{ steps.sonar-config.outputs.projectKey }}
+        run: |
+          echo "🔍 Checking if SonarCloud project exists..."
+
+          # Check if project already exists
+          PROJECT_EXISTS=$(curl -s -u "$SONAR_TOKEN:" \
+            "https://sonarcloud.io/api/projects/search?projects=$SONAR_PROJECT_KEY" \
+            | jq -r '.components | length')
+
+          if [ "$PROJECT_EXISTS" -gt 0 ]; then
+            echo "✅ Project already exists: $SONAR_PROJECT_KEY"
+
+            # Update main branch setting if needed
+            echo "🔄 Ensuring main branch is set as default..."
+            curl -s -u "$SONAR_TOKEN:" -X POST \
+              "https://sonarcloud.io/api/project_branches/rename" \
+              -d "project=$SONAR_PROJECT_KEY" \
+              -d "name=main" || echo "⚠️ Could not update branch setting (may already be correct)"
+          else
+            echo "🆕 Creating new SonarCloud project..."
+
+            # Create new project
+            CREATE_RESPONSE=$(curl -s -u "$SONAR_TOKEN:" -X POST \
+              "https://sonarcloud.io/api/projects/create" \
+              -d "organization=$SONAR_ORG" \
+              -d "project=$SONAR_PROJECT_KEY" \
+              -d "name=${{ inputs.service-name }}")
+
+            if echo "$CREATE_RESPONSE" | jq -e '.project.key' > /dev/null 2>&1; then
+              echo "✅ Successfully created project: $SONAR_PROJECT_KEY"
+
+              # Set main branch as default
+              echo "🔄 Setting main as default branch..."
+              curl -s -u "$SONAR_TOKEN:" -X POST \
+                "https://sonarcloud.io/api/project_branches/rename" \
+                -d "project=$SONAR_PROJECT_KEY" \
+                -d "name=main" || echo "⚠️ Branch will be set on first analysis"
+            else
+              echo "⚠️ Project creation response: $CREATE_RESPONSE"
+              echo "Project may already exist or there was an error"
+            fi
+          fi
+
       - name: SonarCloud Scan
         if: inputs.run-sonar
         working-directory: ${{ inputs.service-path }}
