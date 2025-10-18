@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package com.bni.orange.authentication.proto;
+package com.bni.orange.users.proto;
 
-option java_package = "com.bni.orange.authentication.proto";
+option java_package = "com.bni.orange.users.proto";
 option java_multiple_files = true;
 
 message UserRegisteredEvent {

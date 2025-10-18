@@ -77,7 +77,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.25'
+          cpus: '0.5'
           memory: 512M
 
   waha:
@@ -123,53 +123,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-    deploy:
-      resources:
-        limits:
-          cpus: '0.25'
-          memory: 256M
-
-  api-gateway:
-    image: orange-pay/api-gateway:latest
-    container_name: orange-api-gateway
-    ports:
-      - "8080:8080"
-    environment:
-      - SPRING_PROFILES_ACTIVE=dev
-      - SPRING_DATA_REDIS_HOST=redis
-      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=http://authentication-service:8081/oauth2/jwks
-    depends_on:
-      authentication-service:
-        condition: service_started
-    networks:
-      - orange-network
-    healthcheck:
-      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/actuator/health" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-
-  authentication-service:
-    image: orange-pay/authentication-service:latest
-    container_name: orange-authentication-service
-    environment:
-      - SPRING_PROFILES_ACTIVE=dev
-      - DB_URL=jdbc:postgresql://postgres:5432/orange_db
-      - DB_USERNAME=mikasa
-      - DB_PASSWORD=mikasa
-      - REDIS_HOST=redis
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - SERVER_PORT=8081
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-    networks:
-      - orange-network
 
 networks:
   orange-network:
