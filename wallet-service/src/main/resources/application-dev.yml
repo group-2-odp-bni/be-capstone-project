@@ -1,8 +1,12 @@
 spring:
-  config:
-    import: optional:file:.env[.properties]
-  application:
-    name: wallet-service
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      username: ${REDIS_USERNAME}
+      password: ${REDIS_PASSWORD}
+      ssl:
+        enabled: ${REDIS_SSL_ENABLED}
 
   datasource:
     url: ${SPRING_DATASOURCE_URL}
@@ -18,30 +22,54 @@ spring:
   flyway:
     enabled: true
     create-schemas: true
-    schemas: wallet_oltp, wallet_read, auth_read, infra
+    schemas: wallet_oltp, wallet_read, infra
     locations: classpath:db/migration
     baseline-on-migrate: true
 
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
-    admin:
-      auto-create: true
-
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
-      acks: 1
-      retries: 3
-      properties:
-        spring.json.add.type.headers: false
   security:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: http://localhost:8081/oauth2/jwks
+          jwk-set-uri: ${JWK_SET_URI}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    properties:
+      security.protocol: SASL_SSL
+      sasl.mechanism: SCRAM-SHA-256
+      sasl.jaas.config: ${KAFKA_SASL_JAAS_CONFIG}
+      ssl.endpoint.identification.algorithm: https
+      ssl.protocol: TLSv1.2
+
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
+      acks: all
+      retries: 3
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        request.timeout.ms: 30000
+        delivery.timeout.ms: 120000
+        compression.type: snappy
+      batch-size: 32768
+      linger-ms: 20
+
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP:wallet-svc}
+      auto-offset-reset: latest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
+
+    listener:
+      ack-mode: MANUAL_IMMEDIATE
+      concurrency: 3
+topics:
+  user:
+    phone-verified: auth.user.phone.verified.v1
 wallet:
   events:
-    enabled: ${WALLET_EVENTS_ENABLED:true}
+    enabled: ${WALLET_EVENTS_ENABLED}
 
 logging:
   level:

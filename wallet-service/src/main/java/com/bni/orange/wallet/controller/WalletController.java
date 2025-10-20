@@ -1,90 +1,76 @@
 package com.bni.orange.wallet.controller;
 
-import com.bni.orange.wallet.model.request.*;
+import com.bni.orange.wallet.model.request.wallet.WalletCreateRequest;
+import com.bni.orange.wallet.model.request.wallet.WalletUpdateRequest;
 import com.bni.orange.wallet.model.response.*;
-import com.bni.orange.wallet.service.IdempotencyService;
-import com.bni.orange.wallet.service.WalletService;
+import com.bni.orange.wallet.service.command.WalletCommandService;
+import com.bni.orange.wallet.service.query.WalletQueryService;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
-import org.springframework.http.*;
+import jakarta.validation.constraints.Min;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.URI;
+import java.util.List;
 import java.util.UUID;
-import org.springframework.security.access.prepost.PreAuthorize;
 
 @RestController
 @RequestMapping("/api/v1")
 @Validated
 public class WalletController {
 
-    private final WalletService service;
-    private final IdempotencyService idemSvc;
+  private final WalletCommandService command;
+  private final WalletQueryService query;
 
-    public WalletController(WalletService service, IdempotencyService idemSvc) {
-        this.service = service; this.idemSvc = idemSvc;
-    }
+  public WalletController(WalletCommandService command, WalletQueryService query) {
+    this.command = command; this.query = query;
+  }
 
-    @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
-    @PostMapping("/wallets")
-    public ResponseEntity<ApiResponse<WalletResponse>> create(
-            @RequestHeader("Idempotency-Key") @NotBlank String idemKey,
-            @RequestBody @Valid WalletCreateRequest req,
-            @RequestHeader(value = "X-Request-Id", required = false) String xr,
-            @RequestHeader(value = "X-Correlation-Id", required = false) String xc
-    ) {
-        final var scope = "wallet:create";
-        var idem = idemSvc.beginOrReplay(scope, idemKey, req);
-        if (!idem.fresh()) {
-            @SuppressWarnings("unchecked")
-            var replay = (ApiResponse<WalletResponse>) idem.replayBody();
-            return ResponseEntity.status(idem.replayStatus()).body(replay);
-        }
-        var model = service.createWallet(req, idemKey, xr, xc);
-        var body  = ApiResponse.created("Wallet created", model);
-        idemSvc.complete(scope, idemKey, HttpStatus.CREATED.value(), body);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .header("Location", "/api/v1/wallets/" + model.id())
-                .body(body);
-    }
+  @PostMapping("/wallets")
+  @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
+  public ResponseEntity<ApiResponse<WalletDetailResponse>> createWallet(
+      @RequestHeader(value="Idempotency-Key", required=false) String idemKey,
+      @Valid @RequestBody WalletCreateRequest req
+  ) {
+    var dto = command.createWallet(req, idemKey);
+    return ResponseEntity
+        .created(URI.create("/api/v1/wallets/" + dto.getId()))
+        .body(ApiResponse.ok("Wallet created", dto));
+  }
 
-    @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
-    @GetMapping("/wallets/{wallet_id}")
-    public ApiResponse<WalletResponse> getById(@PathVariable("wallet_id") UUID walletId) {
-        return ApiResponse.ok("OK", service.getById(walletId));
-    }
-    
-    @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
-    @PostMapping("/wallets/_lookup")
-    public ApiResponse<WalletResponse> getByPhone(@RequestBody @Valid WalletGetByPhoneNumber req) {
-        return ApiResponse.ok("OK", service.getByPhone(req.phone(), req.currency()));
-    }
+  @GetMapping("/wallets")
+  @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
+  public ResponseEntity<ApiResponse<List<WalletListItemResponse>>> listMyWallets(
+      @RequestParam(defaultValue="0") @Min(0) int page,
+      @RequestParam(defaultValue="20") @Min(1) int size
+  ) {
+    var list = query.listMyWallets(page, size);
+    return ResponseEntity.ok(ApiResponse.ok("OK", list));
+  }
 
-    @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
-    @GetMapping("/wallets/{wallet_id}/balance")
-    public ApiResponse<BalanceResponse> getBalance(@PathVariable("wallet_id") UUID walletId) {
-        return ApiResponse.ok("OK", service.getBalance(walletId));
-    }
+  @GetMapping("/wallets/{walletId}")
+  @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
+  public ResponseEntity<ApiResponse<WalletDetailResponse>> getWalletDetail(@PathVariable UUID walletId) {
+    var dto = query.getWalletDetail(walletId);
+    return ResponseEntity.ok(ApiResponse.ok("OK", dto));
+  }
 
-    @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
-    @PostMapping("/wallets/{wallet_id}/balance/adjust")
-    public ResponseEntity<ApiResponse<BalanceResponse>> adjust(
-            @RequestHeader("Idempotency-Key") @NotBlank String idemKey,
-            @PathVariable("wallet_id") UUID walletId,
-            @RequestBody @Valid BalanceAdjustRequest req,
-            @RequestHeader(value = "X-Request-Id", required = false) String xr,
-            @RequestHeader(value = "X-Correlation-Id", required = false) String xc
-    ) {
-        final var scope = "wallet:adjust:" + walletId;
-        var idem = idemSvc.beginOrReplay(scope, idemKey, req);
-        if (!idem.fresh()) {
-            @SuppressWarnings("unchecked")
-            var replay = (ApiResponse<BalanceResponse>) idem.replayBody();
-            return ResponseEntity.status(idem.replayStatus()).body(replay);
-        }
-        var model = service.adjustBalance(walletId, req, idemKey, xr, xc);
-        var body  = ApiResponse.ok("Balance adjusted", model);
-        idemSvc.complete(scope, idemKey, HttpStatus.OK.value(), body);
-        return ResponseEntity.ok(body);
-    }
+  @PatchMapping("/wallets/{walletId}")
+  @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
+  public ResponseEntity<ApiResponse<WalletDetailResponse>> updateWallet(
+      @PathVariable UUID walletId,
+      @Valid @RequestBody WalletUpdateRequest req
+  ) {
+    var dto = command.updateWallet(walletId, req);
+    return ResponseEntity.ok(ApiResponse.ok("Wallet updated", dto));
+  }
+
+  @GetMapping("/wallets/{walletId}/balance")
+  @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
+  public ResponseEntity<ApiResponse<BalanceResponse>> getBalance(@PathVariable UUID walletId) {
+    var dto = query.getBalance(walletId);
+    return ResponseEntity.ok(ApiResponse.ok("OK", dto));
+  }
 }
