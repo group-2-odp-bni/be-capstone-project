@@ -1,4 +1,3 @@
-// controller/advice/GlobalExceptionHandler.java
 package com.bni.orange.wallet.controller.advice;
 
 import com.bni.orange.wallet.exception.ApiException;
@@ -10,7 +9,6 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.*;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.context.request.ServletWebRequest;
 
 @RestControllerAdvice
 @Slf4j
