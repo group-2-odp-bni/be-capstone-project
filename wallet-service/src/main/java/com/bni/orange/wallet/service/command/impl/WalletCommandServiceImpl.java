@@ -25,6 +25,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.ApplicationEventPublisher;           // +++
+import com.bni.orange.wallet.domain.DomainEvents;                    // +++
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -44,6 +46,7 @@ public class WalletCommandServiceImpl implements WalletCommandService {
   private final ObjectMapper om;
   private final PermissionGuard guard;
   private final IdempotencyService idem;
+  private final ApplicationEventPublisher appEvents;                // +++
 
   public WalletCommandServiceImpl(
       WalletRepository walletRepo,
@@ -54,7 +57,8 @@ public class WalletCommandServiceImpl implements WalletCommandService {
       WalletMapper mapper,
       ObjectMapper om,
       PermissionGuard guard,
-      IdempotencyService idem
+      IdempotencyService idem,
+      ApplicationEventPublisher appEvents
   ) {
     this.walletRepo = walletRepo;
     this.walletMemberRepo = walletMemberRepo;
@@ -65,6 +69,8 @@ public class WalletCommandServiceImpl implements WalletCommandService {
     this.om = om;
     this.guard = guard;
     this.idem = idem;
+    this.appEvents = appEvents;                                        // +++
+
   }
 
   @Override
@@ -105,8 +111,13 @@ public class WalletCommandServiceImpl implements WalletCommandService {
     upsertUserWalletRead(uid, saved);
 
     var filtered = MetadataFilter.filter(om, saved.getMetadata());
-    return mapper.mergeDetail(
+    var dto = mapper.mergeDetail(
         walletReadRepo.findById(saved.getId()).orElseThrow(), saved, filtered);
+    appEvents.publishEvent(new DomainEvents.WalletCreated(saved.getId(), uid));
+
+    return dto;
+    // return mapper.mergeDetail(
+    //     walletReadRepo.findById(saved.getId()).orElseThrow(), saved, filtered);
   }
 
   @Override
@@ -122,8 +133,12 @@ public class WalletCommandServiceImpl implements WalletCommandService {
     upsertWalletRead(saved,  false);
     upsertUserWalletRead(saved.getUserId(), saved);
     var filtered = MetadataFilter.filter(om, saved.getMetadata());
-    return mapper.mergeDetail(
+    var dto = mapper.mergeDetail(
         walletReadRepo.findById(saved.getId()).orElseThrow(), saved, filtered);
+    appEvents.publishEvent(new DomainEvents.WalletUpdated(walletId));             // +++
+    return dto;
+    // return mapper.mergeDetail(
+    //     walletReadRepo.findById(saved.getId()).orElseThrow(), saved, filtered);
   }
 
   private void upsertOwnerMembership(UUID walletId, UUID userId) {
@@ -166,6 +181,7 @@ public class WalletCommandServiceImpl implements WalletCommandService {
         .orElseGet(() -> WalletMemberRead.builder()
             .walletId(walletId)
             .userId(userId)
+            .limitCurrency("IDR")
             .build());
     r.setRole(role);
     r.setStatus(status);

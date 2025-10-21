@@ -4,6 +4,7 @@ plugins {
     id("org.sonarqube") version "6.3.1.5724"
     id("org.springframework.boot") version "3.5.6"
     id("io.spring.dependency-management") version "1.1.7"
+    id("com.google.protobuf") version "0.9.4"
 }
 
 group = property("group") as String
@@ -37,10 +38,10 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
     implementation("org.springframework.kafka:spring-kafka")
 
-    implementation("com.google.protobuf:protobuf-java:${property("protobufVersion")}")
+    implementation("com.google.protobuf:protobuf-java:3.25.3")
+    implementation("com.google.protobuf:protobuf-java-util:3.25.3")
     annotationProcessor ("org.mapstruct:mapstruct-processor:1.6.3")    
     annotationProcessor ("org.projectlombok:lombok-mapstruct-binding:0.2.0")
-    implementation(project(":shared-contracts"))
 
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
@@ -48,8 +49,22 @@ dependencies {
     testAnnotationProcessor("org.projectlombok:lombok")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-}
+    testImplementation("org.springframework.kafka:spring-kafka-test")
 
+}
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:3.25.3"
+    }
+
+    generateProtoTasks {
+        all().forEach { task ->
+            task.builtins {
+                java {}
+            }
+        }
+    }
+}
 tasks.withType<Test> {
     useJUnitPlatform()
     finalizedBy(tasks.jacocoTestReport)
