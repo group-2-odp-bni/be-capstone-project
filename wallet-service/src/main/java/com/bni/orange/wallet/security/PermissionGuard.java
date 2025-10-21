@@ -17,7 +17,7 @@ import java.util.UUID;
 public class PermissionGuard {
 
   private static final EnumSet<WalletMemberStatus> ACTIVE_STATUSES =
-      EnumSet.of(WalletMemberStatus.ACTIVE); // bisa tambah INVITED bila diperlukan
+      EnumSet.of(WalletMemberStatus.ACTIVE); 
 
   private static final EnumSet<WalletMemberRole> ADMIN_ROLES =
       EnumSet.of(WalletMemberRole.OWNER, WalletMemberRole.ADMIN);
