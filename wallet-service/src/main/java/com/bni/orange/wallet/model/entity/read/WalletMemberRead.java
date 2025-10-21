@@ -31,7 +31,14 @@ public class WalletMemberRead {
   @Column(nullable=false) private long monthlyLimitRp;
   @org.hibernate.annotations.UpdateTimestamp @Column(nullable=false) private OffsetDateTime updatedAt;
 
-  @Getter @Setter @NoArgsConstructor @AllArgsConstructor
+  @Column private String alias;
+  @Column(name = "joined_at") private OffsetDateTime joinedAt;
+
+  @Column(name = "per_tx_limit_rp", nullable=false) private long perTxLimitRp;
+  @Column(name = "weekly_limit_rp", nullable=false) private long weeklyLimitRp;
+  @Column(name = "limit_currency",   nullable=false) private String limitCurrency = "IDR";
+
+  @Getter @Setter @NoArgsConstructor @AllArgsConstructor @EqualsAndHashCode
   public static class PK implements java.io.Serializable {
     private UUID walletId; private UUID userId;
   }

@@ -1,4 +1,3 @@
-// model/response/WalletDetailResponse.java
 package com.bni.orange.wallet.model.response;
 
 import com.bni.orange.wallet.model.enums.*;

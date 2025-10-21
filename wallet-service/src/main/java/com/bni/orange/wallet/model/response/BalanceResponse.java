@@ -1,4 +1,3 @@
-// model/response/BalanceResponse.java
 package com.bni.orange.wallet.model.response;
 
 import lombok.*;

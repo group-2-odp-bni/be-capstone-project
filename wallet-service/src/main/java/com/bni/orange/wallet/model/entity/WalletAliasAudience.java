@@ -13,7 +13,7 @@ public class WalletAliasAudience {
   @Id @GeneratedValue @org.hibernate.annotations.UuidGenerator @Column(name="alias_id") private UUID aliasId;
   @Id @Column(name="viewer_user_id") private UUID viewerUserId;
 
-  @Getter @Setter @NoArgsConstructor @AllArgsConstructor
+  @Getter @Setter @NoArgsConstructor @AllArgsConstructor @EqualsAndHashCode
   public static class PK implements Serializable {
     private UUID aliasId; private UUID viewerUserId;
   }

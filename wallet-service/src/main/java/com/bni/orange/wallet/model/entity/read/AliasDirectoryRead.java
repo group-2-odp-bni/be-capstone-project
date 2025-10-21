@@ -31,7 +31,7 @@ public class AliasDirectoryRead {
 
   @org.hibernate.annotations.UpdateTimestamp @Column(nullable=false) private OffsetDateTime updatedAt;
 
-  @Getter @Setter @NoArgsConstructor @AllArgsConstructor
+  @Getter @Setter @NoArgsConstructor @AllArgsConstructor @EqualsAndHashCode
   public static class PK implements java.io.Serializable {
     private AliasType aliasType; private String aliasValue;
   }

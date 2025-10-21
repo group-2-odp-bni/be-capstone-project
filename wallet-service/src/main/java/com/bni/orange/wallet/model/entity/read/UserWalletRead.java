@@ -32,7 +32,7 @@ public class UserWalletRead {
   @Column(length=160) private String walletName;
   @org.hibernate.annotations.UpdateTimestamp @Column(nullable=false) private OffsetDateTime updatedAt;
 
-  @Getter @Setter @NoArgsConstructor @AllArgsConstructor
+  @Getter @Setter @NoArgsConstructor @AllArgsConstructor @EqualsAndHashCode
   public static class PK implements java.io.Serializable {
     private UUID userId; private UUID walletId;
   }

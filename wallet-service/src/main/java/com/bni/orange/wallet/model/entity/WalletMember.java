@@ -31,6 +31,15 @@ public class WalletMember {
   @Column(name = "status", nullable = false, columnDefinition = "domain.wallet_member_status")
   private WalletMemberStatus status = WalletMemberStatus.INVITED;
 
+
+  @Column private String alias;
+  @Column(name="invited_by") private UUID invitedBy;
+  @Column(name="invited_at") private OffsetDateTime invitedAt;
+  @Column(name="joined_at")  private OffsetDateTime joinedAt;
+
+  @Column(name="per_tx_limit_rp", nullable=false) private long perTxLimitRp;
+  @Column(name="weekly_limit_rp", nullable=false) private long weeklyLimitRp;
+
   @Column(nullable = false) private long dailyLimitRp = 0L;
   @Column(nullable = false) private long monthlyLimitRp = 0L;
 
