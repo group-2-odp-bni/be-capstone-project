@@ -1,4 +1,3 @@
-// repository/infra/IdempotencyRepository.java
 package com.bni.orange.wallet.repository.infra;
 
 import com.bni.orange.wallet.model.entity.infra.Idempotency;
