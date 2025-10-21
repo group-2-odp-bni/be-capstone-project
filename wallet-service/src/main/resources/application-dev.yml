@@ -31,6 +31,8 @@ spring:
       resourceserver:
         jwt:
           jwk-set-uri: ${JWK_SET_URI}
+    invite:
+      secret: ${INVITE_SECRET}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
     properties:
@@ -70,7 +72,10 @@ topics:
 wallet:
   events:
     enabled: ${WALLET_EVENTS_ENABLED}
-
+app:
+  invite:
+    ttl-seconds: 600
+    base-url: https://app.orangebybni.com/invites/claim
 logging:
   level:
     org.apache.kafka: INFO
