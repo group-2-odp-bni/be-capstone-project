@@ -59,7 +59,6 @@ public class WalletQueryServiceImpl implements WalletQueryService {
 
   @Override
   public WalletDetailResponse getWalletDetail(UUID walletId) {
-    // TODO: check membership & do role-aware redaction here if needed
     var read = walletReadRepo.findById(walletId)
         .orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
     var oltp = walletRepo.findById(walletId)
@@ -76,7 +75,7 @@ public class WalletQueryServiceImpl implements WalletQueryService {
     return BalanceResponse.builder()
         .walletId(walletId)
         .balance(read.getBalanceSnapshot())
-        .currency(read.getCurrency()) // DDL read-model punya currency
+        .currency(read.getCurrency())
         .build();
   }
 }

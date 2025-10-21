@@ -100,7 +100,7 @@ public class WalletCommandServiceImpl implements WalletCommandService {
     }
     final Wallet saved = walletRepo.save(w);
     upsertOwnerMembership(saved.getId(), uid);
-    upsertWalletRead(saved, /*isCreate*/ true);
+    upsertWalletRead(saved,  true);
     upsertWalletMemberRead(saved.getId(), uid, WalletMemberRole.OWNER, WalletMemberStatus.ACTIVE);
     upsertUserWalletRead(uid, saved);
 
@@ -119,7 +119,7 @@ public class WalletCommandServiceImpl implements WalletCommandService {
 
     mapper.patch(wl, req);
     final Wallet saved = walletRepo.save(wl);
-    upsertWalletRead(saved, /*isCreate*/ false);
+    upsertWalletRead(saved,  false);
     upsertUserWalletRead(saved.getUserId(), saved);
     var filtered = MetadataFilter.filter(om, saved.getMetadata());
     return mapper.mergeDetail(
