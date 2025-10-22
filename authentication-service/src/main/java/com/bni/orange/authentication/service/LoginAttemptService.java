@@ -8,6 +8,9 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
@@ -62,9 +65,10 @@ public class LoginAttemptService {
 
             try {
                 log.debug("Applying progressive delay of {} seconds for key: {}", delaySeconds, key);
-                Thread.sleep(delaySeconds * 1000);
-            } catch (InterruptedException e) {
-                log.warn("Progressive delay interrupted for key: {}", key);
+                CompletableFuture.runAsync(() -> {
+                }, CompletableFuture.delayedExecutor(delaySeconds, TimeUnit.SECONDS)).get();
+            } catch (InterruptedException | ExecutionException e) {
+                log.warn("Progressive delay interrupted for key: {}", key, e);
                 Thread.currentThread().interrupt();
             }
         }

@@ -11,7 +11,6 @@ env:
   JAVA_VERSION: '21'
 
 jobs:
-  # Auto-discover services dynamically
   discover-services:
     name: Discover Changed Services
     runs-on: ubuntu-latest
@@ -101,7 +100,6 @@ jobs:
           echo "Final matrix: {\"include\":$MATRIX_INCLUDE}"
           echo "Has changes: $HAS_CHANGES"
 
-  # Run build and test for each changed service
   build-test:
     name: Build & Test
     needs: discover-services
@@ -163,7 +161,6 @@ jobs:
           path: 'trivy-fs-${{ matrix.name }}.sarif'
           retention-days: 1
 
-  # PR validation checks
   pr-checks:
     name: PR Validation
     if: github.event_name == 'pull_request'
@@ -196,7 +193,6 @@ jobs:
             echo "ℹ️ PR title does not follow conventional commits format (optional)"
           fi
 
-  # Quality gate - must pass before merge
   quality-gate:
     name: Quality Gate
     needs: [discover-services, build-test, security-scan]
