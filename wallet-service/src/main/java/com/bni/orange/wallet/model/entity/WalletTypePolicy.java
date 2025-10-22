@@ -1,7 +1,6 @@
 package com.bni.orange.wallet.model.entity;
 
 import com.bni.orange.wallet.model.enums.WalletType;
-import com.bni.orange.wallet.model.enums.WalletMemberRole;
 import lombok.*;
 import jakarta.persistence.*;
 import java.time.OffsetDateTime;
