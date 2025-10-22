@@ -1,4 +1,4 @@
-package com.bni.orange.users.service;
+package com.bni.orange.users.event;
 
 import com.google.protobuf.Message;
 import lombok.RequiredArgsConstructor;
@@ -42,14 +42,9 @@ public class EventPublisher {
         );
     }
 
-    private <T extends Message> SendResult<String, byte[]> publishSync(
-        String topic,
-        String key,
-        T event
-    ) {
+    private <T extends Message> SendResult<String, byte[]> publishSync(String topic, String key, T event) {
         try {
-            log.debug("Publishing event to topic: {}, key: {}, eventType: {}",
-                topic, key, event.getClass().getSimpleName());
+            log.debug("Publishing event to topic: {}, key: {}, eventType: {}", topic, key, event.getClass().getSimpleName());
 
             var future = kafkaTemplate.send(topic, key, event.toByteArray());
             var result = future.get();
