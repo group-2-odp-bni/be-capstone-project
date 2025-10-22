@@ -2,16 +2,16 @@ package com.bni.orange.users.service;
 
 import com.bni.orange.users.error.BusinessException;
 import com.bni.orange.users.error.ErrorCode;
-import com.bni.orange.users.model.entity.UserProfileView;
+import com.bni.orange.users.model.entity.UserProfile;
 import com.bni.orange.users.model.response.UserProfileResponse;
-import com.bni.orange.users.repository.UserProfileViewRepository;
+import com.bni.orange.users.repository.UserProfileRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -28,7 +28,7 @@ import static org.mockito.Mockito.when;
 class UserQueryServiceTest {
 
     @Mock
-    private UserProfileViewRepository userProfileViewRepository;
+    private UserProfileRepository userProfileRepository;
 
     @InjectMocks
     private UserQueryService userQueryService;
@@ -36,18 +36,17 @@ class UserQueryServiceTest {
     @Test
     void getCurrentUserProfile_whenUserExists_shouldReturnProfile() {
         var userId = UUID.randomUUID();
-        UserProfileView userProfileView = new UserProfileView();
-        userProfileView.setId(userId);
-        userProfileView.setName("John Doe");
-        userProfileView.setEmail("john.doe@example.com");
-        userProfileView.setPhoneNumber("1234567890");
-        userProfileView.setProfileImageUrl("http://example.com/profile.jpg");
-        userProfileView.setEmailVerified(true);
-        userProfileView.setPhoneVerified(false);
-        userProfileView.setStatus("ACTIVE");
-        userProfileView.setLastLoginAt(LocalDateTime.now());
+        UserProfile userProfile = new UserProfile();
+        userProfile.setId(userId);
+        userProfile.setName("John Doe");
+        userProfile.setEmail("john.doe@example.com");
+        userProfile.setPhoneNumber("1234567890");
+        userProfile.setProfileImageUrl("http://example.com/profile.jpg");
+        userProfile.setEmailVerifiedAt(OffsetDateTime.now());
+        userProfile.setPhoneVerifiedAt(null);
+        userProfile.setBio("A short bio");
 
-        when(userProfileViewRepository.findById(userId)).thenReturn(Optional.of(userProfileView));
+        when(userProfileRepository.findById(userId)).thenReturn(Optional.of(userProfile));
 
         UserProfileResponse response = userQueryService.getCurrentUserProfile(userId);
 
@@ -59,20 +58,20 @@ class UserQueryServiceTest {
         assertEquals("http://example.com/profile.jpg", response.getProfileImageUrl());
         assertTrue(response.getEmailVerified());
         assertFalse(response.getPhoneVerified());
-        assertEquals("ACTIVE", response.getStatus());
-        assertNotNull(response.getLastLoginAt());
+        assertEquals("A short bio", response.getBio());
+        assertNotNull(response.getEmailVerifiedAt());
 
-        verify(userProfileViewRepository, times(1)).findById(userId);
+        verify(userProfileRepository, times(1)).findById(userId);
     }
 
     @Test
     void getCurrentUserProfile_whenUserNotFound_shouldThrowBusinessException() {
         var userId = UUID.randomUUID();
-        when(userProfileViewRepository.findById(userId)).thenReturn(Optional.empty());
+        when(userProfileRepository.findById(userId)).thenReturn(Optional.empty());
 
         var exception = assertThrows(BusinessException.class, () -> userQueryService.getCurrentUserProfile(userId));
 
         assertEquals(ErrorCode.USER_NOT_FOUND, exception.getErrorCode());
-        verify(userProfileViewRepository, times(1)).findById(userId);
+        verify(userProfileRepository, times(1)).findById(userId);
     }
 }
