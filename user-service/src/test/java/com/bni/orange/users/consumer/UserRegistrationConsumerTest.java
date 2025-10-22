@@ -50,18 +50,18 @@ class UserRegistrationConsumerTest {
     @Test
     @DisplayName("Should create user profile successfully when event is valid")
     void handleUserRegistered_Success() throws Exception {
-        // Given
         var event = UserRegisteredEvent.newBuilder()
             .setUserId(testUserId.toString())
             .setPhoneNumber(testPhoneNumber)
             .setName(testName)
             .setRegisteredAt(testRegisteredAt)
+            .setPhoneVerified(true)
+            .setEmailVerified(true)
             .build();
 
         when(profileRepository.existsById(testUserId)).thenReturn(false);
         when(profileRepository.save(any(UserProfile.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        // When
         consumer.handleUserRegistered(
             event.toByteArray(),
             testUserId.toString(),
@@ -70,22 +70,21 @@ class UserRegistrationConsumerTest {
             acknowledgment
         );
 
-        // Then
-        ArgumentCaptor<UserProfile> profileCaptor = ArgumentCaptor.forClass(UserProfile.class);
+        var profileCaptor = ArgumentCaptor.forClass(UserProfile.class);
         verify(profileRepository).save(profileCaptor.capture());
         verify(acknowledgment).acknowledge();
 
-        UserProfile savedProfile = profileCaptor.getValue();
+        var savedProfile = profileCaptor.getValue();
         assertThat(savedProfile.getId()).isEqualTo(testUserId);
         assertThat(savedProfile.getName()).isEqualTo(testName);
         assertThat(savedProfile.getPhoneNumber()).isEqualTo(testPhoneNumber);
         assertThat(savedProfile.getPhoneVerifiedAt()).isNotNull();
+        assertThat(savedProfile.getEmailVerifiedAt()).isNotNull();
     }
 
     @Test
     @DisplayName("Should skip creation when profile already exists (idempotency)")
     void handleUserRegistered_AlreadyExists() throws Exception {
-        // Given
         var event = UserRegisteredEvent.newBuilder()
             .setUserId(testUserId.toString())
             .setPhoneNumber(testPhoneNumber)
@@ -95,7 +94,6 @@ class UserRegistrationConsumerTest {
 
         when(profileRepository.existsById(testUserId)).thenReturn(true);
 
-        // When
         consumer.handleUserRegistered(
             event.toByteArray(),
             testUserId.toString(),
@@ -104,7 +102,6 @@ class UserRegistrationConsumerTest {
             acknowledgment
         );
 
-        // Then
         verify(profileRepository, never()).save(any());
         verify(acknowledgment).acknowledge();
     }
@@ -112,7 +109,6 @@ class UserRegistrationConsumerTest {
     @Test
     @DisplayName("Should acknowledge and skip when userId is invalid")
     void handleUserRegistered_InvalidUserId() throws Exception {
-        // Given
         var event = UserRegisteredEvent.newBuilder()
             .setUserId("invalid-uuid")
             .setPhoneNumber(testPhoneNumber)
@@ -120,7 +116,6 @@ class UserRegistrationConsumerTest {
             .setRegisteredAt(testRegisteredAt)
             .build();
 
-        // When
         consumer.handleUserRegistered(
             event.toByteArray(),
             "invalid-uuid",
@@ -129,7 +124,6 @@ class UserRegistrationConsumerTest {
             acknowledgment
         );
 
-        // Then
         verify(profileRepository, never()).save(any());
         verify(acknowledgment).acknowledge();
     }
@@ -137,10 +131,8 @@ class UserRegistrationConsumerTest {
     @Test
     @DisplayName("Should throw exception when protobuf is invalid")
     void handleUserRegistered_InvalidProtobuf() {
-        // Given
-        byte[] invalidPayload = "not-a-protobuf".getBytes();
+        var invalidPayload = "not-a-protobuf".getBytes();
 
-        // When / Then
         assertThatThrownBy(() ->
             consumer.handleUserRegistered(
                 invalidPayload,
@@ -158,7 +150,6 @@ class UserRegistrationConsumerTest {
     @Test
     @DisplayName("Should throw exception when database operation fails")
     void handleUserRegistered_DatabaseError() throws Exception {
-        // Given
         var event = UserRegisteredEvent.newBuilder()
             .setUserId(testUserId.toString())
             .setPhoneNumber(testPhoneNumber)
@@ -170,7 +161,6 @@ class UserRegistrationConsumerTest {
         when(profileRepository.save(any(UserProfile.class)))
             .thenThrow(new RuntimeException("Database connection error"));
 
-        // When / Then
         assertThatThrownBy(() ->
             consumer.handleUserRegistered(
                 event.toByteArray(),

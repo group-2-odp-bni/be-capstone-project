@@ -57,11 +57,9 @@ public class UserRegistrationConsumer {
                 .syncStatus(SyncStatus.PENDING_SYNC)
                 .build();
 
-            event.getEmail();
             var email = !event.getEmail().trim().isEmpty()
                 ? event.getEmail()
                 : null;
-            event.getProfileImageUrl();
             var profileImageUrl = !event.getProfileImageUrl().trim().isEmpty()
                 ? event.getProfileImageUrl()
                 : null;
