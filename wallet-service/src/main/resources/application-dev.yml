@@ -34,14 +34,16 @@ spring:
     invite:
       secret: ${INVITE_SECRET}
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:${KAFKA_BOOTSTRAP_SERVERS}}
+    admin:
+      auto-create: ${SPRING_KAFKA_ADMIN_AUTO_CREATE:${KAFKA_ADMIN_AUTO_CREATE:true}}
     properties:
-      security.protocol: SASL_SSL
-      sasl.mechanism: SCRAM-SHA-256
-      sasl.jaas.config: ${KAFKA_SASL_JAAS_CONFIG}
-      ssl.endpoint.identification.algorithm: https
-      ssl.protocol: TLSv1.2
-
+      security.protocol: SSL
+      ssl.truststore.type: PEM
+      ssl.truststore.location: ${KAFKA_SSL_TRUSTSTORE_LOCATION}
+      ssl.keystore.type: PKCS12
+      ssl.keystore.location: ${KAFKA_SSL_KEYSTORE_LOCATION}
+      ssl.keystore.password: ${KAFKA_SSL_KEYSTORE_PASSWORD}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
@@ -55,20 +57,15 @@ spring:
         compression.type: snappy
       batch-size: 32768
       linger-ms: 20
-
     consumer:
-      group-id: ${KAFKA_CONSUMER_GROUP:wallet-svc}
-      auto-offset-reset: latest
-      enable-auto-commit: false
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
-
+      group-id: wallet-read-updater
+      auto-offset-reset: earliest
     listener:
-      ack-mode: MANUAL_IMMEDIATE
-      concurrency: 3
-topics:
-  user:
-    phone-verified: auth.user.phone.verified.v1
+      ack-mode: batch
+      concurrency: 2
+
 wallet:
   events:
     enabled: ${WALLET_EVENTS_ENABLED}
@@ -79,3 +76,8 @@ app:
 logging:
   level:
     org.apache.kafka: INFO
+orange:
+  kafka:
+    topics:
+      wallet-created: wallet.events.created
+      wallet-updated: wallet.events.updated
