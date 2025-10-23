@@ -3,7 +3,6 @@ package com.bni.orange.wallet.messaging.aftercommit;
 import com.bni.orange.wallet.domain.DomainEvents;
 import com.bni.orange.wallet.messaging.WalletEventPublisher;
 import com.bni.orange.wallet.model.entity.Wallet;
-import com.bni.orange.wallet.proto.EventEnvelope;
 import com.bni.orange.wallet.proto.WalletCreatedEvent;
 import com.bni.orange.wallet.repository.WalletRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
