@@ -8,6 +8,7 @@ import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Service;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
@@ -26,7 +27,7 @@ public class EventPublisher {
             )
             .exceptionally(throwable -> {
                 log.error("Async publish failed for topic: {}, key: {}, error: {}",
-                    topic, key, throwable.getMessage(), throwable);
+                    topic, key, throwable.getMessage());
                 return null;
             });
     }
@@ -68,7 +69,7 @@ public class EventPublisher {
             );
 
             return result;
-        } catch (Exception e) {
+        } catch (InterruptedException | ExecutionException e) {
             log.error("Failed to publish event to topic: {}, key: {}, eventType: {}, error: {}",
                 topic, key, event.getClass().getSimpleName(), e.getMessage(), e);
             throw new RuntimeException("Event publication failed for topic: " + topic, e);
