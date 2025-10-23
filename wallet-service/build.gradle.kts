@@ -13,7 +13,7 @@ description = "wallet-service"
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of((property("javaVersion") as String).toInt())
+        languageVersion = JavaLanguageVersion.of(21)
     }
 }
 
