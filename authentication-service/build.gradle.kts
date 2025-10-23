@@ -34,6 +34,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.kafka:spring-kafka")
+    implementation("org.xerial.snappy:snappy-java:1.1.10.5")
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
@@ -85,8 +86,11 @@ sonar {
     properties {
         property("sonar.sources", "src/main/java")
         property("sonar.tests", "src/test/java")
-        property("sonar.java.binaries", "build/classes/java/main")
+        property("sonar.java.binaries", "build/classes/java/main,build/classes")
+        property("sonar.java.test.binaries", "build/classes/java/test")
         property("sonar.coverage.jacoco.xmlReportPaths", "build/reports/jacoco/test/jacocoTestReport.xml")
+        property("sonar.exclusions", "**/generated/**,**/*Proto.java,**/*OuterClass.java")
+        property("sonar.coverage.exclusions", "**/generated/**,**/*Proto.java,**/*OuterClass.java")
     }
 }
 

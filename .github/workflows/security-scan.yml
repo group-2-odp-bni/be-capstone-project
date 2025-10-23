@@ -1,0 +1,213 @@
+name: Security Scan
+
+on:
+  schedule:
+    # Run every Monday at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  # Discover all services for scanning
+  discover-services:
+    name: Discover All Services
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Find all services
+        id: set-matrix
+        run: |
+          ALL_SERVICES=$(find . -maxdepth 2 \( -name "build.gradle.kts" -o -name "Dockerfile" \) | \
+            sed 's|/[^/]*$||' | sed 's|^\./||' | \
+            grep -vE '^\.|^_infrastructure|^\.github' | \
+            sort -u)
+
+          MATRIX_INCLUDE="[]"
+          for SERVICE_PATH in $ALL_SERVICES; do
+            SERVICE_NAME=$(basename "$SERVICE_PATH")
+            MATRIX_INCLUDE=$(echo "$MATRIX_INCLUDE" | jq -c \
+              --arg name "$SERVICE_NAME" \
+              --arg path "$SERVICE_PATH" \
+              '. += [{"name": $name, "path": $path}]')
+          done
+
+          echo "matrix={\"include\":$MATRIX_INCLUDE}" >> $GITHUB_OUTPUT
+          echo "Services to scan:"
+          echo "$MATRIX_INCLUDE" | jq -r '.[] | "  - \(.name)"'
+
+  # Trivy filesystem vulnerability scan
+  trivy-fs-scan:
+    name: Trivy FS Scan
+    needs: discover-services
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.discover-services.outputs.matrix) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner (table format)
+        uses: aquasecurity/trivy-action@0.28.0
+        continue-on-error: true
+        with:
+          scan-type: 'fs'
+          scan-ref: '${{ matrix.path }}'
+          format: 'table'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+
+      - name: Run Trivy vulnerability scanner (SARIF for artifacts)
+        uses: aquasecurity/trivy-action@0.28.0
+        continue-on-error: true
+        with:
+          scan-type: 'fs'
+          scan-ref: '${{ matrix.path }}'
+          format: 'sarif'
+          output: 'trivy-fs-${{ matrix.name }}.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+
+      - name: Upload Trivy results as artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-fs-report-${{ matrix.name }}
+          path: 'trivy-fs-${{ matrix.name }}.sarif'
+          retention-days: 30
+
+  # Dependency check
+  dependency-check:
+    name: Dependency Check
+    needs: discover-services
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.discover-services.outputs.matrix) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Grant execute permission for gradlew
+        working-directory: ${{ matrix.path }}
+        run: chmod +x gradlew || true
+
+      - name: Check for dependency updates
+        working-directory: ${{ matrix.path }}
+        continue-on-error: true
+        run: |
+          echo "Checking for outdated dependencies in ${{ matrix.name }}..."
+          ./gradlew dependencyUpdates -Drevision=release || true
+
+      - name: Upload dependency report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dependency-report-${{ matrix.name }}
+          path: ${{ matrix.path }}/build/dependencyUpdates/
+          retention-days: 30
+          if-no-files-found: ignore
+
+  # Docker image scan (scan latest production images)
+  docker-image-scan:
+    name: Docker Image Scan
+    needs: discover-services
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.discover-services.outputs.matrix) }}
+    steps:
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Pull latest production image
+        continue-on-error: true
+        run: |
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ matrix.name }}:production || \
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ matrix.name }}:latest || \
+          echo "⚠️ No production image found for ${{ matrix.name }}"
+
+      - name: Scan production Docker image (table format)
+        uses: aquasecurity/trivy-action@0.28.0
+        continue-on-error: true
+        with:
+          image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ matrix.name }}:production
+          format: 'table'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+
+      - name: Scan production Docker image (SARIF for artifacts)
+        uses: aquasecurity/trivy-action@0.28.0
+        continue-on-error: true
+        with:
+          image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ matrix.name }}:production
+          format: 'sarif'
+          output: 'trivy-image-${{ matrix.name }}.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+
+      - name: Upload Docker scan as artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-docker-scan-${{ matrix.name }}
+          path: 'trivy-image-${{ matrix.name }}.sarif'
+          retention-days: 30
+
+  # Security scan summary
+  security-summary:
+    name: Security Scan Summary
+    needs: [discover-services, trivy-fs-scan, dependency-check, docker-image-scan]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate summary
+        run: |
+          echo "=========================================="
+          echo "🔒 Security Scan Summary"
+          echo "=========================================="
+          echo ""
+          echo "Scan Date: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "Trigger: ${{ github.event_name }}"
+          echo ""
+          echo "Scan Results:"
+          echo "  - Trivy FS Scan: ${{ needs.trivy-fs-scan.result }}"
+          echo "  - Dependency Check: ${{ needs.dependency-check.result }}"
+          echo "  - Docker Image Scan: ${{ needs.docker-image-scan.result }}"
+          echo ""
+          echo "Services scanned:"
+          echo '${{ needs.discover-services.outputs.matrix }}' | jq -r '.include[].name' | while read service; do
+            echo "  ✓ $service"
+          done
+          echo ""
+          echo "📊 View detailed results in:"
+          echo "  - Security tab: https://github.com/${{ github.repository }}/security"
+          echo "  - Artifacts: Check uploaded scan reports"
+          echo ""
+
+          if [[ "${{ needs.trivy-fs-scan.result }}" == "failure" ]]; then
+            echo "⚠️ Critical vulnerabilities detected - review Security tab"
+          else
+            echo "✅ Security scan completed"
+          fi
+
+      # TODO: Add notification for security issues
+      # - name: Notify security team
+      #   if: needs.trivy-fs-scan.result == 'failure'
+      #   run: |
+      #     echo "Sending security alert notification..."
+      #     # Add notification logic here

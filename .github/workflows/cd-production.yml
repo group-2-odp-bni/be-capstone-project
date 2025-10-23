@@ -1,0 +1,335 @@
+name: CD - Deploy to Production
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/**'
+  workflow_dispatch:
+    inputs:
+      services:
+        description: 'Services to deploy (comma-separated, or "all")'
+        required: true
+        default: 'all'
+      version:
+        description: 'Version/Tag to deploy (default: latest commit SHA)'
+        required: false
+        default: ''
+
+env:
+  ENVIRONMENT: production
+
+jobs:
+  # Discover which services to deploy
+  discover-services:
+    name: Discover Services to Deploy
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      has-changes: ${{ steps.set-matrix.outputs.has-changes }}
+      version: ${{ steps.set-version.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set deployment version
+        id: set-version
+        run: |
+          if [[ -n "${{ github.event.inputs.version }}" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${{ github.sha }}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Deployment version: $VERSION"
+
+      - name: Determine services to deploy
+        id: set-matrix
+        run: |
+          # Find all available services
+          ALL_SERVICES=$(find . -maxdepth 2 \( -name "build.gradle.kts" -o -name "Dockerfile" \) | \
+            sed 's|/[^/]*$||' | sed 's|^\./||' | \
+            grep -vE '^\.|^_infrastructure|^\.github' | \
+            sort -u)
+
+          echo "All available services:"
+          echo "$ALL_SERVICES"
+
+          MATRIX_INCLUDE="[]"
+          HAS_CHANGES="false"
+
+          # Check if manual trigger
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            MANUAL_SERVICES="${{ github.event.inputs.services }}"
+
+            if [[ "$MANUAL_SERVICES" == "all" ]]; then
+              echo "Manual trigger: Deploying ALL services to PRODUCTION"
+              for SERVICE_PATH in $ALL_SERVICES; do
+                SERVICE_NAME=$(basename "$SERVICE_PATH")
+                MATRIX_INCLUDE=$(echo "$MATRIX_INCLUDE" | jq -c \
+                  --arg name "$SERVICE_NAME" \
+                  --arg path "$SERVICE_PATH" \
+                  '. += [{"name": $name, "path": $path}]')
+              done
+              HAS_CHANGES="true"
+            else
+              echo "Manual trigger: Deploying specific services: $MANUAL_SERVICES"
+              IFS=',' read -ra SELECTED_SERVICES <<< "$MANUAL_SERVICES"
+              for SERVICE_NAME in "${SELECTED_SERVICES[@]}"; do
+                SERVICE_NAME=$(echo "$SERVICE_NAME" | xargs)
+                SERVICE_PATH=$(echo "$ALL_SERVICES" | grep -E "(^|/)$SERVICE_NAME$" | head -1)
+
+                if [[ -n "$SERVICE_PATH" ]]; then
+                  echo "✓ Adding $SERVICE_NAME to production deploy"
+                  MATRIX_INCLUDE=$(echo "$MATRIX_INCLUDE" | jq -c \
+                    --arg name "$SERVICE_NAME" \
+                    --arg path "$SERVICE_PATH" \
+                    '. += [{"name": $name, "path": $path}]')
+                  HAS_CHANGES="true"
+                else
+                  echo "❌ Service not found: $SERVICE_NAME"
+                  exit 1
+                fi
+              done
+            fi
+          else
+            # Auto trigger from main branch: Deploy changed services
+            echo "Auto trigger: Detecting changed services from main branch"
+
+            if [[ "${{ github.event.before }}" == "0000000000000000000000000000000000000000" ]]; then
+              CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+            else
+              CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
+            fi
+
+            echo "Changed files:"
+            echo "$CHANGED_FILES"
+
+            for SERVICE_PATH in $ALL_SERVICES; do
+              SERVICE_NAME=$(basename "$SERVICE_PATH")
+
+              if echo "$CHANGED_FILES" | grep -q "^$SERVICE_PATH/"; then
+                echo "✓ $SERVICE_NAME has changes - will deploy to PRODUCTION"
+                HAS_CHANGES="true"
+                MATRIX_INCLUDE=$(echo "$MATRIX_INCLUDE" | jq -c \
+                  --arg name "$SERVICE_NAME" \
+                  --arg path "$SERVICE_PATH" \
+                  '. += [{"name": $name, "path": $path}]')
+              fi
+            done
+
+            # Shared dependencies trigger full deployment
+            if echo "$CHANGED_FILES" | grep -qE "^(gradle/|build.gradle|settings.gradle)"; then
+              echo "⚠️ Shared build files changed - deploying all services to PRODUCTION"
+              HAS_CHANGES="true"
+              MATRIX_INCLUDE="[]"
+              for SERVICE_PATH in $ALL_SERVICES; do
+                SERVICE_NAME=$(basename "$SERVICE_PATH")
+                MATRIX_INCLUDE=$(echo "$MATRIX_INCLUDE" | jq -c \
+                  --arg name "$SERVICE_NAME" \
+                  --arg path "$SERVICE_PATH" \
+                  '. += [{"name": $name, "path": $path}]')
+              done
+            fi
+          fi
+
+          echo "has-changes=$HAS_CHANGES" >> $GITHUB_OUTPUT
+          echo "matrix={\"include\":$MATRIX_INCLUDE}" >> $GITHUB_OUTPUT
+
+          echo "Final production deployment matrix:"
+          echo "{\"include\":$MATRIX_INCLUDE}"
+
+  # Build and test before production deployment
+  build-test:
+    name: Build & Test
+    needs: discover-services
+    if: needs.discover-services.outputs.has-changes == 'true'
+    strategy:
+      fail-fast: true
+      matrix: ${{ fromJson(needs.discover-services.outputs.matrix) }}
+    uses: ./.github/workflows/_reusable-build-test.yml
+    with:
+      service-name: ${{ matrix.name }}
+      service-path: ${{ matrix.path }}
+      java-version: '21'
+      run-sonar: true
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_ORGANIZATION: ${{ secrets.SONAR_ORGANIZATION }}
+
+  # Security scan - critical for production
+  security-scan:
+    name: Security Scan
+    needs: [discover-services, build-test]
+    if: needs.discover-services.outputs.has-changes == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: true
+      matrix: ${{ fromJson(needs.discover-services.outputs.matrix) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy security scan (table format)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '${{ matrix.path }}'
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+
+      - name: Run Trivy security scan (SARIF for artifacts)
+        if: always()
+        uses: aquasecurity/trivy-action@0.28.0
+        continue-on-error: true
+        with:
+          scan-type: 'fs'
+          scan-ref: '${{ matrix.path }}'
+          format: 'sarif'
+          output: 'trivy-${{ matrix.name }}.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy results as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-production-${{ matrix.name }}
+          path: 'trivy-${{ matrix.name }}.sarif'
+          retention-days: 90
+
+  # Build and push Docker images for production
+  docker-build-push:
+    name: Build & Push Production Docker
+    needs: [discover-services, build-test, security-scan]
+    if: needs.discover-services.outputs.has-changes == 'true'
+    strategy:
+      fail-fast: true
+      matrix: ${{ fromJson(needs.discover-services.outputs.matrix) }}
+    uses: ./.github/workflows/_reusable-docker-build.yml
+    with:
+      service-name: ${{ matrix.name }}
+      service-path: ${{ matrix.path }}
+      environment: production
+      image-tag: ${{ needs.discover-services.outputs.version }}
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  # Production deployment with manual approval
+  deploy-production:
+    name: Deploy to Production
+    needs: [discover-services, build-test, security-scan, docker-build-push]
+    if: needs.discover-services.outputs.has-changes == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://orange-pay.example.com
+    strategy:
+      fail-fast: false
+      max-parallel: 1  # Deploy one service at a time in production
+      matrix: ${{ fromJson(needs.discover-services.outputs.matrix) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Production Deployment Notice
+        run: |
+          echo "=========================================="
+          echo "⚠️  PRODUCTION DEPLOYMENT"
+          echo "=========================================="
+          echo ""
+          echo "Service: ${{ matrix.name }}"
+          echo "Image: ${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ matrix.name }}:production"
+          echo "Version: ${{ needs.discover-services.outputs.version }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Triggered by: ${{ github.actor }}"
+          echo ""
+          echo "This deployment requires manual approval."
+          echo ""
+
+      - name: Deploy ${{ matrix.name }} to Production
+        run: |
+          echo "Deploying ${{ matrix.name }} to production..."
+          echo ""
+          echo "TODO: Add your production deployment commands here"
+          echo "Examples:"
+          echo "  - kubectl set image deployment/${{ matrix.name }} ${{ matrix.name }}=..."
+          echo "  - helm upgrade ${{ matrix.name }} ./charts/${{ matrix.name }} --set image.tag=production"
+          echo "  - argocd app sync ${{ matrix.name }}"
+          echo ""
+          echo "✅ Production deployment placeholder completed"
+
+      # TODO: Uncomment and configure when ready
+      # - name: Deploy with kubectl
+      #   run: |
+      #     kubectl set image deployment/${{ matrix.name }} \
+      #       ${{ matrix.name }}=${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ matrix.name }}:production \
+      #       -n production
+
+      # - name: Verify production deployment
+      #   run: |
+      #     kubectl rollout status deployment/${{ matrix.name }} -n production --timeout=5m
+      #     kubectl get pods -n production -l app=${{ matrix.name }}
+
+      # - name: Run smoke tests
+      #   run: |
+      #     echo "Running smoke tests for ${{ matrix.name }}..."
+      #     # Add smoke test commands here
+
+  # Deployment summary and notifications
+  deployment-summary:
+    name: Production Deployment Summary
+    needs: [discover-services, deploy-production]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Summary
+        run: |
+          echo "=========================================="
+          echo "🚀 Production Deployment Summary"
+          echo "=========================================="
+          echo ""
+          echo "Environment: PRODUCTION"
+          echo "Trigger: ${{ github.event_name }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Version: ${{ needs.discover-services.outputs.version }}"
+          echo "Deployed by: ${{ github.actor }}"
+          echo ""
+          echo "Services deployed:"
+          echo '${{ needs.discover-services.outputs.matrix }}' | jq -r '.include[].name' | while read service; do
+            echo "  ✓ $service"
+          done
+          echo ""
+          echo "Deployment Status: ${{ needs.deploy-production.result }}"
+          echo ""
+
+          if [[ "${{ needs.deploy-production.result }}" == "failure" ]]; then
+            echo "❌ Production deployment FAILED"
+            echo "Action required: Check logs and rollback if necessary"
+            exit 1
+          elif [[ "${{ needs.deploy-production.result }}" == "cancelled" ]]; then
+            echo "⚠️ Production deployment CANCELLED"
+            exit 1
+          else
+            echo "✅ Production deployment SUCCESSFUL"
+            echo ""
+            echo "Next steps:"
+            echo "  1. Monitor application metrics"
+            echo "  2. Check error logs"
+            echo "  3. Verify user-facing functionality"
+          fi
+
+      # TODO: Add notification to Slack, Teams, or Email
+      # - name: Notify deployment status
+      #   if: always()
+      #   run: |
+      #     # Send notification to team
+      #     echo "Sending notification..."
