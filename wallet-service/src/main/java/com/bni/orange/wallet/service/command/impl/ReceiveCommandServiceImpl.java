@@ -54,7 +54,7 @@ public class ReceiveCommandServiceImpl implements ReceiveCommandService {
   private UUID currentUserId() {
     var auth = SecurityContextHolder.getContext().getAuthentication();
     if (auth != null && auth.getPrincipal() instanceof Jwt jwt) {
-      String sub = jwt.getClaimAsString("sub"); // asumsi UUID
+      String sub = jwt.getClaimAsString("sub"); 
       return UUID.fromString(sub);
     }
     throw new AccessDeniedException("Unauthenticated");
