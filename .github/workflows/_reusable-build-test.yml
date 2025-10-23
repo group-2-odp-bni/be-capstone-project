@@ -1,5 +1,9 @@
 name: Reusable Build & Test
 
+# NOTE: Artifact uploads have been removed to avoid storage quota issues.
+# This is a capstone project and we don't need long-term artifact retention.
+# All scan results are still visible in workflow logs (table format).
+
 on:
   workflow_call:
     inputs:
@@ -66,33 +70,9 @@ jobs:
         working-directory: ${{ inputs.service-path }}
         run: ./gradlew bootJar --no-daemon --stacktrace
 
-      - name: Upload test results
-        if: always()
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results-${{ inputs.service-name }}
-          path: ${{ inputs.service-path }}/build/reports/tests/
-          retention-days: 1
-          if-no-files-found: ignore
-
-      - name: Upload coverage report
-        if: always()
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-${{ inputs.service-name }}
-          path: ${{ inputs.service-path }}/build/reports/jacoco/
-          retention-days: 1
-          if-no-files-found: ignore
-
-      - name: Upload JAR artifact
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: jar-${{ inputs.service-name }}
-          path: ${{ inputs.service-path }}/build/libs/*.jar
-          retention-days: 1
+      # Artifact uploads removed - storage quota issues
+      # Test results and coverage are available in the build logs
+      # JAR artifacts are rebuilt in Docker build step
 
       - name: Cache SonarCloud packages
         if: inputs.run-sonar
