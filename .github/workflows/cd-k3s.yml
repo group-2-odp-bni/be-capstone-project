@@ -150,6 +150,7 @@ jobs:
       fail-fast: true
       matrix: ${{ fromJson(needs.discover-services.outputs.matrix) }}
     permissions:
+      contents: read
       packages: write
       security-events: write
     uses: ./.github/workflows/_reusable-docker-build.yml
