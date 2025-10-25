@@ -218,11 +218,8 @@ jobs:
 
       - name: Apply ConfigMap
         run: |
-          echo "--- Debugging file path ---"
-          pwd
-          ls -lR
-          echo "--- End Debugging ---"
           kubectl apply -f .k8s/manifests/base/configmap.yaml -n ${{ env.NAMESPACE }}
+          echo "✓ ConfigMap applied successfully"
 
       - name: Deploy ${{ matrix.name }} to K3s
         run: |
@@ -242,6 +239,7 @@ jobs:
           helm upgrade --install ${{ matrix.name }} .k8s/charts/applications/orange-service \
             --namespace ${{ env.NAMESPACE }} \
             --values .k8s/values/${{ matrix.name }}-values.yaml \
+            --set image.registry=docker.io \
             --set image.repository=${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ matrix.name }} \
             --set image.tag=$IMAGE_TAG \
             --set image.pullSecrets[0].name=dockerhub-secret \
