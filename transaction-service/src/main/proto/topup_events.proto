@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+package com.bni.orange.transaction.event;
+
+import "google/protobuf/timestamp.proto";
+
+option java_package = "com.bni.orange.transaction.event";
+option java_outer_classname = "TopUpEvents";
+option java_multiple_files = false;
+
+// Event emitted when a top-up transaction is initiated
+message TopUpInitiated {
+  string event_id = 1;
+  string transaction_id = 2;
+  string transaction_ref = 3;
+  string user_id = 4;
+  string wallet_id = 5;
+  string va_number = 6;
+  string provider = 7;
+  double amount = 8;
+  double fee = 9;
+  double total_amount = 10;
+  string currency = 11;
+  google.protobuf.Timestamp expires_at = 12;
+  google.protobuf.Timestamp created_at = 13;
+  google.protobuf.Timestamp timestamp = 14;
+}
+
+// Event emitted when a top-up payment is successfully completed
+message TopUpCompleted {
+  string event_id = 1;
+  string transaction_id = 2;
+  string transaction_ref = 3;
+  string user_id = 4;
+  string wallet_id = 5;
+  string va_number = 6;
+  string provider = 7;
+  double amount = 8;
+  double paid_amount = 9;
+  string currency = 10;
+  google.protobuf.Timestamp paid_at = 11;
+  google.protobuf.Timestamp completed_at = 12;
+  google.protobuf.Timestamp timestamp = 13;
+}
+
+// Event emitted when a top-up fails
+message TopUpFailed {
+  string event_id = 1;
+  string transaction_id = 2;
+  string transaction_ref = 3;
+  string user_id = 4;
+  string va_number = 5;
+  string provider = 6;
+  double amount = 7;
+  string failure_reason = 8;
+  google.protobuf.Timestamp failed_at = 9;
+  google.protobuf.Timestamp timestamp = 10;
+}
+
+// Event emitted when a VA expires without payment
+message TopUpExpired {
+  string event_id = 1;
+  string transaction_id = 2;
+  string transaction_ref = 3;
+  string user_id = 4;
+  string va_number = 5;
+  string provider = 6;
+  double amount = 7;
+  google.protobuf.Timestamp expires_at = 8;
+  google.protobuf.Timestamp expired_at = 9;
+  google.protobuf.Timestamp timestamp = 10;
+}
+
+// Event emitted when user cancels pending top-up
+message TopUpCancelled {
+  string event_id = 1;
+  string transaction_id = 2;
+  string transaction_ref = 3;
+  string user_id = 4;
+  string va_number = 5;
+  string provider = 6;
+  double amount = 7;
+  google.protobuf.Timestamp cancelled_at = 8;
+  google.protobuf.Timestamp timestamp = 9;
+}

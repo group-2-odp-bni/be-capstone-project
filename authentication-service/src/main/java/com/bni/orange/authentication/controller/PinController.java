@@ -4,14 +4,17 @@ import com.bni.orange.authentication.model.request.AuthRequest;
 import com.bni.orange.authentication.model.request.OtpVerifyRequest;
 import com.bni.orange.authentication.model.request.PinChangeRequest;
 import com.bni.orange.authentication.model.request.PinResetConfirmRequest;
+import com.bni.orange.authentication.model.request.PinVerifyRequest;
 import com.bni.orange.authentication.model.response.ApiResponse;
 import com.bni.orange.authentication.model.response.OtpResponse;
+import com.bni.orange.authentication.model.response.PinVerifyResponse;
 import com.bni.orange.authentication.model.response.StateTokenResponse;
 import com.bni.orange.authentication.service.AuthFlowService;
 import com.bni.orange.authentication.service.PinService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -23,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
+@Slf4j
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/pin")
@@ -68,5 +72,15 @@ public class PinController {
         var jwt = (Jwt) authentication.getPrincipal();
         var userId = UUID.fromString(jwt.getSubject());
         return ResponseEntity.ok(pinService.confirmPinReset(userId, request, servletRequest));
+    }
+
+    @PostMapping("/verify")
+    @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
+    public ResponseEntity<ApiResponse<PinVerifyResponse>> verifyPin(
+        Authentication authentication,
+        @RequestBody @Valid PinVerifyRequest request,
+        HttpServletRequest servletRequest
+    ) {
+        return ResponseEntity.ok(pinService.verifyPin(UUID.fromString(authentication.getName()), request, servletRequest));
     }
 }

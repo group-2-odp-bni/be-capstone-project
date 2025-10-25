@@ -2,7 +2,6 @@ name: Security Scan
 
 on:
   schedule:
-    # Run every Monday at 9 AM UTC
     - cron: '0 9 * * 1'
   workflow_dispatch:
 
@@ -12,7 +11,6 @@ permissions:
   actions: read
 
 jobs:
-  # Discover all services for scanning
   discover-services:
     name: Discover All Services
     runs-on: ubuntu-latest
@@ -43,7 +41,6 @@ jobs:
           echo "Services to scan:"
           echo "$MATRIX_INCLUDE" | jq -r '.[] | "  - \(.name)"'
 
-  # Trivy filesystem vulnerability scan
   trivy-fs-scan:
     name: Trivy FS Scan
     needs: discover-services
@@ -83,7 +80,6 @@ jobs:
           path: 'trivy-fs-${{ matrix.name }}.sarif'
           retention-days: 1
 
-  # Dependency check
   dependency-check:
     name: Dependency Check
     needs: discover-services
@@ -123,7 +119,6 @@ jobs:
           retention-days: 1
           if-no-files-found: ignore
 
-  # Docker image scan (scan latest production images)
   docker-image-scan:
     name: Docker Image Scan
     needs: discover-services
@@ -171,7 +166,6 @@ jobs:
           path: 'trivy-image-${{ matrix.name }}.sarif'
           retention-days: 1
 
-  # Security scan summary
   security-summary:
     name: Security Scan Summary
     needs: [discover-services, trivy-fs-scan, dependency-check, docker-image-scan]
@@ -207,10 +201,3 @@ jobs:
           else
             echo "✅ Security scan completed"
           fi
-
-      # TODO: Add notification for security issues
-      # - name: Notify security team
-      #   if: needs.trivy-fs-scan.result == 'failure'
-      #   run: |
-      #     echo "Sending security alert notification..."
-      #     # Add notification logic here

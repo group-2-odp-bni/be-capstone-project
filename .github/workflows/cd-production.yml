@@ -5,7 +5,6 @@ on:
     branches: [main]
     paths-ignore:
       - '**.md'
-      - 'docs/**'
       - '.github/**'
   workflow_dispatch:
     inputs:
@@ -22,7 +21,6 @@ env:
   ENVIRONMENT: production
 
 jobs:
-  # Discover which services to deploy
   discover-services:
     name: Discover Services to Deploy
     runs-on: ubuntu-latest
@@ -143,7 +141,6 @@ jobs:
           echo "Final production deployment matrix:"
           echo "{\"include\":$MATRIX_INCLUDE}"
 
-  # Build and test before production deployment
   build-test:
     name: Build & Test
     needs: discover-services
@@ -161,7 +158,6 @@ jobs:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       SONAR_ORGANIZATION: ${{ secrets.SONAR_ORGANIZATION }}
 
-  # Security scan - critical for production
   security-scan:
     name: Security Scan
     needs: [discover-services, build-test]
@@ -206,7 +202,6 @@ jobs:
           path: 'trivy-${{ matrix.name }}.sarif'
           retention-days: 1
 
-  # Build and push Docker images for production
   docker-build-push:
     name: Build & Push Production Docker
     needs: [discover-services, build-test, security-scan]
@@ -228,7 +223,6 @@ jobs:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
-  # Production deployment with manual approval
   deploy-production:
     name: Deploy to Production
     needs: [discover-services, build-test, security-scan, docker-build-push]
@@ -239,7 +233,7 @@ jobs:
       url: https://orange-pay.example.com
     strategy:
       fail-fast: false
-      max-parallel: 1  # Deploy one service at a time in production
+      max-parallel: 1
       matrix: ${{ fromJson(needs.discover-services.outputs.matrix) }}
     steps:
       - name: Checkout code
@@ -331,10 +325,3 @@ jobs:
             echo "  2. Check error logs"
             echo "  3. Verify user-facing functionality"
           fi
-
-      # TODO: Add notification to Slack, Teams, or Email
-      # - name: Notify deployment status
-      #   if: always()
-      #   run: |
-      #     # Send notification to team
-      #     echo "Sending notification..."

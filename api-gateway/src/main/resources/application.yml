@@ -15,6 +15,10 @@ spring:
               uri: http://localhost:8082
               predicates:
                 - Path=/api/v1/user/**, /api/v1/users/**
+            - id: transaction-service
+              uri: http://localhost:8084
+              predicates:
+                - Path=/api/v1/transfers/**, /api/v1/transactions/**, /api/v1/quick-transfers/**
 #          routes:
 #            - id: authentication-service
 #              uri: http://authentication-service:8081
