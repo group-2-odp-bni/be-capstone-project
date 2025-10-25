@@ -149,6 +149,9 @@ jobs:
     strategy:
       fail-fast: true
       matrix: ${{ fromJson(needs.discover-services.outputs.matrix) }}
+    permissions:
+      packages: write
+      security-events: write
     uses: ./.github/workflows/_reusable-docker-build.yml
     with:
       service-name: ${{ matrix.name }}
