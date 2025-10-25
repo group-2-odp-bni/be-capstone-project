@@ -1,17 +1,18 @@
 name: CI - Build & Test
 
+# NOTE: Artifact uploads have been removed to avoid storage quota issues.
+# This is a capstone project and we don't need long-term artifact retention.
+# All scan results are still visible in workflow logs (table format).
+
 on:
   pull_request:
-    branches: [main, develop]
+    branches: [main, dev]
     types: [opened, synchronize, reopened]
-  push:
-    branches: [main, develop]
 
 env:
   JAVA_VERSION: '21'
 
 jobs:
-  # Auto-discover services dynamically
   discover-services:
     name: Discover Changed Services
     runs-on: ubuntu-latest
@@ -27,25 +28,14 @@ jobs:
       - name: Detect changed services
         id: set-matrix
         run: |
-          # Determine base commit for comparison
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            BASE_SHA="${{ github.event.pull_request.base.sha }}"
-            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
-          else
-            # For push events
-            if [[ "${{ github.event.before }}" == "0000000000000000000000000000000000000000" ]]; then
-              # New branch - check all services
-              BASE_SHA="HEAD~1"
-            else
-              BASE_SHA="${{ github.event.before }}"
-            fi
-            HEAD_SHA="${{ github.sha }}"
-          fi
+          # This workflow only runs on pull_request events
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
 
-          echo "Comparing $BASE_SHA...$HEAD_SHA"
+          echo "Comparing PR: $BASE_SHA...$HEAD_SHA"
 
-          # Get changed files
-          CHANGED_FILES=$(git diff --name-only $BASE_SHA $HEAD_SHA 2>/dev/null || git ls-tree -r --name-only HEAD)
+          # Get changed files in this PR
+          CHANGED_FILES=$(git diff --name-only $BASE_SHA $HEAD_SHA)
 
           echo "Changed files:"
           echo "$CHANGED_FILES"
@@ -101,7 +91,6 @@ jobs:
           echo "Final matrix: {\"include\":$MATRIX_INCLUDE}"
           echo "Has changes: $HAS_CHANGES"
 
-  # Run build and test for each changed service
   build-test:
     name: Build & Test
     needs: discover-services
@@ -144,25 +133,9 @@ jobs:
           format: 'table'
           severity: 'CRITICAL,HIGH,MEDIUM'
 
-      - name: Run Trivy filesystem scan (SARIF for artifacts)
-        uses: aquasecurity/trivy-action@0.28.0
-        continue-on-error: true
-        with:
-          scan-type: 'fs'
-          scan-ref: '${{ matrix.path }}'
-          format: 'sarif'
-          output: 'trivy-fs-${{ matrix.name }}.sarif'
-          severity: 'CRITICAL,HIGH,MEDIUM'
+      # SARIF generation and artifact upload removed - storage quota issues
+      # All scan results are visible in the table format above
 
-      - name: Upload Trivy results as artifact
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: trivy-scan-${{ matrix.name }}
-          path: 'trivy-fs-${{ matrix.name }}.sarif'
-          retention-days: 30
-
-  # PR validation checks
   pr-checks:
     name: PR Validation
     if: github.event_name == 'pull_request'
@@ -195,7 +168,6 @@ jobs:
             echo "ℹ️ PR title does not follow conventional commits format (optional)"
           fi
 
-  # Quality gate - must pass before merge
   quality-gate:
     name: Quality Gate
     needs: [discover-services, build-test, security-scan]
@@ -223,6 +195,6 @@ jobs:
           else
             echo "✅ Quality gate PASSED"
             if [[ "${{ needs.security-scan.result }}" == "failure" ]]; then
-              echo "⚠️ Note: Security scan had issues (check artifacts for reports)"
+              echo "⚠️ Note: Security scan had issues (check workflow logs for details)"
             fi
           fi

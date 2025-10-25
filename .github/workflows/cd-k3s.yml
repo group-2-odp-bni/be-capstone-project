@@ -1,0 +1,345 @@
+name: CD - Deploy to K3s
+
+on:
+  push:
+    branches: [main]  # Only deploy on main branch to save costs
+    paths-ignore:
+      - '**.md'
+      - '.k8s/.docs/**'
+  workflow_dispatch:
+    inputs:
+      services:
+        description: 'Services to deploy (comma-separated, or "all")'
+        required: false
+        default: 'all'
+
+env:
+  NAMESPACE: orange-wallet
+  REGISTRY: docker.io
+
+jobs:
+  discover-services:
+    name: Discover Services to Deploy
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      has-changes: ${{ steps.set-matrix.outputs.has-changes }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine services to deploy
+        id: set-matrix
+        run: |
+          # Find all available services
+          ALL_SERVICES=$(find . -maxdepth 2 \( -name "build.gradle.kts" -o -name "Dockerfile" \) | \
+            sed 's|/[^/]*$||' | sed 's|^\./||' | \
+            grep -vE '^\.|^_infrastructure|^\.github|^\.k8s' | \
+            sort -u)
+
+          echo "All available services:"
+          echo "$ALL_SERVICES"
+
+          MATRIX_INCLUDE="[]"
+          HAS_CHANGES="false"
+
+          # Check if manual trigger with specific services
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            MANUAL_SERVICES="${{ github.event.inputs.services }}"
+
+            if [[ "$MANUAL_SERVICES" == "all" || -z "$MANUAL_SERVICES" ]]; then
+              echo "Manual trigger: Deploying ALL services to staging"
+              for SERVICE_PATH in $ALL_SERVICES; do
+                SERVICE_NAME=$(basename "$SERVICE_PATH")
+                MATRIX_INCLUDE=$(echo "$MATRIX_INCLUDE" | jq -c \
+                  --arg name "$SERVICE_NAME" \
+                  --arg path "$SERVICE_PATH" \
+                  '. += [{"name": $name, "path": $path}]')
+              done
+              HAS_CHANGES="true"
+            else
+              echo "Manual trigger: Deploying specific services: $MANUAL_SERVICES"
+              IFS=',' read -ra SELECTED_SERVICES <<< "$MANUAL_SERVICES"
+              for SERVICE_NAME in "${SELECTED_SERVICES[@]}"; do
+                SERVICE_NAME=$(echo "$SERVICE_NAME" | xargs) # trim whitespace
+                SERVICE_PATH=$(echo "$ALL_SERVICES" | grep -E "(^|/)$SERVICE_NAME$" | head -1)
+
+                if [[ -n "$SERVICE_PATH" ]]; then
+                  echo "✓ Adding $SERVICE_NAME to deploy"
+                  MATRIX_INCLUDE=$(echo "$MATRIX_INCLUDE" | jq -c \
+                    --arg name "$SERVICE_NAME" \
+                    --arg path "$SERVICE_PATH" \
+                    '. += [{"name": $name, "path": $path}]')
+                  HAS_CHANGES="true"
+                else
+                  echo "⚠️ Service not found: $SERVICE_NAME"
+                fi
+              done
+            fi
+          else
+            # Auto trigger: Only deploy changed services
+            echo "Auto trigger: Detecting changed services"
+
+            if [[ "${{ github.event.before }}" == "0000000000000000000000000000000000000000" ]]; then
+              CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+            else
+              CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
+            fi
+
+            echo "Changed files:"
+            echo "$CHANGED_FILES"
+
+            for SERVICE_PATH in $ALL_SERVICES; do
+              SERVICE_NAME=$(basename "$SERVICE_PATH")
+
+              if echo "$CHANGED_FILES" | grep -q "^$SERVICE_PATH/"; then
+                echo "✓ $SERVICE_NAME has changes - will deploy"
+                HAS_CHANGES="true"
+                MATRIX_INCLUDE=$(echo "$MATRIX_INCLUDE" | jq -c \
+                  --arg name "$SERVICE_NAME" \
+                  --arg path "$SERVICE_PATH" \
+                  '. += [{"name": $name, "path": $path}]')
+              fi
+            done
+
+            # Check for shared dependencies
+            if echo "$CHANGED_FILES" | grep -qE "^(gradle/|build.gradle|settings.gradle)"; then
+              echo "⚠️ Shared build files changed - deploying all services"
+              HAS_CHANGES="true"
+              MATRIX_INCLUDE="[]"
+              for SERVICE_PATH in $ALL_SERVICES; do
+                SERVICE_NAME=$(basename "$SERVICE_PATH")
+                MATRIX_INCLUDE=$(echo "$MATRIX_INCLUDE" | jq -c \
+                  --arg name "$SERVICE_NAME" \
+                  --arg path "$SERVICE_PATH" \
+                  '. += [{"name": $name, "path": $path}]')
+              done
+            fi
+          fi
+
+          echo "has-changes=$HAS_CHANGES" >> $GITHUB_OUTPUT
+          echo "matrix={\"include\":$MATRIX_INCLUDE}" >> $GITHUB_OUTPUT
+
+          echo "Final deployment matrix:"
+          echo "{\"include\":$MATRIX_INCLUDE}"
+
+  build-test:
+    name: Build & Test
+    needs: discover-services
+    if: needs.discover-services.outputs.has-changes == 'true'
+    strategy:
+      fail-fast: true
+      matrix: ${{ fromJson(needs.discover-services.outputs.matrix) }}
+    uses: ./.github/workflows/_reusable-build-test.yml
+    with:
+      service-name: ${{ matrix.name }}
+      service-path: ${{ matrix.path }}
+      java-version: '21'
+      run-sonar: false
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_ORGANIZATION: ${{ secrets.SONAR_ORGANIZATION }}
+
+  docker-build-push:
+    name: Build & Push Docker
+    needs: [discover-services, build-test]
+    if: needs.discover-services.outputs.has-changes == 'true'
+    strategy:
+      fail-fast: true
+      matrix: ${{ fromJson(needs.discover-services.outputs.matrix) }}
+    uses: ./.github/workflows/_reusable-docker-build.yml
+    with:
+      service-name: ${{ matrix.name }}
+      service-path: ${{ matrix.path }}
+      environment: production  # Main branch = production, also enables 'latest' tag
+      image-tag: ${{ github.sha }}  # This is the tag we'll deploy
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  deploy-to-k3s:
+    name: Deploy to K3s
+    needs: [discover-services, build-test, docker-build-push]
+    if: needs.discover-services.outputs.has-changes == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.discover-services.outputs.matrix) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.14.0'
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Verify cluster connection
+        run: |
+          kubectl cluster-info
+          kubectl get nodes
+
+      - name: Create namespace if not exists
+        run: |
+          kubectl create namespace ${{ env.NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Create/Update application secrets
+        run: |
+          # Consolidated app secrets - includes all application needs
+          kubectl create secret generic app-secrets \
+            --from-literal=DB_USERNAME="${{ secrets.DB_USERNAME }}" \
+            --from-literal=DB_PASSWORD="${{ secrets.DB_PASSWORD }}" \
+            --from-literal=DB_NAME="${{ secrets.DB_NAME }}" \
+            --from-literal=JWT_SECRET_KEY="${{ secrets.JWT_SECRET_KEY }}" \
+            --from-literal=WAHA_API_KEY="${{ secrets.WAHA_API_KEY }}" \
+            --from-literal=WAHA_WEBHOOK_HMAC_SECRET="${{ secrets.WAHA_WEBHOOK_HMAC_SECRET }}" \
+            --namespace=${{ env.NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          # Docker registry secret for image pulls
+          kubectl create secret docker-registry dockerhub-secret \
+            --docker-server=${{ env.REGISTRY }} \
+            --docker-username=${{ secrets.DOCKERHUB_USERNAME }} \
+            --docker-password=${{ secrets.DOCKERHUB_TOKEN }} \
+            --namespace=${{ env.NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Apply ConfigMap
+        run: |
+          kubectl apply -f .k8s/manifests/base/configmap.yaml -n ${{ env.NAMESPACE }}
+
+      - name: Deploy ${{ matrix.name }} to K3s
+        run: |
+          echo "=========================================="
+          echo "Deploying ${{ matrix.name }} to K3s"
+          echo "=========================================="
+          echo ""
+
+          # Use commit SHA as image tag for traceability
+          IMAGE_TAG="${{ github.sha }}"
+
+          echo "Service: ${{ matrix.name }}"
+          echo "Image: ${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ matrix.name }}:$IMAGE_TAG"
+          echo "Commit: ${{ github.sha }}"
+          echo ""
+
+          helm upgrade --install ${{ matrix.name }} .k8s/charts/applications/orange-service \
+            --namespace ${{ env.NAMESPACE }} \
+            --values .k8s/values/${{ matrix.name }}-values.yaml \
+            --set image.repository=${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ matrix.name }} \
+            --set image.tag=$IMAGE_TAG \
+            --set image.pullSecrets[0].name=dockerhub-secret \
+            --wait \
+            --timeout 5m
+
+          echo ""
+          echo "✅ ${{ matrix.name }} deployed successfully with tag: $IMAGE_TAG"
+
+      - name: Verify deployment
+        run: |
+          echo "Waiting for ${{ matrix.name }} to be ready..."
+          kubectl wait --for=condition=ready pod -l app=${{ matrix.name }} \
+            -n ${{ env.NAMESPACE }} \
+            --timeout=300s || true
+
+          echo ""
+          echo "=== Pod Status ==="
+          kubectl get pods -n ${{ env.NAMESPACE }} -l app=${{ matrix.name }}
+
+          echo ""
+          echo "=== Service Status ==="
+          kubectl get svc -n ${{ env.NAMESPACE }} -l app=${{ matrix.name }}
+
+      - name: Health check
+        continue-on-error: true
+        run: |
+          echo "Running health check for ${{ matrix.name }}..."
+
+          # Get service ClusterIP and port
+          SERVICE_IP=$(kubectl get svc ${{ matrix.name }} -n ${{ env.NAMESPACE }} -o jsonpath='{.spec.clusterIP}')
+          SERVICE_PORT=$(kubectl get svc ${{ matrix.name }} -n ${{ env.NAMESPACE }} -o jsonpath='{.spec.ports[0].port}')
+
+          if [[ -n "$SERVICE_IP" ]] && [[ -n "$SERVICE_PORT" ]]; then
+            echo "Service endpoint: $SERVICE_IP:$SERVICE_PORT"
+            # Try to reach actuator health endpoint
+            kubectl run health-check-${{ matrix.name }}-${{ github.run_number }} \
+              --image=curlimages/curl:latest \
+              --rm -i --restart=Never \
+              --namespace=${{ env.NAMESPACE }} \
+              -- curl -f http://$SERVICE_IP:$SERVICE_PORT/actuator/health || echo "Health check failed (may not be ready yet)"
+          else
+            echo "⚠️ Could not get service endpoint"
+          fi
+
+  apply-ingress:
+    name: Apply Ingress Configuration
+    needs: [deploy-to-k3s]  # Wait for ALL deploy-to-k3s matrix jobs to complete
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Apply Ingress
+        run: |
+          kubectl apply -f .k8s/manifests/base/ingress.yaml -n ${{ env.NAMESPACE }}
+
+          echo ""
+          echo "=== Ingress Status ==="
+          kubectl get ingress -n ${{ env.NAMESPACE }}
+
+  deployment-summary:
+    name: Deployment Summary
+    needs: [discover-services, deploy-to-k3s, apply-ingress]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Summary
+        run: |
+          echo "=========================================="
+          echo "K3s Deployment Summary"
+          echo "=========================================="
+          echo ""
+          echo "Namespace: ${{ env.NAMESPACE }}"
+          echo "Trigger: ${{ github.event_name }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+          echo ""
+          echo "Services deployed:"
+          echo '${{ needs.discover-services.outputs.matrix }}' | jq -r '.include[].name' | while read service; do
+            echo "  ✓ $service"
+          done
+          echo ""
+          echo "Deployment Status: ${{ needs.deploy-to-k3s.result }}"
+          echo "Ingress Status: ${{ needs.apply-ingress.result }}"
+          echo ""
+
+          if [[ "${{ needs.deploy-to-k3s.result }}" == "failure" ]]; then
+            echo "❌ Deployment FAILED"
+            exit 1
+          else
+            echo "✅ Deployment SUCCESSFUL"
+          fi

@@ -9,5 +9,9 @@ message UserRegisteredEvent {
   string user_id = 1;
   string phone_number = 2;
   string name = 3;
-  int64 registered_at = 4;
+  string email = 4;
+  string profile_image_url = 5;
+  bool phone_verified = 6;
+  bool email_verified = 7;
+  int64 registered_at = 8;
 }

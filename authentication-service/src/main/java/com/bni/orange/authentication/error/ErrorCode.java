@@ -19,6 +19,7 @@ public enum ErrorCode {
     ACCOUNT_LOCKED(HttpStatus.LOCKED, "AUTH-3001", "Account is temporarily locked due to too many failed attempts."),
     INVALID_PIN(HttpStatus.UNAUTHORIZED, "AUTH-3002", "The provided PIN is incorrect."),
     INVALID_CURRENT_PIN(HttpStatus.BAD_REQUEST, "AUTH-3003", "The current PIN provided is incorrect."),
+    PIN_NOT_SET(HttpStatus.BAD_REQUEST, "AUTH-3004", "PIN has not been set for this account."),
 
     // Token & Session Flow (4xxx)
     INVALID_TOKEN_SCOPE(HttpStatus.FORBIDDEN, "AUTH-4001", "This token does not have the required scope for this action."),

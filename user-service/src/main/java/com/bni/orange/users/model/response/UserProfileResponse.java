@@ -6,7 +6,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Data
@@ -21,9 +22,10 @@ public class UserProfileResponse {
     private String phoneNumber;
     private String bio;
     private String address;
+    private LocalDate dateOfBirth;
     private String profileImageUrl;
     private Boolean emailVerified;
     private Boolean phoneVerified;
-    private String status;
-    private LocalDateTime lastLoginAt;
+    private OffsetDateTime emailVerifiedAt;
+    private OffsetDateTime phoneVerifiedAt;
 }
