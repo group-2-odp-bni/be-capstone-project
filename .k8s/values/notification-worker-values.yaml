@@ -14,8 +14,8 @@ env:
 
 secrets:
   DB_PASSWORD:
-    secretName: postgres-secret
-    key: password
+    secretName: app-secrets
+    key: DB_PASSWORD
   WAHA_API_KEY:
     secretName: waha-secret
     key: api-key

@@ -13,8 +13,8 @@ fullnameOverride: "wallet-service"
 
 service:
   type: ClusterIP
-  port: 8080
-  targetPort: 8080
+  # port: 8080 # Rely on chart's default to avoid duplication
+  # targetPort: 8080
   annotations: {}
 
 ingress:
@@ -84,13 +84,13 @@ env:
   SPRING_DATASOURCE_USERNAME:
     valueFrom:
       secretKeyRef:
-        name: postgres-secret
-        key: username
+        name: app-secrets
+        key: DB_USERNAME
   SPRING_DATASOURCE_PASSWORD:
     valueFrom:
       secretKeyRef:
-        name: postgres-secret
-        key: password
+        name: app-secrets
+        key: DB_PASSWORD
 
   # Redis configuration
   SPRING_DATA_REDIS_HOST: "redis"
