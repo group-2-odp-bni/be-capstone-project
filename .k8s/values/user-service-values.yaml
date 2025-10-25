@@ -1,0 +1,25 @@
+service:
+  name: user-service
+  port: 8082
+  targetPort: 8082
+
+image:
+  repository: your-org/user-service
+  tag: latest
+
+env:
+  SPRING_PROFILES_ACTIVE: "prod"
+  SERVER_PORT: "8082"
+  SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: "http://authentication-service:8081/oauth2/jwks"
+
+resources:
+  requests:
+    memory: "192Mi"
+    cpu: "150m"
+  limits:
+    memory: "320Mi"
+    cpu: "250m"
+
+labels:
+  tier: backend
+  component: user-management

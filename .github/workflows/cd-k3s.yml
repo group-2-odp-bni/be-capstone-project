@@ -218,6 +218,10 @@ jobs:
 
       - name: Apply ConfigMap
         run: |
+          echo "--- Debugging file path ---"
+          pwd
+          ls -lR
+          echo "--- End Debugging ---"
           kubectl apply -f .k8s/manifests/base/configmap.yaml -n ${{ env.NAMESPACE }}
 
       - name: Deploy ${{ matrix.name }} to K3s
