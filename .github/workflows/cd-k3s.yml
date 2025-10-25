@@ -216,6 +216,16 @@ jobs:
             --namespace=${{ env.NAMESPACE }} \
             --dry-run=client -o yaml | kubectl apply -f -
 
+          # JWT RSA keys secret (for authentication-service)
+          echo "${{ secrets.JWT_PRIVATE_KEY }}" > /tmp/private.pem
+          echo "${{ secrets.JWT_PUBLIC_KEY }}" > /tmp/public.pem
+          kubectl create secret generic jwt-keys \
+            --from-file=private.pem=/tmp/private.pem \
+            --from-file=public.pem=/tmp/public.pem \
+            --namespace=${{ env.NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+          rm -f /tmp/private.pem /tmp/public.pem
+
       - name: Apply ConfigMap
         run: |
           kubectl apply -f .k8s/manifests/base/configmap.yaml -n ${{ env.NAMESPACE }}

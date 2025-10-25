@@ -153,3 +153,20 @@ affinity: {}
 labels:
   tier: backend
   component: authentication
+
+# Volume mounts for JWT keys
+volumeMounts:
+  - name: jwt-keys
+    mountPath: /app/keys
+    readOnly: true
+
+# Volumes for JWT keys secret
+volumes:
+  - name: jwt-keys
+    secret:
+      secretName: jwt-keys
+      items:
+        - key: public.pem
+          path: public.pem
+        - key: private.pem
+          path: private.pem
