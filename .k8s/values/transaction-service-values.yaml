@@ -1,0 +1,25 @@
+service:
+  name: transaction-service
+  port: 8084
+  targetPort: 8084
+
+image:
+  repository: your-org/transaction-service
+  tag: latest
+
+env:
+  SPRING_PROFILES_ACTIVE: "prod"
+  SERVER_PORT: "8084"
+  SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: "http://authentication-service:8081/oauth2/jwks"
+
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "200m"
+  limits:
+    memory: "384Mi"
+    cpu: "300m"
+
+labels:
+  tier: backend
+  component: transaction-processing
