@@ -4,7 +4,7 @@
 replicaCount: 1
 
 image:
-  repository: munawaralimy/orange-pay-wallet-service
+  repository: teukumunawar/orange-pay-wallet-service
   tag: latest
   pullPolicy: Always
 
@@ -77,20 +77,10 @@ readinessProbe:
 # Environment variables
 env:
   SPRING_PROFILES_ACTIVE: "prod"
-  SERVER_PORT: "8080"
+  SERVER_PORT: "8080"  # Override application.yml default (8083) for K8s consistency
 
-  # Database configuration
-  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/orangewallet"
-  SPRING_DATASOURCE_USERNAME:
-    valueFrom:
-      secretKeyRef:
-        name: app-secrets
-        key: DB_USERNAME
-  SPRING_DATASOURCE_PASSWORD:
-    valueFrom:
-      secretKeyRef:
-        name: app-secrets
-        key: DB_PASSWORD
+  # Database configuration (uses chart defaults + secrets)
+  DB_URL: "jdbc:postgresql://postgres:5432/orange_db"
 
   # Redis configuration
   SPRING_DATA_REDIS_HOST: "redis"
@@ -103,6 +93,9 @@ env:
   AUTH_SERVICE_URL: "http://authentication-service:8080"
   USER_SERVICE_URL: "http://user-service:8080"
 
+  # JWT Configuration
+  JWK_SET_URI: "http://authentication-service:8080/oauth2/jwks"
+
   # Logging
   LOGGING_LEVEL_ROOT: "INFO"
   LOGGING_LEVEL_COM_ORANGEWALLET: "DEBUG"
@@ -110,6 +103,15 @@ env:
   # Management endpoints
   MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: "health,info,metrics,prometheus"
   MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: "always"
+
+# Secrets (injected from Kubernetes secrets)
+secrets:
+  DB_USERNAME:
+    secretName: app-secrets
+    key: DB_USERNAME
+  DB_PASSWORD:
+    secretName: app-secrets
+    key: DB_PASSWORD
 
 # Metrics (disable separate port to avoid duplication with service port)
 metrics:

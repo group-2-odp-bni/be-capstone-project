@@ -4,7 +4,7 @@
 replicaCount: 1
 
 image:
-  repository: munawaralimy/orange-pay-api-gateway
+  repository: teukumunawar/orange-pay-api-gateway
   tag: latest
   pullPolicy: Always
 
@@ -92,11 +92,12 @@ env:
   MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: "health,info,metrics,prometheus"
   MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: "always"
 
-  # Service URLs (will be updated based on your service discovery)
+  # Service URLs - All services use unified port 8080 in K8s
   AUTH_SERVICE_URL: "http://authentication-service:8080"
   USER_SERVICE_URL: "http://user-service:8080"
   WALLET_SERVICE_URL: "http://wallet-service:8080"
   TRANSACTION_SERVICE_URL: "http://transaction-service:8080"
+  NOTIFICATION_SERVICE_URL: "http://notification-worker:8080"
 
 # Metrics (disable separate port to avoid duplication with service port)
 metrics:

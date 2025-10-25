@@ -103,7 +103,7 @@ orange:
         batch-size: 32768
 
 server:
-  port: 8081
+  port: ${SERVER_PORT:8081}
 
 logging:
   level:

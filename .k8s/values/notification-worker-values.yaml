@@ -1,16 +1,21 @@
 service:
   name: notification-worker
-  port: 8085
-  targetPort: 8085
+  port: 8080
+  targetPort: 8080
 
 image:
-  repository: your-org/notification-worker
+  repository: teukumunawar/orange-pay-notification-worker
   tag: latest
+  pullPolicy: Always
 
 env:
   SPRING_PROFILES_ACTIVE: "prod"
-  SERVER_PORT: "8085"
+  SERVER_PORT: "8080"  # Unified port for K8s consistency
   WAHA_URL: "http://waha:3000"
+
+# Metrics (disable separate port to avoid duplication with service port)
+metrics:
+  enabled: false
 
 secrets:
   DB_PASSWORD:

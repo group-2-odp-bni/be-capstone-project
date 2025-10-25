@@ -17,11 +17,12 @@ data:
 
   KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
 
-  AUTH_SERVICE_URL: "http://authentication-service:8081"
-  USER_SERVICE_URL: "http://user-service:8082"
-  WALLET_SERVICE_URL: "http://wallet-service:8083"
-  TRANSACTION_SERVICE_URL: "http://transaction-service:8084"
-  NOTIFICATION_SERVICE_URL: "http://notification-worker:8085"
+  # Service URLs - All services use unified port 8080 in K8s
+  AUTH_SERVICE_URL: "http://authentication-service:8080"
+  USER_SERVICE_URL: "http://user-service:8080"
+  WALLET_SERVICE_URL: "http://wallet-service:8080"
+  TRANSACTION_SERVICE_URL: "http://transaction-service:8080"
+  NOTIFICATION_SERVICE_URL: "http://notification-worker:8080"
 
   WAHA_BASE_URL: "http://waha:3000"
 
