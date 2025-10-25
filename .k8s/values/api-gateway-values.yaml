@@ -78,36 +78,25 @@ readinessProbe:
 
 # Environment variables
 env:
-  - name: SPRING_PROFILES_ACTIVE
-    value: "prod"
-  - name: SERVER_PORT
-    value: "8080"
+  SPRING_PROFILES_ACTIVE: "prod"
+  SERVER_PORT: "8080"
 
   # Eureka/Service Discovery (if using)
-  # - name: EUREKA_CLIENT_ENABLED
-  #   value: "false"
+  # EUREKA_CLIENT_ENABLED: "false"
 
   # Logging
-  - name: LOGGING_LEVEL_ROOT
-    value: "INFO"
-  - name: LOGGING_LEVEL_COM_ORANGEWALLET
-    value: "DEBUG"
+  LOGGING_LEVEL_ROOT: "INFO"
+  LOGGING_LEVEL_COM_ORANGEWALLET: "DEBUG"
 
   # Management endpoints
-  - name: MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE
-    value: "health,info,metrics,prometheus"
-  - name: MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS
-    value: "always"
+  MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: "health,info,metrics,prometheus"
+  MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: "always"
 
   # Service URLs (will be updated based on your service discovery)
-  - name: AUTH_SERVICE_URL
-    value: "http://authentication-service:8080"
-  - name: USER_SERVICE_URL
-    value: "http://user-service:8080"
-  - name: WALLET_SERVICE_URL
-    value: "http://wallet-service:8080"
-  - name: TRANSACTION_SERVICE_URL
-    value: "http://transaction-service:8080"
+  AUTH_SERVICE_URL: "http://authentication-service:8080"
+  USER_SERVICE_URL: "http://user-service:8080"
+  WALLET_SERVICE_URL: "http://wallet-service:8080"
+  TRANSACTION_SERVICE_URL: "http://transaction-service:8080"
 
 # Autoscaling (optional)
 autoscaling:
