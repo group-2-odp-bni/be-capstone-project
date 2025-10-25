@@ -111,6 +111,10 @@ env:
   MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: "health,info,metrics,prometheus"
   MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: "always"
 
+# Metrics (disable separate port to avoid duplication with service port)
+metrics:
+  enabled: false  # Metrics already exposed on main service port 8080
+
 # Autoscaling
 autoscaling:
   enabled: false

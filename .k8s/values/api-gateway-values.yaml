@@ -98,6 +98,10 @@ env:
   WALLET_SERVICE_URL: "http://wallet-service:8080"
   TRANSACTION_SERVICE_URL: "http://transaction-service:8080"
 
+# Metrics (disable separate port to avoid duplication with service port)
+metrics:
+  enabled: false  # Metrics already exposed on main service port 8080
+
 # Autoscaling (optional)
 autoscaling:
   enabled: false
