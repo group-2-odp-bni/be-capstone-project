@@ -1,0 +1,213 @@
+#!/bin/bash
+# Cloudflare Tunnel Initial Setup Script
+# This script helps you create and configure a Cloudflare Tunnel
+# Run this on your LOCAL MACHINE or MASTER NODE
+
+set -e
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+echo -e "${GREEN}============================================${NC}"
+echo -e "${GREEN}Cloudflare Tunnel Setup${NC}"
+echo -e "${GREEN}============================================${NC}"
+echo ""
+
+# Check if cloudflared is installed
+if ! command -v cloudflared &> /dev/null; then
+    echo -e "${YELLOW}cloudflared not found. Installing...${NC}"
+
+    # Detect OS
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        # Linux
+        echo -e "${BLUE}Installing cloudflared for Linux...${NC}"
+        curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+        sudo mv cloudflared /usr/local/bin/
+        sudo chmod +x /usr/local/bin/cloudflared
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS
+        echo -e "${BLUE}Installing cloudflared for macOS...${NC}"
+        brew install cloudflare/cloudflare/cloudflared
+    else
+        echo -e "${RED}Unsupported OS. Please install cloudflared manually:${NC}"
+        echo "https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/"
+        exit 1
+    fi
+
+    echo -e "${GREEN}✓ cloudflared installed${NC}"
+else
+    echo -e "${GREEN}✓ cloudflared already installed${NC}"
+    cloudflared --version
+fi
+
+echo ""
+echo -e "${BLUE}============================================${NC}"
+echo -e "${BLUE}Step 1: Cloudflare Authentication${NC}"
+echo -e "${BLUE}============================================${NC}"
+echo ""
+echo "This will open a browser window to authenticate with Cloudflare."
+echo "Make sure you have access to the Cloudflare account for orangebybni.my.id"
+echo ""
+read -p "Press Enter to continue..."
+
+cloudflared tunnel login
+
+if [ $? -ne 0 ]; then
+    echo -e "${RED}Authentication failed. Please try again.${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}✓ Authentication successful${NC}"
+echo ""
+
+echo -e "${BLUE}============================================${NC}"
+echo -e "${BLUE}Step 2: Create Tunnel${NC}"
+echo -e "${BLUE}============================================${NC}"
+echo ""
+
+TUNNEL_NAME="orange-wallet"
+
+# Check if tunnel already exists
+if cloudflared tunnel list | grep -q "$TUNNEL_NAME"; then
+    echo -e "${YELLOW}Tunnel '$TUNNEL_NAME' already exists.${NC}"
+    read -p "Do you want to delete and recreate it? (yes/no): " recreate
+
+    if [ "$recreate" = "yes" ]; then
+        echo -e "${YELLOW}Deleting existing tunnel...${NC}"
+        cloudflared tunnel delete $TUNNEL_NAME
+        echo -e "${GREEN}✓ Tunnel deleted${NC}"
+    else
+        echo -e "${YELLOW}Using existing tunnel${NC}"
+    fi
+fi
+
+# Create tunnel if it doesn't exist
+if ! cloudflared tunnel list | grep -q "$TUNNEL_NAME"; then
+    echo -e "${YELLOW}Creating tunnel: $TUNNEL_NAME${NC}"
+    cloudflared tunnel create $TUNNEL_NAME
+    echo -e "${GREEN}✓ Tunnel created${NC}"
+fi
+
+echo ""
+echo -e "${BLUE}============================================${NC}"
+echo -e "${BLUE}Step 3: Route DNS${NC}"
+echo -e "${BLUE}============================================${NC}"
+echo ""
+
+# Get tunnel ID
+TUNNEL_ID=$(cloudflared tunnel list | grep "$TUNNEL_NAME" | awk '{print $1}')
+
+if [ -z "$TUNNEL_ID" ]; then
+    echo -e "${RED}Failed to get tunnel ID${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}Tunnel ID: $TUNNEL_ID${NC}"
+echo ""
+
+# Route DNS
+DOMAIN="orangebybni.my.id"
+
+echo -e "${YELLOW}Creating DNS routes...${NC}"
+echo ""
+
+# Route api subdomain
+if cloudflared tunnel route dns $TUNNEL_NAME api.$DOMAIN; then
+    echo -e "${GREEN}✓ api.$DOMAIN routed${NC}"
+else
+    echo -e "${YELLOW}! api.$DOMAIN may already be routed${NC}"
+fi
+
+# Route auth subdomain
+if cloudflared tunnel route dns $TUNNEL_NAME auth.$DOMAIN; then
+    echo -e "${GREEN}✓ auth.$DOMAIN routed${NC}"
+else
+    echo -e "${YELLOW}! auth.$DOMAIN may already be routed${NC}"
+fi
+
+# Route wallet subdomain
+if cloudflared tunnel route dns $TUNNEL_NAME wallet.$DOMAIN; then
+    echo -e "${GREEN}✓ wallet.$DOMAIN routed${NC}"
+else
+    echo -e "${YELLOW}! wallet.$DOMAIN may already be routed${NC}"
+fi
+
+echo ""
+echo -e "${BLUE}============================================${NC}"
+echo -e "${BLUE}Step 4: Generate Kubernetes Secret${NC}"
+echo -e "${BLUE}============================================${NC}"
+echo ""
+
+# Find credentials file
+CRED_FILE="$HOME/.cloudflared/${TUNNEL_ID}.json"
+
+if [ ! -f "$CRED_FILE" ]; then
+    echo -e "${RED}Credentials file not found: $CRED_FILE${NC}"
+    exit 1
+fi
+
+echo -e "${YELLOW}Generating Kubernetes secret YAML...${NC}"
+
+# Create secret YAML
+SECRET_FILE="../../manifests/infrastructure/cloudflare/cloudflared-secret.yaml"
+
+cat > "$SECRET_FILE" <<EOF
+# Cloudflare Tunnel Credentials Secret
+# Generated by setup-cloudflare-tunnel.sh
+# DO NOT commit this file to git! Add to .gitignore
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cloudflared-credentials
+  namespace: orange-wallet
+type: Opaque
+stringData:
+  credentials.json: |
+$(cat $CRED_FILE | sed 's/^/    /')
+EOF
+
+echo -e "${GREEN}✓ Secret YAML generated: $SECRET_FILE${NC}"
+echo ""
+
+echo -e "${BLUE}============================================${NC}"
+echo -e "${BLUE}Step 5: Verification${NC}"
+echo -e "${BLUE}============================================${NC}"
+echo ""
+
+echo -e "${YELLOW}Tunnel Information:${NC}"
+cloudflared tunnel info $TUNNEL_NAME
+
+echo ""
+echo -e "${YELLOW}DNS Routes:${NC}"
+cloudflared tunnel route dns list
+
+echo ""
+echo -e "${GREEN}============================================${NC}"
+echo -e "${GREEN}Setup Complete!${NC}"
+echo -e "${GREEN}============================================${NC}"
+echo ""
+
+echo -e "${YELLOW}Next Steps:${NC}"
+echo ""
+echo "1. Deploy cloudflared to Kubernetes:"
+echo -e "   ${GREEN}cd .k8s/scripts/infrastructure${NC}"
+echo -e "   ${GREEN}./deploy-cloudflare-tunnel.sh${NC}"
+echo ""
+echo "2. Verify DNS propagation:"
+echo -e "   ${GREEN}dig api.orangebybni.my.id${NC}"
+echo -e "   ${GREEN}dig auth.orangebybni.my.id${NC}"
+echo ""
+echo "3. Test the tunnel:"
+echo -e "   ${GREEN}curl https://api.orangebybni.my.id${NC}"
+echo ""
+
+echo -e "${YELLOW}Important Notes:${NC}"
+echo "- The credentials file is stored at: $CRED_FILE"
+echo "- Keep this file secure and do NOT commit to git"
+echo "- Add cloudflared-secret.yaml to .gitignore"
+echo ""

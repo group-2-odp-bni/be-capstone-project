@@ -1,0 +1,33 @@
+service:
+  name: notification-worker
+  port: 8085
+  targetPort: 8085
+
+image:
+  repository: your-org/notification-worker
+  tag: latest
+
+env:
+  SPRING_PROFILES_ACTIVE: "prod"
+  SERVER_PORT: "8085"
+  WAHA_URL: "http://waha:3000"
+
+secrets:
+  DB_PASSWORD:
+    secretName: postgres-secret
+    key: password
+  WAHA_API_KEY:
+    secretName: waha-secret
+    key: api-key
+
+resources:
+  requests:
+    memory: "192Mi"
+    cpu: "150m"
+  limits:
+    memory: "320Mi"
+    cpu: "250m"
+
+labels:
+  tier: backend
+  component: notification-worker
