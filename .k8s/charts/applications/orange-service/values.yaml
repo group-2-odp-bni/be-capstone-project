@@ -143,3 +143,17 @@ metrics:
 labels:
   tier: backend
   component: microservice
+
+# Volume mounts for secrets (e.g., JWT keys)
+volumeMounts: []
+# Example:
+# - name: jwt-keys
+#   mountPath: /app/keys
+#   readOnly: true
+
+# Volumes for secrets
+volumes: []
+# Example:
+# - name: jwt-keys
+#   secret:
+#     secretName: jwt-keys
