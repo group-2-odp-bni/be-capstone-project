@@ -1,8 +1,11 @@
-name: CD - Deploy to Staging
+name: CD - Deploy to K3s
 
 on:
   push:
-    branches: [dev]
+    branches: [main]  # Only deploy on main branch to save costs
+    paths-ignore:
+      - '**.md'
+      - '.k8s/.docs/**'
   workflow_dispatch:
     inputs:
       services:
@@ -11,7 +14,8 @@ on:
         default: 'all'
 
 env:
-  ENVIRONMENT: staging
+  NAMESPACE: orange-wallet
+  REGISTRY: docker.io
 
 jobs:
   discover-services:
@@ -32,7 +36,7 @@ jobs:
           # Find all available services
           ALL_SERVICES=$(find . -maxdepth 2 \( -name "build.gradle.kts" -o -name "Dockerfile" \) | \
             sed 's|/[^/]*$||' | sed 's|^\./||' | \
-            grep -vE '^\.|^_infrastructure|^\.github' | \
+            grep -vE '^\.|^_infrastructure|^\.github|^\.k8s' | \
             sort -u)
 
           echo "All available services:"
@@ -46,7 +50,7 @@ jobs:
             MANUAL_SERVICES="${{ github.event.inputs.services }}"
 
             if [[ "$MANUAL_SERVICES" == "all" || -z "$MANUAL_SERVICES" ]]; then
-              echo "Manual trigger: Deploying ALL services"
+              echo "Manual trigger: Deploying ALL services to staging"
               for SERVICE_PATH in $ALL_SERVICES; do
                 SERVICE_NAME=$(basename "$SERVICE_PATH")
                 MATRIX_INCLUDE=$(echo "$MATRIX_INCLUDE" | jq -c \
@@ -149,20 +153,17 @@ jobs:
     with:
       service-name: ${{ matrix.name }}
       service-path: ${{ matrix.path }}
-      environment: staging
-      image-tag: ${{ github.sha }}
+      environment: production  # Main branch = production, also enables 'latest' tag
+      image-tag: ${{ github.sha }}  # This is the tag we'll deploy
     secrets:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
-  deploy-staging:
-    name: Deploy to Staging
+  deploy-to-k3s:
+    name: Deploy to K3s
     needs: [discover-services, build-test, docker-build-push]
     if: needs.discover-services.outputs.has-changes == 'true'
     runs-on: ubuntu-latest
-    environment:
-      name: staging
-      url: https://staging.orange-pay.example.com
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.discover-services.outputs.matrix) }}
@@ -170,51 +171,159 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Deploy ${{ matrix.name }} to Staging
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.14.0'
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Verify cluster connection
+        run: |
+          kubectl cluster-info
+          kubectl get nodes
+
+      - name: Create namespace if not exists
+        run: |
+          kubectl create namespace ${{ env.NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Create/Update application secrets
+        run: |
+          # Consolidated app secrets - includes all application needs
+          kubectl create secret generic app-secrets \
+            --from-literal=DB_USERNAME="${{ secrets.DB_USERNAME }}" \
+            --from-literal=DB_PASSWORD="${{ secrets.DB_PASSWORD }}" \
+            --from-literal=DB_NAME="${{ secrets.DB_NAME }}" \
+            --from-literal=JWT_SECRET_KEY="${{ secrets.JWT_SECRET_KEY }}" \
+            --from-literal=WAHA_API_KEY="${{ secrets.WAHA_API_KEY }}" \
+            --from-literal=WAHA_WEBHOOK_HMAC_SECRET="${{ secrets.WAHA_WEBHOOK_HMAC_SECRET }}" \
+            --namespace=${{ env.NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          # Docker registry secret for image pulls
+          kubectl create secret docker-registry dockerhub-secret \
+            --docker-server=${{ env.REGISTRY }} \
+            --docker-username=${{ secrets.DOCKERHUB_USERNAME }} \
+            --docker-password=${{ secrets.DOCKERHUB_TOKEN }} \
+            --namespace=${{ env.NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Apply ConfigMap
+        run: |
+          kubectl apply -f .k8s/manifests/base/configmap.yaml -n ${{ env.NAMESPACE }}
+
+      - name: Deploy ${{ matrix.name }} to K3s
         run: |
           echo "=========================================="
-          echo "Deploying to Staging Environment"
+          echo "Deploying ${{ matrix.name }} to K3s"
           echo "=========================================="
           echo ""
+
+          # Use commit SHA as image tag for traceability
+          IMAGE_TAG="${{ github.sha }}"
+
           echo "Service: ${{ matrix.name }}"
-          echo "Image: ${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ matrix.name }}:staging"
+          echo "Image: ${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ matrix.name }}:$IMAGE_TAG"
           echo "Commit: ${{ github.sha }}"
-          echo "Branch: ${{ github.ref_name }}"
           echo ""
-          echo "TODO: Add your deployment commands here"
-          echo "Examples:"
-          echo "  - kubectl set image deployment/${{ matrix.name }} ${{ matrix.name }}=..."
-          echo "  - helm upgrade ${{ matrix.name }} ./charts/${{ matrix.name }} ..."
-          echo "  - docker-compose pull && docker-compose up -d"
-          echo "  - ssh deploy@staging 'cd /app && docker-compose pull && docker-compose up -d'"
+
+          helm upgrade --install ${{ matrix.name }} .k8s/charts/applications/orange-service \
+            --namespace ${{ env.NAMESPACE }} \
+            --values .k8s/values/${{ matrix.name }}-values.yaml \
+            --set image.repository=${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ matrix.name }} \
+            --set image.tag=$IMAGE_TAG \
+            --set image.pullSecrets[0].name=dockerhub-secret \
+            --wait \
+            --timeout 5m
+
           echo ""
-          echo "✅ Deployment placeholder completed"
+          echo "✅ ${{ matrix.name }} deployed successfully with tag: $IMAGE_TAG"
 
-      # TODO: Uncomment and configure when ready to deploy
-      # - name: Deploy with kubectl
-      #   run: |
-      #     kubectl set image deployment/${{ matrix.name }} \
-      #       ${{ matrix.name }}=${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ matrix.name }}:staging \
-      #       -n staging
+      - name: Verify deployment
+        run: |
+          echo "Waiting for ${{ matrix.name }} to be ready..."
+          kubectl wait --for=condition=ready pod -l app=${{ matrix.name }} \
+            -n ${{ env.NAMESPACE }} \
+            --timeout=300s || true
 
-      # - name: Verify deployment
-      #   run: |
-      #     kubectl rollout status deployment/${{ matrix.name }} -n staging
-      #     kubectl get pods -n staging -l app=${{ matrix.name }}
+          echo ""
+          echo "=== Pod Status ==="
+          kubectl get pods -n ${{ env.NAMESPACE }} -l app=${{ matrix.name }}
+
+          echo ""
+          echo "=== Service Status ==="
+          kubectl get svc -n ${{ env.NAMESPACE }} -l app=${{ matrix.name }}
+
+      - name: Health check
+        continue-on-error: true
+        run: |
+          echo "Running health check for ${{ matrix.name }}..."
+
+          # Get service ClusterIP and port
+          SERVICE_IP=$(kubectl get svc ${{ matrix.name }} -n ${{ env.NAMESPACE }} -o jsonpath='{.spec.clusterIP}')
+          SERVICE_PORT=$(kubectl get svc ${{ matrix.name }} -n ${{ env.NAMESPACE }} -o jsonpath='{.spec.ports[0].port}')
+
+          if [[ -n "$SERVICE_IP" ]] && [[ -n "$SERVICE_PORT" ]]; then
+            echo "Service endpoint: $SERVICE_IP:$SERVICE_PORT"
+            # Try to reach actuator health endpoint
+            kubectl run health-check-${{ matrix.name }}-${{ github.run_number }} \
+              --image=curlimages/curl:latest \
+              --rm -i --restart=Never \
+              --namespace=${{ env.NAMESPACE }} \
+              -- curl -f http://$SERVICE_IP:$SERVICE_PORT/actuator/health || echo "Health check failed (may not be ready yet)"
+          else
+            echo "⚠️ Could not get service endpoint"
+          fi
+
+  apply-ingress:
+    name: Apply Ingress Configuration
+    needs: [deploy-to-k3s]  # Wait for ALL deploy-to-k3s matrix jobs to complete
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Apply Ingress
+        run: |
+          kubectl apply -f .k8s/manifests/base/ingress.yaml -n ${{ env.NAMESPACE }}
+
+          echo ""
+          echo "=== Ingress Status ==="
+          kubectl get ingress -n ${{ env.NAMESPACE }}
 
   deployment-summary:
     name: Deployment Summary
-    needs: [discover-services, deploy-staging]
+    needs: [discover-services, deploy-to-k3s, apply-ingress]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Summary
         run: |
           echo "=========================================="
-          echo "Staging Deployment Summary"
+          echo "K3s Deployment Summary"
           echo "=========================================="
           echo ""
-          echo "Environment: STAGING"
+          echo "Namespace: ${{ env.NAMESPACE }}"
           echo "Trigger: ${{ github.event_name }}"
           echo "Branch: ${{ github.ref_name }}"
           echo "Commit: ${{ github.sha }}"
@@ -224,10 +333,11 @@ jobs:
             echo "  ✓ $service"
           done
           echo ""
-          echo "Deployment Status: ${{ needs.deploy-staging.result }}"
+          echo "Deployment Status: ${{ needs.deploy-to-k3s.result }}"
+          echo "Ingress Status: ${{ needs.apply-ingress.result }}"
           echo ""
 
-          if [[ "${{ needs.deploy-staging.result }}" == "failure" ]]; then
+          if [[ "${{ needs.deploy-to-k3s.result }}" == "failure" ]]; then
             echo "❌ Deployment FAILED"
             exit 1
           else
