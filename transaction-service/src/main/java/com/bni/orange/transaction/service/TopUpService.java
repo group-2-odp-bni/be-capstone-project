@@ -313,15 +313,11 @@ public class TopUpService {
 
         if (validation == null) {
             log.error("Wallet validation returned null for walletId={}, userId={}", walletId, userId);
-            throw new BusinessException(
-                ErrorCode.WALLET_SERVICE_ERROR,
-                "Failed to validate wallet access"
-            );
+            throw new BusinessException(ErrorCode.WALLET_SERVICE_ERROR, "Failed to validate wallet access");
         }
 
         if (!validation.hasAccess()) {
-            log.warn("Wallet access denied: userId={}, walletId={}, reason={}",
-                userId, walletId, validation.denialReason());
+            log.warn("Wallet access denied: userId={}, walletId={}, reason={}", userId, walletId, validation.denialReason());
             throw new BusinessException(
                 ErrorCode.WALLET_ACCESS_DENIED,
                 validation.denialReason() != null ? validation.denialReason() : "User does not have access to this wallet"
@@ -331,18 +327,12 @@ public class TopUpService {
         if (validation.walletStatus() != WalletStatus.ACTIVE) {
             log.warn("Wallet not active: userId={}, walletId={}, status={}",
                 userId, walletId, validation.walletStatus());
-            throw new BusinessException(
-                ErrorCode.WALLET_NOT_ACTIVE,
-                "Wallet is not active: " + validation.walletStatus()
-            );
+            throw new BusinessException(ErrorCode.WALLET_NOT_ACTIVE, "Wallet is not active: " + validation.walletStatus());
         }
 
         if (validation.userRole() == WalletRole.VIEWER) {
             log.warn("Insufficient permissions: userId={}, walletId={}, role={}", userId, walletId, validation.userRole());
-            throw new BusinessException(
-                ErrorCode.INSUFFICIENT_PERMISSIONS,
-                "Role VIEWER cannot initiate top-up transactions"
-            );
+            throw new BusinessException(ErrorCode.INSUFFICIENT_PERMISSIONS, "Role VIEWER cannot initiate top-up transactions");
         }
 
         log.info("Wallet access validated successfully: userId={}, walletId={}, role={}, walletType={}",
