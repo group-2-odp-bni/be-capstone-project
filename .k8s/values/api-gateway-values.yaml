@@ -13,8 +13,8 @@ fullnameOverride: "api-gateway"
 
 service:
   type: ClusterIP
-  port: 8080
-  targetPort: 8080
+  # port: 8080 # Rely on chart's default to avoid duplication
+  # targetPort: 8080
   annotations: {}
 
 ingress:
