@@ -1,63 +1,59 @@
 package com.bni.orange.wallet.model.entity;
 
 import com.bni.orange.wallet.model.enums.WalletStatus;
-import jakarta.persistence.*;
+import com.bni.orange.wallet.model.enums.WalletType;
+import lombok.*;
+import org.hibernate.annotations.DynamicUpdate;
+import org.hibernate.annotations.JdbcType;
 import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.dialect.PostgreSQLEnumJdbcType;
 import org.hibernate.type.SqlTypes;
 
+import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.UUID;
 
-@Entity
-@Table(name = "wallets", schema = "wallet_oltp",
-       uniqueConstraints = @UniqueConstraint(name = "uq_wallet_user_currency", columnNames = {"user_id","currency"}))
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+@Entity @DynamicUpdate
+@Table(schema = "wallet_oltp", name = "wallets")
 public class Wallet {
+  @Id @GeneratedValue @org.hibernate.annotations.UuidGenerator @Column(nullable = false) private UUID id;
 
-    @Id
-    private UUID id;
+  @Column(nullable = false) private UUID userId; // creator/legacy owner
+  @Column(nullable = false) private String currency = "IDR";
 
-    @Column(name = "user_id", nullable = false)
-    private UUID userId;
 
-    @Column(nullable = false, length = 3)
-    private String currency = "IDR";
+  @Enumerated(EnumType.STRING)
+  @JdbcType(PostgreSQLEnumJdbcType.class)                       
+  @Column(name = "status", nullable = false, columnDefinition = "domain.wallet_status")
+  private WalletStatus status = WalletStatus.ACTIVE;
 
-    @Enumerated(EnumType.STRING)
-    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
-    @Column(name = "status", nullable = false, columnDefinition = "domain.wallet_status")
-    private WalletStatus status = WalletStatus.ACTIVE;
+  @Column(nullable = false, precision = 20, scale = 2)
+  private BigDecimal balanceSnapshot = BigDecimal.ZERO;
 
-    @Column(name = "balance_snapshot", nullable = false, precision = 20, scale = 2)
-    private BigDecimal balanceSnapshot = BigDecimal.ZERO;
 
-    @Column(name = "created_at", nullable = false)
-    private OffsetDateTime createdAt;
+  @Enumerated(EnumType.STRING)
+  @JdbcType(PostgreSQLEnumJdbcType.class)                       
+  @Column(name = "type", nullable = false, columnDefinition = "domain.wallet_type")
+  private WalletType type = WalletType.PERSONAL;
 
-    @Column(name = "updated_at", nullable = false)
-    private OffsetDateTime updatedAt;
+  @Column(length = 160) private String name;
 
-    @PrePersist
-    public void prePersist() {
-        var now = OffsetDateTime.now(ZoneOffset.UTC);
-        if (id == null) id = UUID.randomUUID();
-        createdAt = now; updatedAt = now;
-    }
-    @PreUpdate public void preUpdate() {
-        updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
-    }
+  @JdbcTypeCode(SqlTypes.JSON)
+  @Column(name = "metadata", nullable = false, columnDefinition = "jsonb")
+  private String metadata = "{}";
 
-    public UUID getId(){ return id; }
-    public void setId(UUID id){ this.id=id; }
-    public UUID getUserId(){ return userId; }
-    public void setUserId(UUID userId){ this.userId=userId; }
-    public String getCurrency(){ return currency; }
-    public void setCurrency(String currency){ this.currency=currency; }
-    public WalletStatus getStatus(){ return status; }
-    public void setStatus(WalletStatus status){ this.status=status; }
-    public BigDecimal getBalanceSnapshot(){ return balanceSnapshot; }
-    public void setBalanceSnapshot(BigDecimal balanceSnapshot){ this.balanceSnapshot=balanceSnapshot; }
-    public OffsetDateTime getCreatedAt(){ return createdAt; }
-    public OffsetDateTime getUpdatedAt(){ return updatedAt; }
+  @Column(nullable = false) private OffsetDateTime createdAt;
+  @Column(nullable = false) private OffsetDateTime updatedAt;
+
+  @PrePersist
+  void prePersist() {
+    if (status == null) status = WalletStatus.ACTIVE;
+    if (balanceSnapshot == null) balanceSnapshot = BigDecimal.ZERO;
+    if (currency == null) currency = "IDR";
+    if (metadata == null) metadata = "{}";
+    if (createdAt == null) createdAt = OffsetDateTime.now();
+    if (updatedAt == null) updatedAt = createdAt;
+  }
 }
