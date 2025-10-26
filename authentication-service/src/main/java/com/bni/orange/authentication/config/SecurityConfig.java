@@ -36,7 +36,10 @@ public class SecurityConfig {
                     "/api/v1/auth/resend-otp",
                     "/api/v1/pin/reset/request",
                     "/api/v1/pin/reset/verify",
-                    "/oauth2/jwks"
+                    "/oauth2/jwks",
+                    "/actuator/health",
+                    "/actuator/health/liveness",
+                    "/actuator/health/readiness"
                 )
                 .permitAll()
                 .anyRequest().authenticated()

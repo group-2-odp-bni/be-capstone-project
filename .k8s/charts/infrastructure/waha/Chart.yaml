@@ -1,0 +1,13 @@
+apiVersion: v2
+name: waha
+description: WhatsApp HTTP API (WAHA) - Infrastructure component for Orange Wallet notifications
+type: application
+version: 1.0.0
+appVersion: "latest"
+keywords:
+  - whatsapp
+  - notifications
+  - messaging
+  - api
+maintainers:
+  - name: Orange Wallet Team

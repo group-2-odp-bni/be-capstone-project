@@ -123,85 +123,120 @@ services:
       retries: 3
       start_period: 40s
 
-  krakend:
-    build:
-      context: .
-      dockerfile: krakend.Dockerfile
-    container_name: orange-krakend
-    ports:
-      - "8080:8080"
-    volumes:
-      - ./krakend:/etc/krakend
-    networks:
-      - orange-network
-    command: [ "run", "-d", "-c", "/etc/krakend/krakend.json" ]
-#    depends_on:
-#      authentication-service:
-#        condition: service_started
-#      user-service:
-#        condition: service_started
-#      transaction-service:
-#        condition: service_started
-#      wallet-service:
-#        condition: service_started
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8080/__health" ]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-    deploy:
-      resources:
-        limits:
-          cpus: '0.25'
-          memory: 128M
-
-#  authentication-service:
+#  krakend:
 #    build:
-#      context: ../authentication-service
-#    container_name: orange-authentication-service
-#    environment:
-#      - SPRING_PROFILES_ACTIVE=dev
-#      - DB_URL=jdbc:postgresql://postgres:5432/orange_db
-#      - DB_USERNAME=mikasa
-#      - DB_PASSWORD=mikasa
-#      - REDIS_HOST=redis
-#      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-#      - SERVER_PORT=8081
-#    depends_on:
-#      postgres:
-#        condition: service_healthy
-#      redis:
-#        condition: service_healthy
-#      kafka:
-#        condition: service_healthy
+#      context: .
+#      dockerfile: krakend.Dockerfile
+#    container_name: orange-krakend
+#    ports:
+#      - "8080:8080"
+#    volumes:
+#      - ./krakend:/etc/krakend
 #    networks:
 #      - orange-network
+#    command: [ "run", "-d", "-c", "/etc/krakend/krakend.json" ]
+##    depends_on:
+##      authentication-service:
+##        condition: service_started
+##      user-service:
+##        condition: service_started
+##      transaction-service:
+##        condition: service_started
+##      wallet-service:
+##        condition: service_started
 #    healthcheck:
-#      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8081/actuator/health" ]
-#      interval: 30s
-#      timeout: 10s
+#      test: [ "CMD", "curl", "-f", "http://localhost:8080/__health" ]
+#      interval: 10s
+#      timeout: 5s
 #      retries: 3
-#      start_period: 40s
+#      start_period: 10s
 #    deploy:
 #      resources:
 #        limits:
 #          cpus: '0.25'
-#          memory: 256M
-#
+#          memory: 128M
+
+  api-gateway:
+    build:
+      context: ../api-gateway
+    container_name: orange-api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - REDIS_HOST=redis
+      - SERVER_PORT=8080
+    depends_on:
+      authentication-service:
+        condition: service_healthy
+#      user-service:
+#        condition: service_healthy
+#      wallet-service:
+#        condition: service_healthy
+#      transaction-service:
+#        condition: service_healthy
+    networks:
+      - orange-network
+    healthcheck:
+      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/actuator/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+
+  authentication-service:
+    build:
+      context: ../authentication-service
+    container_name: orange-authentication-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - DB_URL=jdbc:postgresql://postgres:5432/orange_db
+      - DB_USERNAME=mikasa
+      - DB_PASSWORD=mikasa
+      - REDIS_HOST=redis
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - SERVER_PORT=8081
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - orange-network
+    healthcheck:
+      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8081/actuator/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+
 #  user-service:
 #    build:
 #      context: ../user-service
 #    container_name: orange-user-service
 #    environment:
-#      - SPRING_PROFILES_ACTIVE=dev
+#      - SPRING_PROFILES_ACTIVE=prod
 #      - DB_URL=jdbc:postgresql://postgres:5432/orange_db
 #      - DB_USERNAME=mikasa
 #      - DB_PASSWORD=mikasa
 #      - REDIS_HOST=redis
 #      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-#      - SERVER_PORT=8082
-#      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=http://authentication-service:8081/oauth2/jwks
+#      - SERVER_PORT=8080
+#      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=http://authentication-service:8080/oauth2/jwks
 #    depends_on:
 #      postgres:
 #        condition: service_healthy
@@ -212,7 +247,7 @@ services:
 #    networks:
 #      - orange-network
 #    healthcheck:
-#      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8082/actuator/health" ]
+#      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/actuator/health" ]
 #      interval: 30s
 #      timeout: 10s
 #      retries: 3
@@ -222,20 +257,20 @@ services:
 #        limits:
 #          cpus: '0.25'
 #          memory: 256M
-#
+
 #  transaction-service:
 #    build:
 #      context: ../transaction-service
 #    container_name: orange-transaction-service
 #    environment:
-#      - SPRING_PROFILES_ACTIVE=dev
+#      - SPRING_PROFILES_ACTIVE=prod
 #      - DB_URL=jdbc:postgresql://postgres:5432/orange_db
 #      - DB_USERNAME=mikasa
 #      - DB_PASSWORD=mikasa
 #      - REDIS_HOST=redis
 #      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-#      - SERVER_PORT=8083
-#      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=http://authentication-service:8081/oauth2/jwks
+#      - SERVER_PORT=8080
+#      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=http://authentication-service:8080/oauth2/jwks
 #    depends_on:
 #      postgres:
 #        condition: service_healthy
@@ -246,7 +281,7 @@ services:
 #    networks:
 #      - orange-network
 #    healthcheck:
-#      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8083/actuator/health" ]
+#      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/actuator/health" ]
 #      interval: 30s
 #      timeout: 10s
 #      retries: 3
@@ -256,20 +291,20 @@ services:
 #        limits:
 #          cpus: '0.25'
 #          memory: 256M
-#
+
 #  wallet-service:
 #    build:
 #      context: ../wallet-service
 #    container_name: orange-wallet-service
 #    environment:
-#      - SPRING_PROFILES_ACTIVE=dev
+#      - SPRING_PROFILES_ACTIVE=prod
 #      - DB_URL=jdbc:postgresql://postgres:5432/orange_db
 #      - DB_USERNAME=mikasa
 #      - DB_PASSWORD=mikasa
 #      - REDIS_HOST=redis
 #      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-#      - SERVER_PORT=8084
-#      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=http://authentication-service:8081/oauth2/jwks
+#      - SERVER_PORT=8080
+#      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=http://authentication-service:8080/oauth2/jwks
 #    depends_on:
 #      postgres:
 #        condition: service_healthy
@@ -280,7 +315,7 @@ services:
 #    networks:
 #      - orange-network
 #    healthcheck:
-#      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8084/actuator/health" ]
+#      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/actuator/health" ]
 #      interval: 30s
 #      timeout: 10s
 #      retries: 3
@@ -290,19 +325,19 @@ services:
 #        limits:
 #          cpus: '0.25'
 #          memory: 256M
-#
+
 #  notification-worker:
 #    build:
 #      context: ../notification-worker
 #    container_name: orange-notification-worker
 #    environment:
-#      - SPRING_PROFILES_ACTIVE=dev
+#      - SPRING_PROFILES_ACTIVE=prod
 #      - DB_URL=jdbc:postgresql://postgres:5432/orange_db
 #      - DB_USERNAME=mikasa
 #      - DB_PASSWORD=mikasa
 #      - REDIS_HOST=redis
 #      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-#      - SERVER_PORT=8085
+#      - SERVER_PORT=8080
 #      - WAHA_URL=http://waha:3000
 #      - WAHA_API_KEY=${WAHA_API_KEY:-your-secret-api-key-here}
 #    depends_on:
@@ -317,7 +352,7 @@ services:
 #    networks:
 #      - orange-network
 #    healthcheck:
-#      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8085/actuator/health" ]
+#      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/actuator/health" ]
 #      interval: 30s
 #      timeout: 10s
 #      retries: 3

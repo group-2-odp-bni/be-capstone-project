@@ -5,7 +5,7 @@ on:
     branches: [main]  # Only deploy on main branch to save costs
     paths-ignore:
       - '**.md'
-      - '.k8s/.docs/**'
+      - '../../k8s-docs/.docs/**'
   workflow_dispatch:
     inputs:
       services:

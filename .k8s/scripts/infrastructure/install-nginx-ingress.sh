@@ -1,6 +1,6 @@
 #!/bin/bash
 # NGINX Ingress Controller Installation Script
-# Installs NGINX Ingress Controller with LoadBalancer service type
+# Installs NGINX Ingress Controller with NodePort service type for GCP Load Balancer integration
 
 set -e
 
@@ -22,15 +22,9 @@ if ! kubectl get nodes &>/dev/null; then
     exit 1
 fi
 
-# Check if MetalLB is installed
-if ! kubectl get namespace metallb-system &>/dev/null; then
-    echo -e "${RED}MetalLB is not installed!${NC}"
-    echo -e "${YELLOW}MetalLB is required for LoadBalancer services${NC}"
-    echo -e "${BLUE}Install MetalLB first: ./install-metallb.sh${NC}"
-    exit 1
-fi
-
-echo -e "${GREEN}MetalLB is installed${NC}"
+# NOTE: Using NodePort service type for GCP Load Balancer integration
+# MetalLB is NOT compatible with GCP's software-defined networking
+echo -e "${GREEN}Using NodePort service type for GCP Load Balancer${NC}"
 echo ""
 
 # Create namespace
@@ -44,12 +38,14 @@ echo -e "${YELLOW}[2/3] Installing NGINX Ingress Controller via Helm...${NC}"
 helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx 2>/dev/null || true
 helm repo update
 
-# Install NGINX Ingress Controller
+# Install NGINX Ingress Controller with NodePort for GCP Load Balancer
 helm upgrade --install nginx-ingress ingress-nginx/ingress-nginx \
     --namespace ingress-nginx \
-    --set controller.service.type=LoadBalancer \
+    --set controller.service.type=NodePort \
+    --set controller.service.nodePorts.http=30080 \
+    --set controller.service.nodePorts.https=30443 \
     --set controller.service.externalTrafficPolicy=Local \
-    --set controller.publishService.enabled=true \
+    --set controller.publishService.enabled=false \
     --set controller.metrics.enabled=true \
     --set controller.metrics.serviceMonitor.enabled=false \
     --set controller.podAnnotations."prometheus\.io/scrape"=true \
@@ -87,26 +83,19 @@ echo -e "${YELLOW}Ingress Controller Service:${NC}"
 kubectl get svc -n ingress-nginx
 echo ""
 
-# Get External IP
-echo -e "${YELLOW}Waiting for External IP assignment...${NC}"
-sleep 10
+# Get NodePort assignments
+echo -e "${YELLOW}Getting NodePort assignments...${NC}"
+HTTP_NODEPORT=$(kubectl get svc nginx-ingress-ingress-nginx-controller -n ingress-nginx -o jsonpath='{.spec.ports[?(@.name=="http")].nodePort}' 2>/dev/null || echo "")
+HTTPS_NODEPORT=$(kubectl get svc nginx-ingress-ingress-nginx-controller -n ingress-nginx -o jsonpath='{.spec.ports[?(@.name=="https")].nodePort}' 2>/dev/null || echo "")
 
-EXTERNAL_IP=$(kubectl get svc nginx-ingress-ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
-
-if [ -n "$EXTERNAL_IP" ]; then
-    echo -e "${GREEN}✓ External IP assigned: ${EXTERNAL_IP}${NC}"
+if [ -n "$HTTP_NODEPORT" ] && [ -n "$HTTPS_NODEPORT" ]; then
+    echo -e "${GREEN}✓ NodePorts assigned:${NC}"
+    echo -e "  HTTP: ${GREEN}${HTTP_NODEPORT}${NC}"
+    echo -e "  HTTPS: ${GREEN}${HTTPS_NODEPORT}${NC}"
     echo ""
-    echo -e "${BLUE}Testing NGINX Ingress (HTTP):${NC}"
-    HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://${EXTERNAL_IP} || echo "000")
-    if [ "$HTTP_STATUS" = "404" ]; then
-        echo -e "${GREEN}✓ NGINX Ingress is responding (404 is expected without ingress rules)${NC}"
-    else
-        echo -e "${YELLOW}Response code: $HTTP_STATUS${NC}"
-    fi
+    echo -e "${YELLOW}NOTE: Access via GCP Load Balancer will be configured via Terraform${NC}"
 else
-    echo -e "${YELLOW}External IP not assigned yet${NC}"
-    echo -e "${BLUE}Check again in a few moments:${NC}"
-    echo -e "${GREEN}kubectl get svc -n ingress-nginx${NC}"
+    echo -e "${RED}Failed to get NodePort assignments${NC}"
 fi
 
 echo ""
@@ -114,13 +103,12 @@ echo -e "${BLUE}============================================${NC}"
 echo -e "${BLUE}Configuration Details:${NC}"
 echo -e "${BLUE}============================================${NC}"
 echo ""
-echo -e "  Service Type: ${GREEN}LoadBalancer${NC}"
+echo -e "  Service Type: ${GREEN}NodePort${NC}"
+echo -e "  HTTP NodePort: ${GREEN}${HTTP_NODEPORT:-30080}${NC}"
+echo -e "  HTTPS NodePort: ${GREEN}${HTTPS_NODEPORT:-30443}${NC}"
 echo -e "  External Traffic Policy: ${GREEN}Local${NC}"
 echo -e "  Metrics: ${GREEN}Enabled${NC}"
 echo -e "  Default Ingress Class: ${GREEN}nginx${NC}"
-if [ -n "$EXTERNAL_IP" ]; then
-    echo -e "  External IP: ${GREEN}${EXTERNAL_IP}${NC}"
-fi
 echo ""
 
 echo -e "${BLUE}============================================${NC}"
@@ -136,17 +124,19 @@ echo ""
 echo -e "3. Deploy your Ingress resources:"
 echo -e "   ${GREEN}kubectl apply -f ../../manifests/base/ingress.yaml${NC}"
 echo ""
-echo -e "4. Update your DNS records to point to: ${GREEN}${EXTERNAL_IP}${NC}"
+echo -e "4. Deploy GCP Load Balancer via Terraform to get External IP"
+echo ""
+echo -e "5. Update your DNS records to point to the GCP Load Balancer IP"
 echo ""
 echo -e "${BLUE}============================================${NC}"
-echo -e "${BLUE}Testing Ingress:${NC}"
+echo -e "${BLUE}Testing Ingress (via NodePort):${NC}"
 echo -e "${BLUE}============================================${NC}"
 echo ""
-echo -e "Create a test ingress:"
-echo -e "${GREEN}kubectl create deployment nginx --image=nginx${NC}"
-echo -e "${GREEN}kubectl expose deployment nginx --port=80${NC}"
-echo -e "${GREEN}kubectl create ingress nginx --class=nginx --rule=\"test.example.com/*=nginx:80\"${NC}"
+echo -e "Get a worker node IP:"
+echo -e "${GREEN}kubectl get nodes -o wide${NC}"
 echo ""
-echo -e "Then test with:"
-echo -e "${GREEN}curl -H 'Host: test.example.com' http://${EXTERNAL_IP}${NC}"
+echo -e "Test access (replace NODE_IP with actual worker IP):"
+echo -e "${GREEN}curl http://NODE_IP:${HTTP_NODEPORT:-30080}${NC}"
+echo ""
+echo -e "Or create GCP Load Balancer with Terraform for production access"
 echo ""

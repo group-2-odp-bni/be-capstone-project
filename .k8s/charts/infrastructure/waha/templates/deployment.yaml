@@ -1,0 +1,137 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.name }}
+  namespace: {{ .Values.namespace | default "default" }}
+  labels:
+    app: {{ .Values.name }}
+    tier: infrastructure
+    component: messaging
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: Recreate  # Important: WAHA needs session persistence, avoid rolling updates
+  selector:
+    matchLabels:
+      app: {{ .Values.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.name }}
+        tier: infrastructure
+        component: messaging
+    spec:
+      containers:
+      - name: waha
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.service.port }}
+          protocol: TCP
+        env:
+        # Base configuration
+        - name: WAHA_BASE_URL
+          value: "http://{{ .Values.name }}:{{ .Values.service.port }}"
+        - name: WHATSAPP_API_PORT
+          value: "{{ .Values.service.port }}"
+        - name: TZ
+          value: {{ .Values.config.timezone }}
+
+        # Authentication
+        - name: WAHA_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secret.name }}
+              key: api-key
+        - name: WAHA_DASHBOARD_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secret.name }}
+              key: dashboard-username
+        - name: WAHA_DASHBOARD_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secret.name }}
+              key: dashboard-password
+
+        # WhatsApp Engine Configuration
+        - name: WHATSAPP_DEFAULT_ENGINE
+          value: {{ .Values.config.whatsappEngine }}
+
+        # Logging
+        - name: WAHA_LOG_FORMAT
+          value: {{ .Values.config.logFormat }}
+        - name: WAHA_LOG_LEVEL
+          value: {{ .Values.config.logLevel }}
+
+        # Storage Configuration
+        - name: WAHA_LOCAL_STORE_BASE_DIR
+          value: {{ .Values.persistence.sessions.mountPath }}
+        - name: WHATSAPP_FILES_FOLDER
+          value: {{ .Values.persistence.media.mountPath }}
+        - name: WHATSAPP_FILES_LIFETIME
+          value: "{{ .Values.config.filesLifetime }}"
+
+        # Webhook Configuration
+        - name: WHATSAPP_HOOK_URL
+          value: {{ .Values.config.webhookUrl }}
+        - name: WHATSAPP_HOOK_EVENTS
+          value: {{ .Values.config.webhookEvents }}
+        - name: WHATSAPP_HOOK_HMAC_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secret.name }}
+              key: webhook-hmac-secret
+
+        # Session Management
+        - name: WAHA_AUTO_START_DELAY_SECONDS
+          value: "{{ .Values.config.autoStartDelay }}"
+        - name: WHATSAPP_RESTART_ALL_SESSIONS
+          value: "{{ .Values.config.restartAllSessions }}"
+        - name: WAHA_WORKER_ID
+          value: {{ .Values.config.workerId }}
+        - name: WAHA_PRINT_QR
+          value: "{{ .Values.config.printQR }}"
+
+        volumeMounts:
+        - name: sessions
+          mountPath: {{ .Values.persistence.sessions.mountPath }}
+        - name: media
+          mountPath: {{ .Values.persistence.media.mountPath }}
+
+        resources:
+          requests:
+            memory: {{ .Values.resources.requests.memory }}
+            cpu: {{ .Values.resources.requests.cpu }}
+          limits:
+            memory: {{ .Values.resources.limits.memory }}
+            cpu: {{ .Values.resources.limits.cpu }}
+
+        livenessProbe:
+          httpGet:
+            path: /ping
+            port: http
+          initialDelaySeconds: {{ .Values.healthcheck.liveness.initialDelaySeconds }}
+          periodSeconds: {{ .Values.healthcheck.liveness.periodSeconds }}
+          timeoutSeconds: {{ .Values.healthcheck.liveness.timeoutSeconds }}
+          failureThreshold: {{ .Values.healthcheck.liveness.failureThreshold }}
+
+        readinessProbe:
+          httpGet:
+            path: /ping
+            port: http
+          initialDelaySeconds: {{ .Values.healthcheck.readiness.initialDelaySeconds }}
+          periodSeconds: {{ .Values.healthcheck.readiness.periodSeconds }}
+          timeoutSeconds: {{ .Values.healthcheck.readiness.timeoutSeconds }}
+          failureThreshold: {{ .Values.healthcheck.readiness.failureThreshold }}
+
+      volumes:
+      - name: sessions
+        persistentVolumeClaim:
+          claimName: {{ .Values.name }}-sessions-pvc
+      - name: media
+        persistentVolumeClaim:
+          claimName: {{ .Values.name }}-media-pvc
+
+      restartPolicy: Always

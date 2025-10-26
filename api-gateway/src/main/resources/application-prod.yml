@@ -1,6 +1,3 @@
-# Production Profile - Kubernetes Environment
-# This profile is used when running in K8s cluster with service discovery
-
 spring:
   config:
     activate:
@@ -10,7 +7,6 @@ spring:
     gateway:
       server:
         webflux:
-          # All services use unified port 8080 in K8s for consistency
           routes:
             - id: authentication-service
               uri: http://authentication-service:8080
@@ -53,7 +49,11 @@ orange:
 
 logging:
   level:
+    root: INFO
     com.bni.orange: INFO
-    org.springframework.cloud.gateway: INFO
+    org.springframework.web: WARN
     org.springframework.security: WARN
     org.springframework.kafka: WARN
+    org.springframework.boot.actuate: ERROR
+    org.springframework.boot.actuate.endpoint.web: ERROR
+    org.springframework.boot.actuate.endpoint: ERROR

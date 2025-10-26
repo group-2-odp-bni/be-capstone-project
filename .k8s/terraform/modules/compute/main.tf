@@ -6,6 +6,16 @@ data "google_compute_image" "ubuntu" {
   project = "ubuntu-os-cloud"
 }
 
+# Reserve static IP for master node (for VPN stability)
+resource "google_compute_address" "master_static_ip" {
+  count        = var.use_static_ip_for_master ? 1 : 0
+  name         = "${var.project_name}-${var.environment}-master-static-ip"
+  region       = var.region
+  project      = var.project_id
+  address_type = "EXTERNAL"
+  description  = "Static IP for ${var.project_name} master node (VPN/OpenVPN)"
+}
+
 # Read SSH public key
 data "local_file" "ssh_public_key" {
   filename = pathexpand(var.ssh_public_key_path)
@@ -14,19 +24,17 @@ data "local_file" "ssh_public_key" {
 # Template file for K3s master installation script
 locals {
   master_startup_script = templatefile("${path.module}/scripts/master-startup.sh", {
-    k3s_version            = var.k3s_version
-    k3s_token              = var.k3s_token
-    ssh_user               = var.ssh_user
-    metallb_ip_range_start = var.metallb_ip_range_start
-    metallb_ip_range_end   = var.metallb_ip_range_end
-    subnet_cidr            = var.subnet_cidr
+    k3s_version = var.k3s_version
+    k3s_token   = var.k3s_token
+    ssh_user    = var.ssh_user
+    subnet_cidr = var.subnet_cidr
   })
 
   worker_startup_script = templatefile("${path.module}/scripts/worker-startup.sh", {
-    k3s_version  = var.k3s_version
-    k3s_token    = var.k3s_token
-    master_ip    = google_compute_instance.master.network_interface[0].network_ip
-    ssh_user     = var.ssh_user
+    k3s_version = var.k3s_version
+    k3s_token   = var.k3s_token
+    master_ip   = google_compute_instance.master.network_interface[0].network_ip
+    ssh_user    = var.ssh_user
   })
 }
 
@@ -54,7 +62,8 @@ resource "google_compute_instance" "master" {
     dynamic "access_config" {
       for_each = var.enable_external_ip ? [1] : []
       content {
-        // Ephemeral public IP
+        nat_ip = var.use_static_ip_for_master ? google_compute_address.master_static_ip[0].address : null
+        // Static IP if enabled, otherwise ephemeral
       }
     }
   }
@@ -68,7 +77,7 @@ resource "google_compute_instance" "master" {
   metadata_startup_script = local.master_startup_script
 
   service_account {
-    email  = var.service_account_email
+    email = var.service_account_email
     scopes = [
       "https://www.googleapis.com/auth/cloud-platform",
       "https://www.googleapis.com/auth/compute",
@@ -99,9 +108,11 @@ resource "google_compute_instance" "master" {
   }
 }
 
-# K3s Worker Node
+# K3s Worker Nodes (dynamically scaled with count)
 resource "google_compute_instance" "worker" {
-  name         = "${var.project_name}-${var.environment}-worker"
+  count = var.worker_count
+
+  name         = "${var.project_name}-${var.environment}-worker-${count.index + 1}"
   machine_type = var.worker_machine_type
   zone         = var.zone
   project      = var.project_id
@@ -137,7 +148,7 @@ resource "google_compute_instance" "worker" {
   metadata_startup_script = local.worker_startup_script
 
   service_account {
-    email  = var.service_account_email
+    email = var.service_account_email
     scopes = [
       "https://www.googleapis.com/auth/cloud-platform",
       "https://www.googleapis.com/auth/compute",

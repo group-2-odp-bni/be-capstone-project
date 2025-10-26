@@ -17,9 +17,9 @@ service:
 
 persistence:
   enabled: true
-  storageClass: "local-path"
+  storageClass: "gcp-pd-ssd"  # SSD for high-throughput messaging
   accessMode: ReadWriteOnce
-  size: 5Gi
+  size: 50Gi  # Adequate for message retention
   mountPath: /var/lib/kafka/data
 
 resources:

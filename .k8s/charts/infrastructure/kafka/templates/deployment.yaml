@@ -16,8 +16,20 @@ spec:
       labels:
         {{- include "kafka.selectorLabels" . | nindent 8 }}
     spec:
+      securityContext:
+        fsGroup: 1000
+      initContainers:
+        - name: volume-permissions
+          image: busybox:1.36
+          command: ['sh', '-c', 'rm -rf /var/lib/kafka/data/lost+found && chown -R 1000:1000 /var/lib/kafka/data']
+          volumeMounts:
+            - name: data
+              mountPath: {{ .Values.persistence.mountPath }}
       containers:
         - name: kafka
+          securityContext:
+            runAsUser: 1000
+            runAsNonRoot: true
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command:

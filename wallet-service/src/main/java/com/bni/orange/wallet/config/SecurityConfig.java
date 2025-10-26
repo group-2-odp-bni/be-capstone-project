@@ -30,7 +30,7 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                .requestMatchers("/actuator/health", "/actuator/health/liveness", "/actuator/health/readiness", "/actuator/info").permitAll()
 
                 .requestMatchers(HttpMethod.POST, "/api/v1/wallets").hasAuthority("SCOPE_FULL_ACCESS")
                 .requestMatchers(HttpMethod.POST, "/api/v1/wallets/*/balance/adjust").hasAuthority("SCOPE_FULL_ACCESS")
