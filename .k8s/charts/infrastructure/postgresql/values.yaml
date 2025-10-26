@@ -1,0 +1,58 @@
+replicaCount: 1
+
+image:
+  repository: postgres
+  tag: "16-alpine"
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: "postgres"
+
+service:
+  type: ClusterIP
+  port: 5432
+  targetPort: 5432
+
+auth:
+  database: orange_db
+  username: mikasa
+  password: mikasa
+  existingSecret: ""
+
+persistence:
+  enabled: true
+  storageClass: "local-path"
+  accessMode: ReadWriteOnce
+  size: 10Gi
+  mountPath: /var/lib/postgresql/data
+
+resources:
+  requests:
+    memory: "384Mi"
+    cpu: "250m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Init scripts
+initScripts:
+  enabled: false
+  scripts: {}

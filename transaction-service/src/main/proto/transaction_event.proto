@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package com.bni.orange.transaction.proto;
+
+option java_multiple_files = true;
+option java_package = "com.bni.orange.transaction.proto";
+
+message TransactionCompletedEvent {
+  string event_id = 1;
+  string transaction_id = 2;
+  string transaction_ref = 3;
+  string type = 4;
+  string status = 5;
+  string amount = 6;
+  string currency = 7;
+  string sender_user_id = 8;
+  string sender_wallet_id = 9;
+  string receiver_user_id = 10;
+  string receiver_wallet_id = 11;
+  string receiver_name = 12;
+  string receiver_phone = 13;
+  string description = 14;
+  string notes = 15;
+  int64 timestamp = 16;
+}
+
+message TransactionFailedEvent {
+  string event_id = 1;
+  string transaction_id = 2;
+  string transaction_ref = 3;
+  string type = 4;
+  string status = 5;
+  string amount = 6;
+  string currency = 7;
+  string sender_user_id = 8;
+  string sender_wallet_id = 9;
+  string receiver_user_id = 10;
+  string receiver_wallet_id = 11;
+  string receiver_name = 12;
+  string receiver_phone = 13;
+  string description = 14;
+  string notes = 15;
+  int64 timestamp = 16;
+  string failure_reason = 17;
+}

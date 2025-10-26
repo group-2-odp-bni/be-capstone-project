@@ -1,0 +1,38 @@
+service:
+  name: notification-worker
+  port: 8080
+  targetPort: 8080
+
+image:
+  repository: teukumunawar/orange-pay-notification-worker
+  tag: latest
+  pullPolicy: Always
+
+env:
+  SPRING_PROFILES_ACTIVE: "prod"
+  SERVER_PORT: "8080"  # Unified port for K8s consistency
+  WAHA_URL: "http://waha:3000"
+
+# Metrics (disable separate port to avoid duplication with service port)
+metrics:
+  enabled: false
+
+secrets:
+  DB_PASSWORD:
+    secretName: app-secrets
+    key: DB_PASSWORD
+  WAHA_API_KEY:
+    secretName: waha-secret
+    key: api-key
+
+resources:
+  requests:
+    memory: "192Mi"
+    cpu: "150m"
+  limits:
+    memory: "320Mi"
+    cpu: "250m"
+
+labels:
+  tier: backend
+  component: notification-worker

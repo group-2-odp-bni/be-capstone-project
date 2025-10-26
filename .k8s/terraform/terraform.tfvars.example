@@ -1,0 +1,49 @@
+# Terraform Variables Example
+# Copy this file to terraform.tfvars and fill in your values
+# DO NOT commit terraform.tfvars to git - it contains sensitive information
+
+# GCP Project Configuration
+project_id   = "your-gcp-project-id"
+region       = "asia-southeast2"      # Jakarta region
+zone         = "asia-southeast2-a"
+environment  = "dev"                  # dev, staging, or prod
+project_name = "orange-wallet"
+
+# Network Configuration
+vpc_cidr    = "10.0.0.0/16"
+subnet_cidr = "10.0.1.0/24"
+
+# Master Node Configuration
+master_machine_type = "e2-medium"     # 2 vCPU, 4 GB RAM
+master_disk_size    = 50              # GB
+master_disk_type    = "pd-balanced"   # pd-standard, pd-ssd, or pd-balanced
+
+# Worker Node Configuration
+worker_machine_type = "e2-medium"     # 2 vCPU, 4 GB RAM
+worker_disk_size    = 50              # GB
+worker_disk_type    = "pd-balanced"
+
+# K3s Configuration
+k3s_version = ""                      # Leave empty for latest, or specify like "v1.28.5+k3s1"
+k3s_token   = ""                      # Leave empty for auto-generation (recommended)
+
+# MetalLB IP Range (within subnet)
+# These will be appended to subnet base (e.g., 10.0.1.200-10.0.1.250)
+metallb_ip_range_start = 200
+metallb_ip_range_end   = 250
+
+# SSH Configuration
+ssh_public_key_path = "~/.ssh/id_rsa.pub"
+ssh_user            = "ubuntu"
+
+# Feature Flags
+enable_preemptible_vms = false        # true = cheaper but can be terminated
+enable_monitoring      = true         # Enable GCP monitoring/logging
+enable_external_ip     = true         # Assign external IPs to VMs
+
+# Additional Labels
+labels = {
+  managed_by = "terraform"
+  project    = "orange-wallet"
+  team       = "devops"
+}

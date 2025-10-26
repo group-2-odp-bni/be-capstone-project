@@ -71,6 +71,7 @@ orange:
       otp-phone-locked: "otp:phone:locked:"
   kafka:
     topics:
+      user-registered: "auth.user.registered"
       definitions:
         profile-email-verified:
           name: "user.profile.email-verified"
@@ -122,3 +123,9 @@ logging:
     com.bni.orange.users: DEBUG
     org.springframework.security: DEBUG
     org.springframework.kafka: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

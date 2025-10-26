@@ -13,12 +13,23 @@ public final class DomainEventFactory {
     }
 
     public static UserRegisteredEvent createUserRegisteredEvent(User user) {
-        return UserRegisteredEvent.newBuilder()
+        var builder = UserRegisteredEvent.newBuilder()
             .setUserId(user.getId().toString())
             .setPhoneNumber(user.getPhoneNumber())
             .setName(user.getName())
-            .setRegisteredAt(Instant.now().toEpochMilli())
-            .build();
+            .setPhoneVerified(user.getPhoneVerified() != null && user.getPhoneVerified())
+            .setEmailVerified(user.getEmailVerified() != null && user.getEmailVerified())
+            .setRegisteredAt(Instant.now().toEpochMilli());
+
+        if (user.getEmail() != null && !user.getEmail().trim().isEmpty()) {
+            builder.setEmail(user.getEmail());
+        }
+
+        if (user.getProfileImageUrl() != null && !user.getProfileImageUrl().trim().isEmpty()) {
+            builder.setProfileImageUrl(user.getProfileImageUrl());
+        }
+
+        return builder.build();
     }
 
     public static OtpNotificationEvent createOtpNotificationEvent(

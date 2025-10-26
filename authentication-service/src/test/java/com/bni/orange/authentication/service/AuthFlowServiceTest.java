@@ -106,7 +106,7 @@ class AuthFlowServiceTest {
             when(userRepository.findByPhoneNumber(normalizedPhone)).thenReturn(Optional.of(existingUser));
             when(otpService.generateAndStoreOtp(normalizedPhone)).thenReturn(otp);
 
-            KafkaTopicProperties.TopicConfig topicConfig = new KafkaTopicProperties.TopicConfig("notification.otp.whatsapp", 3, 1, false);
+            var topicConfig = new KafkaTopicProperties.TopicConfig("notification.otp.whatsapp", 3, 1, false);
             when(topicProperties.definitions()).thenReturn(Map.of("otp-notification", topicConfig));
 
             var response = authFlowService.requestOtp(request, servletRequest);
@@ -129,7 +129,7 @@ class AuthFlowServiceTest {
             when(userRepository.save(any(User.class))).thenReturn(newUser);
             when(otpService.generateAndStoreOtp(normalizedPhone)).thenReturn(otp);
 
-            KafkaTopicProperties.TopicConfig topicConfig = new KafkaTopicProperties.TopicConfig("notification.otp.whatsapp", 3, 1, false);
+            var topicConfig = new KafkaTopicProperties.TopicConfig("notification.otp.whatsapp", 3, 1, false);
             when(topicProperties.definitions()).thenReturn(Map.of("otp-notification", topicConfig));
 
             var response = authFlowService.requestOtp(request, servletRequest);
@@ -250,7 +250,7 @@ class AuthFlowServiceTest {
             doNothing().when(pinValidator).validate(pin);
             when(passwordEncoder.encode(pin)).thenReturn("encodedNewPin");
 
-            KafkaTopicProperties.TopicConfig topicConfig = new KafkaTopicProperties.TopicConfig("user.registered", 3, 1, true);
+            var topicConfig = new KafkaTopicProperties.TopicConfig("user.registered", 3, 1, true);
             when(topicProperties.definitions()).thenReturn(Map.of("user-registered", topicConfig));
 
             var tokenResponse = TokenResponse.builder().accessToken("access").refreshToken("refresh").build();

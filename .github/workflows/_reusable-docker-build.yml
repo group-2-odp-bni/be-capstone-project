@@ -1,5 +1,9 @@
 name: Reusable Docker Build & Push
 
+# NOTE: Artifact uploads have been removed to avoid storage quota issues.
+# This is a capstone project and we don't need long-term artifact retention.
+# All scan results are still visible in workflow logs (table format).
+
 on:
   workflow_call:
     inputs:
@@ -54,10 +58,7 @@ jobs:
         with:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ inputs.service-name }}
           tags: |
-            type=raw,value=${{ inputs.environment }}
             type=raw,value=${{ inputs.image-tag }}
-            type=sha,prefix=${{ inputs.environment }}-
-            type=ref,event=branch
             type=raw,value=latest,enable=${{ inputs.environment == 'production' }}
 
       - name: Build and push Docker image
@@ -68,8 +69,9 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ inputs.service-name }}:buildcache
-          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ inputs.service-name }}:buildcache,mode=max
+          # Use inline cache (stored in image) - more efficient for GitHub Free
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ inputs.service-name }}:latest
+          cache-to: type=inline
           platforms: linux/amd64
           build-args: |
             BUILD_DATE=${{ github.event.head_commit.timestamp }}
@@ -80,37 +82,12 @@ jobs:
         uses: aquasecurity/trivy-action@0.28.0
         continue-on-error: true
         with:
-          image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ inputs.service-name }}:${{ inputs.environment }}
+          image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ inputs.service-name }}:${{ inputs.image-tag }}
           format: 'table'
           severity: 'CRITICAL,HIGH'
 
-      - name: Run Trivy security scan (SARIF for artifacts)
-        uses: aquasecurity/trivy-action@0.28.0
-        continue-on-error: true
-        with:
-          image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ inputs.service-name }}:${{ inputs.environment }}
-          format: 'sarif'
-          output: 'trivy-results-${{ inputs.service-name }}.sarif'
-          severity: 'CRITICAL,HIGH'
+      # SARIF generation and artifact upload removed - storage quota issues
+      # All scan results are visible in the table format above
 
-      - name: Upload Trivy scan as artifact
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: trivy-docker-${{ inputs.service-name }}-${{ inputs.environment }}
-          path: 'trivy-results-${{ inputs.service-name }}.sarif'
-          retention-days: 30
-
-      - name: Generate SBOM
-        uses: anchore/sbom-action@v0
-        with:
-          image: ${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ inputs.service-name }}:${{ inputs.environment }}
-          format: 'spdx-json'
-          output-file: 'sbom-${{ inputs.service-name }}.spdx.json'
-
-      - name: Upload SBOM artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: sbom-${{ inputs.service-name }}-${{ inputs.environment }}
-          path: 'sbom-${{ inputs.service-name }}.spdx.json'
-          retention-days: 30
+      # SBOM generation removed - not critical for capstone project
+      # Can be re-enabled later if needed for production compliance

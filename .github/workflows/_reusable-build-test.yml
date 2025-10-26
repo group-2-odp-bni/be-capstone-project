@@ -1,5 +1,9 @@
 name: Reusable Build & Test
 
+# NOTE: Artifact uploads have been removed to avoid storage quota issues.
+# This is a capstone project and we don't need long-term artifact retention.
+# All scan results are still visible in workflow logs (table format).
+
 on:
   workflow_call:
     inputs:
@@ -43,7 +47,6 @@ jobs:
         with:
           java-version: ${{ inputs.java-version }}
           distribution: 'temurin'
-          cache: 'gradle'
 
       - name: Cache Gradle packages
         uses: actions/cache@v4
@@ -51,9 +54,8 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ inputs.service-name }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: |
-            ${{ runner.os }}-gradle-${{ inputs.service-name }}-
             ${{ runner.os }}-gradle-
 
       - name: Grant execute permission for gradlew
@@ -68,37 +70,16 @@ jobs:
         working-directory: ${{ inputs.service-path }}
         run: ./gradlew bootJar --no-daemon --stacktrace
 
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results-${{ inputs.service-name }}
-          path: ${{ inputs.service-path }}/build/reports/tests/
-          retention-days: 7
-          if-no-files-found: ignore
-
-      - name: Upload coverage report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-${{ inputs.service-name }}
-          path: ${{ inputs.service-path }}/build/reports/jacoco/
-          retention-days: 7
-          if-no-files-found: ignore
-
-      - name: Upload JAR artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: jar-${{ inputs.service-name }}
-          path: ${{ inputs.service-path }}/build/libs/*.jar
-          retention-days: 7
+      # Artifact uploads removed - storage quota issues
+      # Test results and coverage are available in the build logs
+      # JAR artifacts are rebuilt in Docker build step
 
       - name: Cache SonarCloud packages
         if: inputs.run-sonar
         uses: actions/cache@v4
         with:
           path: ~/.sonar/cache
-          key: ${{ runner.os }}-sonar-${{ inputs.service-name }}
+          key: ${{ runner.os }}-sonar-${{ hashFiles('**/*.gradle*') }}
           restore-keys: ${{ runner.os }}-sonar-
 
       - name: Extract SonarCloud project configuration
@@ -175,4 +156,7 @@ jobs:
         run: |
           ./gradlew sonar \
             -Dsonar.host.url=https://sonarcloud.io \
+            -Dsonar.branch.name=main \
+            -Dsonar.organization=${{ steps.sonar-config.outputs.organization }} \
+            -Dsonar.projectKey=${{ steps.sonar-config.outputs.projectKey }} \
             --no-daemon --stacktrace || echo "⚠️ SonarCloud scan failed, continuing..."

@@ -1,0 +1,155 @@
+# Wallet Service Helm Values
+# Manages wallet operations and balance
+
+replicaCount: 1
+
+image:
+  repository: teukumunawar/orange-pay-wallet-service
+  tag: latest
+  pullPolicy: Always
+
+nameOverride: "wallet-service"
+fullnameOverride: "wallet-service"
+
+service:
+  type: ClusterIP
+  # port: 8080 # Rely on chart's default to avoid duplication
+  # targetPort: 8080
+  annotations: {}
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    # CORS configuration
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    # Proxy configuration
+    nginx.ingress.kubernetes.io/proxy-body-size: "5m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "30"
+  hosts:
+    # Local development domain
+    - host: wallet.orange-wallet.local
+      paths:
+        - path: /
+          pathType: Prefix
+    # Production domain (via Cloudflare Tunnel)
+    - host: wallet.orangebybni.my.id
+      paths:
+        - path: /
+          pathType: Prefix
+  # TLS is handled by Cloudflare
+  tls: []
+
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "200m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+
+# Health checks
+livenessProbe:
+  enabled: true
+  httpGet:
+    path: /actuator/health/liveness
+    port: 8080
+  initialDelaySeconds: 60
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  enabled: true
+  httpGet:
+    path: /actuator/health/readiness
+    port: 8080
+  initialDelaySeconds: 30
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+# Environment variables
+env:
+  SPRING_PROFILES_ACTIVE: "prod"
+  SERVER_PORT: "8080"  # Override application.yml default (8083) for K8s consistency
+
+  # Database configuration (uses chart defaults + secrets)
+  DB_URL: "jdbc:postgresql://postgres:5432/orange_db"
+
+  # Redis configuration
+  SPRING_DATA_REDIS_HOST: "redis"
+  SPRING_DATA_REDIS_PORT: "6379"
+
+  # Kafka configuration
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+
+  # Service URLs
+  AUTH_SERVICE_URL: "http://authentication-service:8080"
+  USER_SERVICE_URL: "http://user-service:8080"
+
+  # JWT Configuration
+  JWK_SET_URI: "http://authentication-service:8080/oauth2/jwks"
+
+  # Logging
+  LOGGING_LEVEL_ROOT: "INFO"
+  LOGGING_LEVEL_COM_ORANGEWALLET: "DEBUG"
+
+  # Management endpoints
+  MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: "health,info,metrics,prometheus"
+  MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: "always"
+
+# Secrets (injected from Kubernetes secrets)
+secrets:
+  DB_USERNAME:
+    secretName: app-secrets
+    key: DB_USERNAME
+  DB_PASSWORD:
+    secretName: app-secrets
+    key: DB_PASSWORD
+
+# Metrics (disable separate port to avoid duplication with service port)
+metrics:
+  enabled: false  # Metrics already exposed on main service port 8080
+
+# Autoscaling
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+
+# Pod annotations
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8080"
+  prometheus.io/path: "/actuator/prometheus"
+
+# Security context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: false
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity rules
+affinity: {}
+
+# Labels
+labels:
+  tier: backend
+  component: wallet

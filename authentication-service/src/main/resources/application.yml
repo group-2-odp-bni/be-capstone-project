@@ -38,6 +38,17 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
 
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: auth-service-profile-sync
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
+      enable-auto-commit: false
+    listener:
+      ack-mode: manual
+
 orange:
   jwt:
     access-token-duration: 15m
@@ -65,7 +76,7 @@ orange:
           replicas: 1
           compact: false
         user-registered:
-          name: "user.registered"
+          name: "auth.user.registered"
           partitions: 3
           replicas: 1
           compact: true
@@ -92,7 +103,7 @@ orange:
         batch-size: 32768
 
 server:
-  port: 8081
+  port: ${SERVER_PORT:8081}
 
 logging:
   level:
