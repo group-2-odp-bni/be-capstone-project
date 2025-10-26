@@ -42,6 +42,7 @@ dependencies {
 	implementation("org.flywaydb:flyway-database-postgresql")
 	compileOnly("org.projectlombok:lombok")
 	runtimeOnly("org.postgresql:postgresql")
+	runtimeOnly("io.micrometer:micrometer-registry-prometheus")
 	annotationProcessor("org.projectlombok:lombok")
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testImplementation("org.springframework.kafka:spring-kafka-test")

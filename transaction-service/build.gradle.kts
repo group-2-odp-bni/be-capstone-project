@@ -45,6 +45,7 @@ dependencies {
     annotationProcessor("org.projectlombok:lombok")
     annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
     runtimeOnly("org.postgresql:postgresql")
+    runtimeOnly("io.micrometer:micrometer-registry-prometheus")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.kafka:spring-kafka-test")
