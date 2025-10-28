@@ -1,0 +1,14 @@
+syntax = "proto3";
+option java_package = "com.bni.orange.wallet.proto";
+option java_multiple_files = true;
+package com.bni.orange.wallet.proto;
+
+message WalletCreatedEvent {
+  string wallet_id = 1;
+  string user_id   = 2;
+  string currency  = 3;
+  string status    = 4; // e.g., ACTIVE
+  string type      = 5; // e.g., PERSONAL
+  string name      = 6;
+  string metadata_json = 7; // optional: dump metadata as JSON string
+}

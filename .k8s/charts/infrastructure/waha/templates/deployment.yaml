@@ -94,6 +94,14 @@ spec:
         - name: WAHA_PRINT_QR
           value: "{{ .Values.config.printQR }}"
 
+        {{- if .Values.additionalEnv }}
+        # Additional environment variables for optimization
+        {{- range .Values.additionalEnv }}
+        - name: {{ .name }}
+          value: {{ .value | quote }}
+        {{- end }}
+        {{- end }}
+
         volumeMounts:
         - name: sessions
           mountPath: {{ .Values.persistence.sessions.mountPath }}
