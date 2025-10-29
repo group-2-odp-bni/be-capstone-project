@@ -117,8 +117,7 @@ spec:
             cpu: {{ .Values.resources.limits.cpu }}
 
         livenessProbe:
-          httpGet:
-            path: /ping
+          tcpSocket:
             port: http
           initialDelaySeconds: {{ .Values.healthcheck.liveness.initialDelaySeconds }}
           periodSeconds: {{ .Values.healthcheck.liveness.periodSeconds }}
@@ -126,8 +125,7 @@ spec:
           failureThreshold: {{ .Values.healthcheck.liveness.failureThreshold }}
 
         readinessProbe:
-          httpGet:
-            path: /ping
+          tcpSocket:
             port: http
           initialDelaySeconds: {{ .Values.healthcheck.readiness.initialDelaySeconds }}
           periodSeconds: {{ .Values.healthcheck.readiness.periodSeconds }}

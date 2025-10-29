@@ -115,6 +115,12 @@ additionalEnv:
   - name: NODE_OPTIONS
     value: "--max-old-space-size=200"  # Limit Node.js heap to 200MB
 
+  # CRITICAL: Disable API key for health endpoints (fix 401 on probes)
+  - name: WAHA_HEALTH_MEDIA_FILES_THRESHOLD_MB
+    value: "100"
+  - name: WAHA_API_KEY_STRATEGY
+    value: "WEBHOOK_AND_HEADER"
+
 # Optimization Notes:
 # ✅ NOWEB engine: ~50-70% resource reduction vs WEBJS
 # ✅ Memory: 128-256MB (vs 512MB WEBJS)
