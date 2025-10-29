@@ -129,7 +129,11 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration cfg = new CorsConfiguration();
-        cfg.setAllowedOrigins(List.of("http://localhost:3000", "https://orangewallet.app"));
+        cfg.setAllowedOrigins(List.of(
+                        "https://app.orangebybni.my.id", // Prod
+                        "http://localhost:5173",         // Dev
+                        "http://127.0.0.1:5173"         // dev
+                ));
         cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         cfg.setAllowedHeaders(List.of("Authorization", "Content-Type", "Idempotency-Key", "X-Request-Id"));
         cfg.setExposedHeaders(List.of("Location", "ETag"));
