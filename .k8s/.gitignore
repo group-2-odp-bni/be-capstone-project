@@ -1,0 +1,55 @@
+# Kubernetes Secrets - NEVER commit actual secrets!
+manifests/base/secrets.yaml
+**/secrets.yaml
+*.secret
+
+# Kubeconfig files
+*.kubeconfig
+kubeconfig*
+config.yaml
+
+# Backup files
+*.sql
+*.dump
+*.backup
+backup-*.sql
+*.rdb
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Helm
+*.tgz
+charts/**/*.lock
+
+# Terraform (if used)
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Test outputs
+test-results/
+coverage/

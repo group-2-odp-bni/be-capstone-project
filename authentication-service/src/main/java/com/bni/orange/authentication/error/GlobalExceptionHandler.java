@@ -75,9 +75,9 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(response);
     }
 
-    @ExceptionHandler(Exception.class)
+    @ExceptionHandler(Throwable.class)
     public ResponseEntity<ApiResponse<Void>> handleGenericException(
-        Exception ex,
+        Throwable ex,
         HttpServletRequest request
     ) {
         log.error("Unexpected error occurred", ex);

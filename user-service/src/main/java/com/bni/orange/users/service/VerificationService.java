@@ -4,6 +4,7 @@ import com.bni.orange.users.config.properties.KafkaTopicProperties;
 import com.bni.orange.users.config.properties.RedisPrefixProperties;
 import com.bni.orange.users.error.BusinessException;
 import com.bni.orange.users.error.ErrorCode;
+import com.bni.orange.users.event.EventPublisher;
 import com.bni.orange.users.event.ProfileEventFactory;
 import com.bni.orange.users.model.enums.TokenType;
 import com.bni.orange.users.util.OtpGenerator;

@@ -1,0 +1,30 @@
+service:
+  name: transaction-service
+  port: 8080
+  targetPort: 8080
+
+image:
+  repository: teukumunawar/orange-pay-transaction-service
+  tag: latest
+  pullPolicy: Always
+
+env:
+  SPRING_PROFILES_ACTIVE: "prod"
+  SERVER_PORT: "8080"  # Unified port for K8s consistency
+  SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: "http://authentication-service:8080/oauth2/jwks"
+
+# Metrics (disable separate port to avoid duplication with service port)
+metrics:
+  enabled: false
+
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "200m"
+  limits:
+    memory: "384Mi"
+    cpu: "300m"
+
+labels:
+  tier: backend
+  component: transaction-processing

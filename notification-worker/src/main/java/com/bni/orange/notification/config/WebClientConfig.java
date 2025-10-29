@@ -1,9 +1,11 @@
 package com.bni.orange.notification.config;
 
+import com.bni.orange.notification.config.properties.ResilienceProperties;
 import com.bni.orange.notification.config.properties.WahaConfigProperties;
 import com.bni.orange.notification.config.properties.WebhookConfigProperties;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
+import io.github.resilience4j.core.IntervalFunction;
 import io.github.resilience4j.retry.Retry;
 import io.github.resilience4j.retry.RetryConfig;
 import io.netty.channel.ChannelOption;
@@ -16,22 +18,19 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.web.reactive.function.client.WebClient;
-import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.netty.http.client.HttpClient;
 
-import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.function.Predicate;
 
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
-@EnableConfigurationProperties({WahaConfigProperties.class, WebhookConfigProperties.class})
+@EnableConfigurationProperties({WahaConfigProperties.class, WebhookConfigProperties.class, ResilienceProperties.class})
 public class WebClientConfig {
 
     private final WahaConfigProperties wahaConfig;
+    private final ResilienceProperties resilienceProps;
 
     @Bean
     public WebClient wahaWebClient() {
@@ -53,27 +52,21 @@ public class WebClientConfig {
 
     @Bean
     public Retry wahaApiRetry() {
-        Predicate<Throwable> isRetryableException = throwable ->
-            throwable instanceof WebClientResponseException.InternalServerError ||
-                throwable instanceof WebClientResponseException.ServiceUnavailable ||
-                throwable instanceof WebClientResponseException.BadGateway ||
-                throwable instanceof WebClientResponseException.GatewayTimeout ||
-                throwable instanceof TimeoutException;
+        var retryProps = resilienceProps.retry();
 
         var retryConfig = RetryConfig.<Throwable>custom()
-            .maxAttempts(wahaConfig.retry().maxAttempts())
-            .waitDuration(wahaConfig.retry().initialBackoff())
-            .intervalFunction(io.github.resilience4j.core.IntervalFunction
-                .ofExponentialRandomBackoff(
-                    wahaConfig.retry().initialBackoff(),
-                    wahaConfig.retry().multiplier(),
-                    wahaConfig.retry().maxBackoff()
-                ))
-            .retryOnException(isRetryableException)
-            .failAfterMaxAttempts(true)
+            .maxAttempts(retryProps.maxAttempts())
+            .intervalFunction(IntervalFunction.ofExponentialRandomBackoff(
+                retryProps.initialBackoff(),
+                retryProps.multiplier(),
+                retryProps.maxBackoff()
+            ))
+            .retryOnException(ex -> retryProps.retryableExceptions().stream()
+                .anyMatch(exceptionClass -> exceptionClass.isInstance(ex)))
+            .failAfterMaxAttempts(retryProps.failAfterMaxAttempts())
             .build();
 
-        Retry retry = Retry.of("wahaApi", retryConfig);
+        var retry = Retry.of("wahaApi", retryConfig);
 
         retry.getEventPublisher()
             .onRetry(event -> log.warn(
@@ -87,16 +80,18 @@ public class WebClientConfig {
 
     @Bean
     public CircuitBreaker wahaApiCircuitBreaker() {
+        var cbProps = resilienceProps.circuitBreaker();
+
         var circuitBreakerConfig = CircuitBreakerConfig.custom()
-            .slidingWindowSize(10)
-            .minimumNumberOfCalls(5)
-            .failureRateThreshold(50)
-            .waitDurationInOpenState(Duration.ofSeconds(60))
-            .permittedNumberOfCallsInHalfOpenState(3)
-            .automaticTransitionFromOpenToHalfOpenEnabled(true)
+            .slidingWindowSize(cbProps.slidingWindowSize())
+            .minimumNumberOfCalls(cbProps.minimumNumberOfCalls())
+            .failureRateThreshold(cbProps.failureRateThreshold())
+            .waitDurationInOpenState(cbProps.waitDurationInOpenState())
+            .permittedNumberOfCallsInHalfOpenState(cbProps.permittedNumberOfCallsInHalfOpenState())
+            .automaticTransitionFromOpenToHalfOpenEnabled(cbProps.automaticTransitionFromOpenToHalfOpenEnabled())
             .build();
 
-        CircuitBreaker circuitBreaker = CircuitBreaker.of("wahaApi", circuitBreakerConfig);
+        var circuitBreaker = CircuitBreaker.of("wahaApi", circuitBreakerConfig);
 
         circuitBreaker.getEventPublisher()
             .onStateTransition(event -> log.warn(

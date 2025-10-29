@@ -1,0 +1,99 @@
+name: Rollback Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'Service to rollback (or "all" for all services)'
+        required: true
+        type: choice
+        options:
+          - all
+          - authentication-service
+          - user-service
+          - wallet-service
+          - transaction-service
+          - notification-worker
+      revision:
+        description: 'Revision number to rollback to (0 for previous)'
+        required: false
+        default: '0'
+
+env:
+  NAMESPACE: orange-wallet
+
+jobs:
+  rollback:
+    name: Rollback Service
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.14.0'
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Verify cluster connection
+        run: |
+          kubectl cluster-info
+          kubectl get nodes
+
+      - name: Rollback service(s)
+        run: |
+          SERVICES="${{ github.event.inputs.service }}"
+          REVISION="${{ github.event.inputs.revision }}"
+
+          if [ "$SERVICES" == "all" ]; then
+            SERVICES="authentication-service user-service wallet-service transaction-service notification-worker"
+          fi
+
+          for service in $SERVICES; do
+            echo "Rolling back $service..."
+
+            # Show current revision
+            echo "Current revisions for $service:"
+            helm history $service -n ${{ env.NAMESPACE }}
+
+            # Rollback
+            if [ "$REVISION" == "0" ]; then
+              helm rollback $service -n ${{ env.NAMESPACE }}
+            else
+              helm rollback $service $REVISION -n ${{ env.NAMESPACE }}
+            fi
+
+            echo "Rollback completed for $service"
+            echo ""
+          done
+
+      - name: Verify rollback
+        run: |
+          echo "=== Pods Status ==="
+          kubectl get pods -n ${{ env.NAMESPACE }}
+
+          echo ""
+          echo "=== Deployment Rollout Status ==="
+          kubectl rollout status deployment -n ${{ env.NAMESPACE }} --timeout=300s
+
+      - name: Send notification
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ Rollback completed successfully!"
+          else
+            echo "❌ Rollback failed!"
+          fi

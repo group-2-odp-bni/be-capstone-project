@@ -14,7 +14,7 @@ FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
 RUN addgroup -S spring && adduser -S spring -G spring \
-    && apk add --no-cache tini
+    && apk add --no-cache tini gcompat
 
 COPY --from=build --chown=spring:spring /app/build/libs/*.jar app.jar
 

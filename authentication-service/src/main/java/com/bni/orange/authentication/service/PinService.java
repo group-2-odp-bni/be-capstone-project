@@ -4,7 +4,9 @@ import com.bni.orange.authentication.error.BusinessException;
 import com.bni.orange.authentication.error.ErrorCode;
 import com.bni.orange.authentication.model.request.PinChangeRequest;
 import com.bni.orange.authentication.model.request.PinResetConfirmRequest;
+import com.bni.orange.authentication.model.request.PinVerifyRequest;
 import com.bni.orange.authentication.model.response.ApiResponse;
+import com.bni.orange.authentication.model.response.PinVerifyResponse;
 import com.bni.orange.authentication.repository.RefreshTokenRepository;
 import com.bni.orange.authentication.repository.UserRepository;
 import com.bni.orange.authentication.util.ResponseBuilder;
@@ -56,5 +58,21 @@ public class PinService {
         userRepository.save(user);
 
         return ResponseBuilder.success("PIN reset successfully", servletRequest);
+    }
+
+    @Transactional(readOnly = true)
+    public ApiResponse<PinVerifyResponse> verifyPin(UUID userId, PinVerifyRequest request, HttpServletRequest servletRequest) {
+        var user = userRepository.findById(userId)
+            .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        if (user.getUserPins() == null || user.getUserPins().isEmpty()) {
+            throw new BusinessException(ErrorCode.PIN_NOT_SET);
+        }
+
+        var response = passwordEncoder.matches(request.pin(), user.getUserPins())
+            ? PinVerifyResponse.success()
+            : PinVerifyResponse.failed();
+
+        return ResponseBuilder.success("PIN reset successfully", response, servletRequest);
     }
 }
