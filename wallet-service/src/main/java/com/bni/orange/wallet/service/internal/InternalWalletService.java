@@ -6,6 +6,7 @@ import com.bni.orange.wallet.model.request.internal.RoleValidateRequest;
 import com.bni.orange.wallet.model.response.internal.BalanceUpdateResponse;
 import com.bni.orange.wallet.model.response.internal.DefaultWalletResponse;
 import com.bni.orange.wallet.model.response.internal.RoleValidateResponse;
+import com.bni.orange.wallet.model.response.internal.UserWalletsResponse;
 import com.bni.orange.wallet.model.response.internal.ValidationResultResponse;
 
 import java.util.UUID;
@@ -15,4 +16,5 @@ public interface InternalWalletService {
   BalanceUpdateResponse updateBalance(BalanceUpdateRequest req);
   RoleValidateResponse validateRole(RoleValidateRequest req);
   DefaultWalletResponse getDefaultWalletByUserId(UUID userId);
+  UserWalletsResponse getWalletsByUserId(UUID userId, boolean idsOnly);
 }

@@ -26,8 +26,10 @@ public class ReceiveQueryServiceImpl implements ReceiveQueryService {
   public DefaultReceiveResponse getDefaultReceiveWallet() {
     var userId = currentUserId();
 
-    var prefs = prefsRepo.findByUserId(userId)
-        .orElseThrow(() -> new IllegalStateException("No default receive wallet set"));
+    var prefs = prefsRepo.findByUserId(userId).orElse(null);
+    if (prefs == null) {
+      return DefaultReceiveResponse.builder().build();
+    }
 
     var walletName = walletReadRepo.findById(prefs.getDefaultWalletId())
         .map(WalletRead::getName)

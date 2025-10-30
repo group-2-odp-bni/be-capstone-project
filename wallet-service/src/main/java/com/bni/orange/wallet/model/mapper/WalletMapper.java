@@ -6,6 +6,8 @@ import com.bni.orange.wallet.model.request.wallet.WalletCreateRequest;
 import com.bni.orange.wallet.model.request.wallet.WalletUpdateRequest;
 import com.bni.orange.wallet.model.response.WalletDetailResponse;
 import com.bni.orange.wallet.model.response.WalletListItemResponse;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.mapstruct.*;
 
 import java.time.OffsetDateTime;
@@ -34,7 +36,7 @@ public interface WalletMapper {
   @Mapping(target="id",        expression="java(java.util.UUID.randomUUID())")
   @Mapping(target="userId",    source="userId")
   @Mapping(target="currency",  constant="IDR")
-  @Mapping(target="metadata",  expression="java(req.getMetadata()==null?\"{}\":req.getMetadata())")
+  @Mapping(target="metadata",  expression="java(metadataToString(req.getMetadata()))")
   @Mapping(target="createdAt", expression="java(now())")
   @Mapping(target="updatedAt", expression="java(now())")
   Wallet toEntity(WalletCreateRequest req, UUID userId);
@@ -44,4 +46,16 @@ public interface WalletMapper {
   void patch(@MappingTarget Wallet wallet, WalletUpdateRequest req);
 
   default OffsetDateTime now(){ return OffsetDateTime.now(); }
+
+  default String metadataToString(Object metadata) {
+    if (metadata == null) {
+      return "{}";
+    }
+    try {
+      return new ObjectMapper().writeValueAsString(metadata);
+    } catch (JsonProcessingException e) {
+      // Handle exception, perhaps log it and return a default value
+      return "{}";
+    }
+  }
 }

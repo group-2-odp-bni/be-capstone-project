@@ -97,16 +97,6 @@ management:
   endpoint:
     health:
       show-details: always
-
-logging:
-  level:
-    root: INFO
-    com.bni.orange: INFO
-    org.springframework.web: WARN
-    org.apache.kafka: INFO
-    org.springframework.security: WARN
-    org.springframework.boot.actuate: ERROR
-
 wallet:
   events:
     enabled: ${WALLET_EVENTS_ENABLED:true}
@@ -119,3 +109,15 @@ orange:
     topics:
       wallet-created: wallet.events.created
       wallet-updated: wallet.events.updated
+
+
+logging:
+  level:
+    root: INFO
+    com.bni.orange.wallet: INFO
+    org.springframework.web: WARN
+    org.springframework.security: WARN
+    org.springframework.kafka: WARN
+    org.springframework.boot.actuate: ERROR
+    org.springframework.boot.actuate.endpoint.web: ERROR
+    org.springframework.boot.actuate.endpoint: ERROR

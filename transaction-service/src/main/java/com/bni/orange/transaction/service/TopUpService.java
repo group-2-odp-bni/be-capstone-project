@@ -6,6 +6,7 @@ import com.bni.orange.transaction.error.BusinessException;
 import com.bni.orange.transaction.error.ErrorCode;
 import com.bni.orange.transaction.event.TopUpEventPublisher;
 import com.bni.orange.transaction.model.entity.Transaction;
+import com.bni.orange.transaction.model.entity.TransactionLedger;
 import com.bni.orange.transaction.model.entity.VirtualAccount;
 import com.bni.orange.transaction.model.enums.PaymentProvider;
 import com.bni.orange.transaction.model.enums.TransactionStatus;
@@ -21,6 +22,7 @@ import com.bni.orange.transaction.model.response.VirtualAccountResponse;
 import com.bni.orange.transaction.model.response.WalletAccessValidation;
 import com.bni.orange.transaction.model.response.WalletInfo;
 import com.bni.orange.transaction.repository.TopUpConfigRepository;
+import com.bni.orange.transaction.repository.TransactionLedgerRepository;
 import com.bni.orange.transaction.repository.TransactionRepository;
 import com.bni.orange.transaction.repository.VirtualAccountRepository;
 import com.bni.orange.transaction.utils.TransactionRefGenerator;
@@ -49,6 +51,7 @@ public class TopUpService {
     private final BniVaClient bniVaClient;
     private final TransactionRefGenerator refGenerator;
     private final TopUpEventPublisher eventPublisher;
+    private final TransactionLedgerRepository ledgerRepository;
     private final WebhookSignatureValidator signatureValidator;
 
     public List<PaymentMethodResponse> getPaymentMethods() {
@@ -56,16 +59,17 @@ public class TopUpService {
 
         return topUpConfigRepository.findAllActiveProviders()
             .stream()
-            .map(config -> new PaymentMethodResponse(
-                config.getProvider(),
-                config.getProviderName(),
-                config.getMinAmount(),
-                config.getMaxAmount(),
-                config.getFeeAmount(),
-                config.getFeePercentage(),
-                config.getIconUrl(),
-                config.getDisplayOrder()
-            ))
+            .map(config -> PaymentMethodResponse.builder()
+                .provider(config.getProvider())
+                .providerName(config.getProviderName())
+                .minAmount(config.getMinAmount())
+                .maxAmount(config.getMaxAmount())
+                .feeAmount(config.getFeeAmount())
+                .feePercentage(config.getFeePercentage())
+                .iconUrl(config.getIconUrl())
+                .displayOrder(config.getDisplayOrder())
+                .build()
+            )
             .toList();
     }
 
@@ -109,7 +113,8 @@ public class TopUpService {
 
         var vaNumber = virtualAccountService.generateVaNumber(config, userId);
 
-        var virtualAccount = virtualAccountRepository.save(VirtualAccount.builder()
+        var virtualAccount = virtualAccountRepository.save(
+            VirtualAccount.builder()
             .vaNumber(vaNumber)
             .transactionId(transaction.getId())
             .userId(userId)
@@ -125,7 +130,7 @@ public class TopUpService {
             .build());
         log.info("Created virtual account: {}", vaNumber);
 
-        eventPublisher.publishTopUpInitiated(transaction, virtualAccount);
+        // eventPublisher.publishTopUpInitiated(transaction, virtualAccount);
 
         try {
             var vaRequest = new BniVaClient.VaRegistrationRequest(
@@ -236,11 +241,12 @@ public class TopUpService {
             transaction.markAsSuccess();
             transactionRepository.save(transaction);
 
+            createLedgerEntry(transaction, virtualAccount, balanceUpdateResult.previousBalance());
+
             log.info("Top-up completed successfully for transaction: {}, new balance: {}",
                 transaction.getTransactionRef(), balanceUpdateResult.newBalance());
 
             eventPublisher.publishTopUpCompleted(transaction, virtualAccount);
-
         } catch (Exception e) {
             log.error("Failed to credit wallet balance", e);
             transaction.markAsFailed("Failed to credit wallet: " + e.getMessage());
@@ -311,6 +317,21 @@ public class TopUpService {
         eventPublisher.publishTopUpCancelled(transaction, virtualAccount);
 
         log.info("Top-up cancelled successfully for transaction: {}", transactionId);
+    }
+
+    private void createLedgerEntry(Transaction transaction, VirtualAccount virtualAccount, java.math.BigDecimal balanceBefore) {
+        var ledgerEntry = TransactionLedger.createCreditEntry(
+            transaction.getId(),
+            transaction.getTransactionRef(),
+            virtualAccount.getWalletId(),
+            virtualAccount.getUserId(),
+            virtualAccount.getAmount(),
+            balanceBefore,
+            "Top-up via " + virtualAccount.getProvider().getDisplayName()
+        );
+        ledgerEntry.setPerformedByUserId(virtualAccount.getUserId());
+        ledgerRepository.save(ledgerEntry);
+        log.info("Created CREDIT ledger entry for transactionRef: {}", transaction.getTransactionRef());
     }
 
     private WalletAccessValidation validateWalletAccess(UUID userId, UUID walletId) {

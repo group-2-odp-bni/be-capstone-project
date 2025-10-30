@@ -10,15 +10,18 @@ import com.bni.orange.wallet.model.response.internal.BalanceUpdateResponse;
 import com.bni.orange.wallet.model.response.internal.DefaultWalletResponse;
 import com.bni.orange.wallet.model.response.internal.RoleValidateResponse;
 import com.bni.orange.wallet.model.response.internal.ValidationResultResponse;
+import com.bni.orange.wallet.model.response.internal.UserWalletsResponse;
 import com.bni.orange.wallet.repository.UserReceivePrefsRepository;
 import com.bni.orange.wallet.repository.WalletInternalRepository;
 import com.bni.orange.wallet.repository.WalletMemberInternalRepository;
+import com.bni.orange.wallet.repository.WalletMemberRepository;
 import com.bni.orange.wallet.repository.WalletPolicyInternalRepository;
 import com.bni.orange.wallet.repository.read.WalletReadRepository;
 import com.bni.orange.wallet.service.internal.InternalWalletService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -31,6 +34,7 @@ public class InternalWalletServiceImpl implements InternalWalletService {
   private final WalletPolicyInternalRepository policyRepo;
   private final UserReceivePrefsRepository userReceivePrefsRepo;
   private final WalletReadRepository walletReadRepo;
+  private final WalletMemberRepository walletMemberRepo;
   public record PolicyCheckResult(boolean allowed, String currency) {}
 
   public InternalWalletServiceImpl(
@@ -38,13 +42,15 @@ public class InternalWalletServiceImpl implements InternalWalletService {
       WalletMemberInternalRepository memberRepo,
       WalletPolicyInternalRepository policyRepo,
       UserReceivePrefsRepository userReceivePrefsRepo,
-      WalletReadRepository walletReadRepo
+      WalletReadRepository walletReadRepo,
+      WalletMemberRepository walletMemberRepo
   ) {
     this.walletRepo = walletRepo;
     this.memberRepo = memberRepo;
     this.policyRepo = policyRepo;
     this.userReceivePrefsRepo = userReceivePrefsRepo;
     this.walletReadRepo = walletReadRepo;
+    this.walletMemberRepo = walletMemberRepo;
   }
 
   @Override
@@ -177,5 +183,14 @@ public class InternalWalletServiceImpl implements InternalWalletService {
         .walletType(wallet.getType())
         .currency(wallet.getCurrency())
         .build();
+  }
+
+  @Override
+  public UserWalletsResponse getWalletsByUserId(UUID userId, boolean idsOnly) {
+    if (idsOnly) {
+      var ids = walletMemberRepo.findWalletIdsByUserId(userId);
+      return UserWalletsResponse.builder().walletIds(ids).build();
+    }
+    throw new UnsupportedOperationException("Full wallet details not supported via this internal method");
   }
 }

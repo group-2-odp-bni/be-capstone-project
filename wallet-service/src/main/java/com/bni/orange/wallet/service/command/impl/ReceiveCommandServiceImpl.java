@@ -32,7 +32,7 @@ public class ReceiveCommandServiceImpl implements ReceiveCommandService {
     var userId = currentUserId();
     var walletId = req.getWalletId();
 
-    var membership = userWalletReadRepo.findByUserIdAndWalletId(userId, walletId)
+      userWalletReadRepo.findByUserIdAndWalletId(userId, walletId)
         .orElseThrow(() -> new AccessDeniedException("You are not a member of this wallet"));
 
     var prefs = prefsRepo.findById(userId)

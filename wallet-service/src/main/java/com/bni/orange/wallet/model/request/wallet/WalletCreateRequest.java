@@ -8,5 +8,5 @@ import lombok.*;
 public class WalletCreateRequest {
   @NotNull private WalletType type;       // PERSONAL | SHARED | FAMILY
   @Size(max=160) private String name;     // optional
-  private String metadata;                // optional
+  private Object metadata;                // optional
 }

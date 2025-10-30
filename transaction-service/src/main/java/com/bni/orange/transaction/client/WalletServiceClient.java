@@ -9,6 +9,7 @@ import com.bni.orange.transaction.model.response.ApiResponse;
 import com.bni.orange.transaction.model.response.WalletResolutionResponse;
 import com.bni.orange.transaction.model.response.internal.BalanceUpdateResponse;
 import com.bni.orange.transaction.model.response.internal.RoleValidateResponse;
+import com.bni.orange.transaction.model.response.internal.UserWalletsResponse;
 import com.bni.orange.transaction.model.response.internal.ValidationResultResponse;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.retry.Retry;
@@ -122,10 +123,12 @@ public class WalletServiceClient extends BaseServiceClient {
 
         return executeGet(
             uriSpec -> uriSpec.uri(uriBuilder -> uriBuilder
-                .path("/internal/users/{userId}/wallets")
+                .path("/internal/v1/users/{userId}/wallets")
                 .queryParam("idsOnly", true)
                 .build(userId)),
-            new ParameterizedTypeReference<ApiResponse<List<UUID>>>() {}
-        ).doOnSuccess(walletIds -> log.debug("User {} has access to {} wallets", userId, walletIds.size()));
+            new ParameterizedTypeReference<ApiResponse<UserWalletsResponse>>() {
+            }
+        ).map(UserWalletsResponse::walletIds)
+            .doOnSuccess(walletIds -> log.debug("User {} has access to {} wallets", userId, walletIds.size()));
     }
 }

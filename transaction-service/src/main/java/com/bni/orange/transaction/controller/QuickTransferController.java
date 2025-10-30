@@ -39,10 +39,11 @@ public class QuickTransferController {
     @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
     public ResponseEntity<ApiResponse<List<QuickTransferResponse>>> getQuickTransfers(
         @RequestParam(defaultValue = "usage") String orderBy,
+        @RequestParam(required = false) String search,
         @AuthenticationPrincipal Jwt jwt
     ) {
-        return ResponseEntity.ok(ApiResponse.success(
-            quickTransferService.getQuickTransfers(getUserIdFromJwt(jwt), orderBy)));
+        return ResponseEntity.ok(
+            ApiResponse.success(quickTransferService.getQuickTransfers(getUserIdFromJwt(jwt), orderBy, search)));
     }
 
     @GetMapping("/top")

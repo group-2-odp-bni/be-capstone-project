@@ -8,13 +8,17 @@ import com.bni.orange.transaction.model.response.QuickTransferResponse;
 import com.bni.orange.transaction.repository.QuickTransferRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
+
 
 @Slf4j
 @Service
@@ -23,31 +27,43 @@ public class QuickTransferService {
 
     private final QuickTransferRepository quickTransferRepository;
 
-    @Transactional(readOnly = true)
-    public List<QuickTransferResponse> getTopQuickTransfers(UUID userId, int limit) {
-        var quickTransfers = quickTransferRepository.findTopByUserId(userId);
+    private record SortConfig(
+        String field,
+        Sort.Direction direction
+    ) {
+    }
 
-        return quickTransfers.stream()
-            .limit(limit)
+    @Transactional(readOnly = true)
+    public List<QuickTransferResponse> getQuickTransfers(UUID userId, String orderBy, String search) {
+        Objects.requireNonNull(userId, "userId cannot be null");
+
+        var sortConfig = switch (Optional.ofNullable(orderBy).map(String::toLowerCase).orElse("usage")) {
+            case "recent" -> new SortConfig("lastUsedAt", Sort.Direction.DESC);
+            case "order" -> new SortConfig("displayOrder", Sort.Direction.ASC);
+            default -> new SortConfig("usageCount", Sort.Direction.DESC);
+        };
+
+        var sort = Sort.by(sortConfig.direction(), sortConfig.field());
+        var hasSearch = search != null && !search.isBlank();
+
+        Supplier<List<QuickTransfer>> query = hasSearch
+            ? () -> quickTransferRepository.findByUserIdAndSearchTerm(userId, search.trim(), sort)
+            : switch (sortConfig.field()) {
+            case "lastUsedAt" -> () -> quickTransferRepository.findByUserIdOrderByLastUsedAtDesc(userId);
+            case "displayOrder" -> () -> quickTransferRepository.findByUserIdOrderByDisplayOrderAsc(userId);
+            default -> () -> quickTransferRepository.findByUserIdOrderByUsageCountDesc(userId);
+        };
+
+        return query.get().stream()
             .map(this::toResponse)
             .toList();
     }
 
     @Transactional(readOnly = true)
-    public List<QuickTransferResponse> getQuickTransfers(UUID userId, String orderBy) {
-        log.debug("Getting quick transfers for user {}", userId);
+    public List<QuickTransferResponse> getTopQuickTransfers(UUID userId, int limit) {
+        var quickTransfers = quickTransferRepository.findTopByUserId(userId);
 
-        var sortKey = Optional.ofNullable(orderBy)
-            .map(String::toLowerCase)
-            .orElse("usage");
-
-        var quickTransfers = switch (sortKey) {
-            case "recent" -> quickTransferRepository.findByUserIdOrderByLastUsedAtDesc(userId);
-            case "order" -> quickTransferRepository.findByUserIdOrderByDisplayOrderAsc(userId);
-            default -> quickTransferRepository.findByUserIdOrderByUsageCountDesc(userId);
-        };
-
-        return quickTransfers.stream()
+        return quickTransfers.stream().limit(limit)
             .map(this::toResponse)
             .toList();
     }
@@ -105,7 +121,7 @@ public class QuickTransferService {
             .orElseThrow(() -> new BusinessException(ErrorCode.TRANSACTION_NOT_FOUND, "Quick transfer not found"));
 
         if (!quickTransfer.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.TRANSACTION_NOT_FOUND, "Quick transfer not found or you don't have permission");
+            throw new BusinessException(ErrorCode.TRANSACTION_NOT_FOUND, "Quick transfer not found or you don\'t have permission");
         }
 
         quickTransfer.setDisplayOrder(newOrder);
