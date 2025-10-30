@@ -10,11 +10,13 @@ import com.bni.orange.transaction.event.EventPublisher;
 import com.bni.orange.transaction.event.TransactionEventFactory;
 import com.bni.orange.transaction.model.entity.Transaction;
 import com.bni.orange.transaction.model.entity.TransactionLedger;
+import com.bni.orange.transaction.model.enums.InternalAction;
 import com.bni.orange.transaction.model.enums.TransactionStatus;
 import com.bni.orange.transaction.model.enums.TransactionType;
 import com.bni.orange.transaction.model.request.RecipientLookupRequest;
 import com.bni.orange.transaction.model.request.TransferConfirmRequest;
 import com.bni.orange.transaction.model.request.TransferInitiateRequest;
+import com.bni.orange.transaction.model.request.internal.BalanceValidateRequest;
 import com.bni.orange.transaction.model.response.BalanceResponse;
 import com.bni.orange.transaction.model.response.RecipientLookupResponse;
 import com.bni.orange.transaction.model.response.TransactionResponse;
@@ -53,11 +55,7 @@ public class TransferService {
     @Value("${orange.transaction.fee.transfer:0}")
     private BigDecimal transferFee;
 
-    public RecipientLookupResponse lookupRecipient(
-        RecipientLookupRequest request,
-        UUID currentUserId,
-        String accessToken
-    ) {
+    public RecipientLookupResponse inquiry(RecipientLookupRequest request, UUID currentUserId, String accessToken) {
         log.info("Looking up recipient for phone: {}", request.phoneNumber());
 
         var normalizedPhone = PhoneNumberUtils.normalize(request.phoneNumber());
@@ -124,10 +122,10 @@ public class TransferService {
 
         var totalAmount = request.amount().add(transferFee);
 
-        var balanceValidationRequest = com.bni.orange.transaction.model.request.internal.BalanceValidateRequest.builder()
+        var balanceValidationRequest = BalanceValidateRequest.builder()
             .walletId(request.senderWalletId())
             .amount(totalAmount)
-            .action(com.bni.orange.transaction.model.enums.InternalAction.DEBIT)
+            .action(InternalAction.DEBIT)
             .build();
 
         var balanceValidation = Optional.ofNullable(walletServiceClient.validateBalance(balanceValidationRequest).block())
@@ -148,9 +146,7 @@ public class TransferService {
             }
         }
 
-        var receiverInfo = Optional.ofNullable(userServiceClient
-                .findByPhoneNumber(PhoneNumberUtils.normalize("+62" + request.receiverUserId()), accessToken)
-                .block())
+        var receiverInfo = Optional.ofNullable(userServiceClient.findById(request.receiverUserId(), accessToken).block())
             .orElse(UserProfileResponse.builder()
                 .id(request.receiverUserId())
                 .name("Unknown")
@@ -168,7 +164,7 @@ public class TransferService {
         var roleValidationRequest = com.bni.orange.transaction.model.request.internal.RoleValidateRequest.builder()
             .walletId(walletId)
             .userId(userId)
-            .action(com.bni.orange.transaction.model.enums.InternalAction.DEBIT)
+            .action(InternalAction.DEBIT)
             .amount(totalAmount)
             .build();
 
