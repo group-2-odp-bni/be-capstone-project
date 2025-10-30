@@ -51,7 +51,7 @@ spring:
 
 orange:
   jwt:
-    access-token-duration: 15m
+    access-token-duration: 30d # todo revert
     refresh-token-duration: 30d
     state-token-duration: 5m
   rsa:

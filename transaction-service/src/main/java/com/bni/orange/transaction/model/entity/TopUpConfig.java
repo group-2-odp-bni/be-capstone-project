@@ -39,6 +39,7 @@ public class TopUpConfig {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "provider", nullable = false, unique = true, columnDefinition = "domain.payment_provider")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private PaymentProvider provider;
 
     @Column(name = "provider_name", nullable = false, length = 100)

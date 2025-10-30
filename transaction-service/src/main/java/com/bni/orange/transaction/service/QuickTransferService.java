@@ -34,32 +34,20 @@ public class QuickTransferService {
     }
 
     @Transactional(readOnly = true)
-    public List<QuickTransferResponse> getWalletQuickTransfers(UUID userId, UUID walletId, String orderBy) {
-        log.debug("Getting quick transfers for user {} on wallet {}", userId, walletId);
+    public List<QuickTransferResponse> getQuickTransfers(UUID userId, String orderBy) {
+        log.debug("Getting quick transfers for user {}", userId);
 
         var sortKey = Optional.ofNullable(orderBy)
             .map(String::toLowerCase)
             .orElse("usage");
 
         var quickTransfers = switch (sortKey) {
-            case "recent" -> quickTransferRepository.findByWalletIdOrderByLastUsedAtDesc(walletId);
-            case "order" -> quickTransferRepository.findByWalletIdOrderByDisplayOrderAsc(walletId);
-            default -> quickTransferRepository.findByWalletIdOrderByUsageCountDesc(walletId);
+            case "recent" -> quickTransferRepository.findByUserIdOrderByLastUsedAtDesc(userId);
+            case "order" -> quickTransferRepository.findByUserIdOrderByDisplayOrderAsc(userId);
+            default -> quickTransferRepository.findByUserIdOrderByUsageCountDesc(userId);
         };
 
         return quickTransfers.stream()
-            .map(this::toResponse)
-            .toList();
-    }
-
-    @Transactional(readOnly = true)
-    public List<QuickTransferResponse> getTopWalletQuickTransfers(UUID userId, UUID walletId, int limit) {
-        log.debug("Getting top {} quick transfers for user {} on wallet {}", limit, userId, walletId);
-
-        var quickTransfers = quickTransferRepository.findTopByWalletId(walletId);
-
-        return quickTransfers.stream()
-            .limit(limit)
             .map(this::toResponse)
             .toList();
     }

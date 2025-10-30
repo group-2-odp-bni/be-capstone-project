@@ -9,6 +9,9 @@ import io.github.resilience4j.reactor.retry.RetryOperator;
 import io.github.resilience4j.retry.Retry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Mono;
@@ -60,12 +63,19 @@ public abstract class BaseServiceClient {
     ) {
         log.debug("Executing GET request to {}", serviceName);
 
-        return Mono.defer(() -> {
-                WebClient.RequestHeadersSpec<?> requestSpec = uriFunction.apply(webClient.get());
-                return requestSpec.retrieve()
-                    .bodyToMono(responseType)
-                    .map(ApiResponse::data);
-            })
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        WebClient.RequestHeadersSpec<?> requestSpec = uriFunction.apply(webClient.get());
+
+        if (auth instanceof JwtAuthenticationToken jwtAuth) {
+            log.debug("Attaching Bearer token from SecurityContextHolder.");
+            requestSpec.headers(headers -> headers.setBearerAuth(jwtAuth.getToken().getTokenValue()));
+        } else {
+            log.warn("No JWT authentication found in SecurityContextHolder. Type is: {}", auth != null ? auth.getClass().getName() : "null");
+        }
+
+        return requestSpec.retrieve()
+            .bodyToMono(responseType)
+            .map(ApiResponse::data)
             .transformDeferred(RetryOperator.of(retry))
             .transformDeferred(CircuitBreakerOperator.of(circuitBreaker))
             .onErrorResume(WebClientResponseException.class, ex -> {
@@ -106,12 +116,19 @@ public abstract class BaseServiceClient {
     ) {
         log.debug("Executing POST request to {}", serviceName);
 
-        return Mono.defer(() -> {
-                WebClient.RequestHeadersSpec<?> requestSpec = uriFunction.apply(webClient.post());
-                return requestSpec.retrieve()
-                    .bodyToMono(responseType)
-                    .map(ApiResponse::data);
-            })
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        var requestSpec = uriFunction.apply(webClient.post());
+
+        if (auth instanceof JwtAuthenticationToken jwtAuth) {
+            log.debug("Attaching Bearer token from SecurityContextHolder.");
+            requestSpec.headers(headers -> headers.setBearerAuth(jwtAuth.getToken().getTokenValue()));
+        } else {
+            log.warn("No JWT authentication found in SecurityContextHolder. Type is: {}", auth != null ? auth.getClass().getName() : "null");
+        }
+
+        return requestSpec.retrieve()
+            .bodyToMono(responseType)
+            .map(ApiResponse::data)
             .transformDeferred(RetryOperator.of(retry))
             .transformDeferred(CircuitBreakerOperator.of(circuitBreaker))
             .onErrorResume(WebClientResponseException.class, ex -> {

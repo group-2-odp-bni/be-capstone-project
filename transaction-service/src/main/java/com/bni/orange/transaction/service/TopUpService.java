@@ -11,10 +11,8 @@ import com.bni.orange.transaction.model.enums.PaymentProvider;
 import com.bni.orange.transaction.model.enums.TransactionStatus;
 import com.bni.orange.transaction.model.enums.TransactionType;
 import com.bni.orange.transaction.model.enums.VirtualAccountStatus;
-import com.bni.orange.transaction.model.enums.WalletPermission;
 import com.bni.orange.transaction.model.enums.WalletRole;
 import com.bni.orange.transaction.model.enums.WalletStatus;
-import com.bni.orange.transaction.model.request.BalanceAdjustmentRequest;
 import com.bni.orange.transaction.model.request.TopUpCallbackRequest;
 import com.bni.orange.transaction.model.request.TopUpInitiateRequest;
 import com.bni.orange.transaction.model.response.PaymentMethodResponse;
@@ -219,18 +217,27 @@ public class TopUpService {
         virtualAccountRepository.save(virtualAccount);
 
         try {
-            var adjustmentRequest = BalanceAdjustmentRequest.builder()
-                .amount(virtualAccount.getAmount())
-                .reason(transaction.getTransactionRef())
-                .description("Top-up via " + provider.getDisplayName())
+            var balanceUpdateRequest = com.bni.orange.transaction.model.request.internal.BalanceUpdateRequest.builder()
+                .walletId(virtualAccount.getWalletId())
+                .delta(virtualAccount.getAmount())
+                .referenceId(transaction.getTransactionRef())
+                .reason("Top-up via " + provider.getDisplayName())
                 .build();
 
-            walletServiceClient.adjustBalance(virtualAccount.getWalletId(), adjustmentRequest, "system-topup-service").block();
+            var balanceUpdateResult = walletServiceClient.updateBalance(balanceUpdateRequest).block();
+
+            if (balanceUpdateResult == null || !"OK".equals(balanceUpdateResult.code())) {
+                throw new BusinessException(
+                    ErrorCode.WALLET_UPDATE_FAILED,
+                    balanceUpdateResult != null ? balanceUpdateResult.message() : "Failed to update wallet balance"
+                );
+            }
 
             transaction.markAsSuccess();
             transactionRepository.save(transaction);
 
-            log.info("Top-up completed successfully for transaction: {}", transaction.getTransactionRef());
+            log.info("Top-up completed successfully for transaction: {}, new balance: {}",
+                transaction.getTransactionRef(), balanceUpdateResult.newBalance());
 
             eventPublisher.publishTopUpCompleted(transaction, virtualAccount);
 
@@ -309,35 +316,36 @@ public class TopUpService {
     private WalletAccessValidation validateWalletAccess(UUID userId, UUID walletId) {
         log.debug("Validating wallet access for user {} on wallet {}", userId, walletId);
 
-        var validation = walletServiceClient.validateAccess(walletId, userId, WalletPermission.TRANSACT).block();
+        var roleValidationRequest = com.bni.orange.transaction.model.request.internal.RoleValidateRequest.builder()
+            .walletId(walletId)
+            .userId(userId)
+            .action(com.bni.orange.transaction.model.enums.InternalAction.CREDIT)
+            .build();
 
-        if (validation == null) {
-            log.error("Wallet validation returned null for walletId={}, userId={}", walletId, userId);
+        var roleValidation = walletServiceClient.validateRole(roleValidationRequest).block();
+
+        if (roleValidation == null) {
+            log.error("Role validation returned null for walletId={}, userId={}", walletId, userId);
             throw new BusinessException(ErrorCode.WALLET_SERVICE_ERROR, "Failed to validate wallet access");
         }
 
-        if (!validation.hasAccess()) {
-            log.warn("Wallet access denied: userId={}, walletId={}, reason={}", userId, walletId, validation.denialReason());
-            throw new BusinessException(
-                ErrorCode.WALLET_ACCESS_DENIED,
-                validation.denialReason() != null ? validation.denialReason() : "User does not have access to this wallet"
-            );
+        if (!roleValidation.allowed()) {
+            log.warn("Wallet access denied: userId={}, walletId={}, code={}, message={}",
+                userId, walletId, roleValidation.code(), roleValidation.message());
+            throw new BusinessException(ErrorCode.WALLET_ACCESS_DENIED, roleValidation.message());
         }
 
-        if (validation.walletStatus() != WalletStatus.ACTIVE) {
-            log.warn("Wallet not active: userId={}, walletId={}, status={}",
-                userId, walletId, validation.walletStatus());
-            throw new BusinessException(ErrorCode.WALLET_NOT_ACTIVE, "Wallet is not active: " + validation.walletStatus());
-        }
+        String currency = (String) roleValidation.extras().get("currency");
 
-        if (validation.userRole() == WalletRole.VIEWER) {
-            log.warn("Insufficient permissions: userId={}, walletId={}, role={}", userId, walletId, validation.userRole());
-            throw new BusinessException(ErrorCode.INSUFFICIENT_PERMISSIONS, "Role VIEWER cannot initiate top-up transactions");
-        }
+        log.info("Wallet access validated successfully: userId={}, walletId={}, role={}, currency={}",
+            userId, walletId, roleValidation.effectiveRole(), currency);
 
-        log.info("Wallet access validated successfully: userId={}, walletId={}, role={}, walletType={}",
-            userId, walletId, validation.userRole(), validation.walletType());
-
-        return validation;
+        return WalletAccessValidation.builder()
+            .hasAccess(true)
+            .walletStatus(WalletStatus.ACTIVE)
+            .userRole(WalletRole.valueOf(roleValidation.effectiveRole()))
+            .walletType(null)
+            .walletName(null)
+            .build();
     }
 }

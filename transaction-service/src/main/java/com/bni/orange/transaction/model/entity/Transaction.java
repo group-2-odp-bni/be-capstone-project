@@ -46,10 +46,12 @@ public class Transaction {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false, columnDefinition = "domain.tx_type")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private TransactionType type;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, columnDefinition = "domain.tx_status")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private TransactionStatus status;
 
     @Column(name = "amount", nullable = false, precision = 20, scale = 2)

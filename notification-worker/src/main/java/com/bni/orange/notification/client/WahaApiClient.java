@@ -87,8 +87,8 @@ public class WahaApiClient {
             .uri(API_SESSIONS_START_TEMPLATE, config.sessionName())
             .retrieve()
             .bodyToMono(Void.class)
-            .timeout(Duration.ofSeconds(10))
-            .doOnSuccess(v -> log.info("Session started successfully"))
+            .timeout(Duration.ofSeconds(45))
+            .doOnSuccess(v -> log.info("Session start request acknowledged."))
             .doOnError(err -> log.error("Failed to start session", err));
     }
 
@@ -100,7 +100,7 @@ public class WahaApiClient {
                 .build(config.sessionName()))
             .retrieve()
             .bodyToMono(Void.class)
-            .timeout(Duration.ofSeconds(10))
+            .timeout(Duration.ofSeconds(30))
             .doOnSuccess(v -> log.info("Session stopped (logout={})", logout))
             .doOnError(err -> log.error("Failed to stop session", err));
     }
@@ -111,7 +111,7 @@ public class WahaApiClient {
             .accept(MediaType.APPLICATION_JSON)
             .retrieve()
             .bodyToMono(WahaQRCodeResponse.class)
-            .timeout(Duration.ofSeconds(10))
+            .timeout(Duration.ofSeconds(30))
             .doOnSuccess(qr -> log.info("QR code retrieved successfully"))
             .doOnError(err -> log.error("Failed to get QR code", err));
     }
@@ -122,7 +122,7 @@ public class WahaApiClient {
             .accept(MediaType.IMAGE_PNG)
             .retrieve()
             .bodyToMono(byte[].class)
-            .timeout(Duration.ofSeconds(10))
+            .timeout(Duration.ofSeconds(30))
             .doOnSuccess(bytes -> log.info("QR code image retrieved ({} bytes)", bytes.length))
             .doOnError(err -> log.error("Failed to get QR code image", err));
     }

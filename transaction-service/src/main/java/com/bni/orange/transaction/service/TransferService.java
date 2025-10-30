@@ -12,8 +12,6 @@ import com.bni.orange.transaction.model.entity.Transaction;
 import com.bni.orange.transaction.model.entity.TransactionLedger;
 import com.bni.orange.transaction.model.enums.TransactionStatus;
 import com.bni.orange.transaction.model.enums.TransactionType;
-import com.bni.orange.transaction.model.enums.WalletPermission;
-import com.bni.orange.transaction.model.request.BalanceAdjustmentRequest;
 import com.bni.orange.transaction.model.request.RecipientLookupRequest;
 import com.bni.orange.transaction.model.request.TransferConfirmRequest;
 import com.bni.orange.transaction.model.request.TransferInitiateRequest;
@@ -21,9 +19,7 @@ import com.bni.orange.transaction.model.response.BalanceResponse;
 import com.bni.orange.transaction.model.response.RecipientLookupResponse;
 import com.bni.orange.transaction.model.response.TransactionResponse;
 import com.bni.orange.transaction.model.response.UserProfileResponse;
-import com.bni.orange.transaction.model.response.WalletAccessValidation;
 import com.bni.orange.transaction.model.response.WalletResolutionResponse;
-import com.bni.orange.transaction.model.response.WalletResponse;
 import com.bni.orange.transaction.repository.TransactionLedgerRepository;
 import com.bni.orange.transaction.repository.TransactionRepository;
 import com.bni.orange.transaction.utils.PhoneNumberUtils;
@@ -80,11 +76,16 @@ public class TransferService {
         WalletResolutionResponse resolvedWallet = null;
         try {
             resolvedWallet = walletServiceClient
-                .resolveRecipientWallet(normalizedPhone, "PHONE", "IDR")
+                .getDefaultWalletByUserId(user.id())
                 .block();
+
+            if (resolvedWallet != null && resolvedWallet.walletId() == null) {
+                log.warn("User {} has no default wallet configured", user.id());
+                resolvedWallet = null;
+            }
         } catch (BusinessException ex) {
-            if (ex.getErrorCode() == ErrorCode.RECIPIENT_WALLET_NOT_FOUND) {
-                log.warn("Recipient {} has no default wallet configured", normalizedPhone);
+            if (ex.getErrorCode() == ErrorCode.WALLET_NOT_FOUND) {
+                log.warn("User {} has no default wallet configured", user.id());
             } else {
                 throw ex;
             }
@@ -121,15 +122,30 @@ public class TransferService {
 
         validateSenderWalletAccess(senderUserId, request.senderWalletId(), request.amount());
 
-        var balance = Optional.ofNullable(walletServiceClient.getBalance(request.senderWalletId()).block())
-            .orElseThrow(() -> new BusinessException(ErrorCode.WALLET_SERVICE_ERROR, "Failed to fetch wallet balance"));
-
         var totalAmount = request.amount().add(transferFee);
-        if (balance.balance().compareTo(totalAmount) < 0) {
-            throw new BusinessException(
-                ErrorCode.INSUFFICIENT_BALANCE,
-                String.format("Insufficient balance. Required: %s, Available: %s", totalAmount, balance.balance())
-            );
+
+        var balanceValidationRequest = com.bni.orange.transaction.model.request.internal.BalanceValidateRequest.builder()
+            .walletId(request.senderWalletId())
+            .amount(totalAmount)
+            .action(com.bni.orange.transaction.model.enums.InternalAction.DEBIT)
+            .build();
+
+        var balanceValidation = Optional.ofNullable(walletServiceClient.validateBalance(balanceValidationRequest).block())
+            .orElseThrow(() -> new BusinessException(ErrorCode.WALLET_SERVICE_ERROR, "Failed to validate balance"));
+
+        if (!balanceValidation.allowed()) {
+            log.warn("Balance validation failed: walletId={}, code={}, message={}",
+                request.senderWalletId(), balanceValidation.code(), balanceValidation.message());
+
+            if ("INSUFFICIENT_BALANCE".equals(balanceValidation.code())) {
+                var availableBalance = balanceValidation.extras().get("balance");
+                throw new BusinessException(
+                    ErrorCode.INSUFFICIENT_BALANCE,
+                    String.format("Insufficient balance. Required: %s, Available: %s", totalAmount, availableBalance)
+                );
+            } else {
+                throw new BusinessException(ErrorCode.WALLET_SERVICE_ERROR, balanceValidation.message());
+            }
         }
 
         var receiverInfo = Optional.ofNullable(userServiceClient
@@ -147,36 +163,34 @@ public class TransferService {
     private void validateSenderWalletAccess(UUID userId, UUID walletId, BigDecimal amount) {
         log.debug("Validating wallet access for user {} on wallet {}", userId, walletId);
 
-        var validation = Optional.ofNullable(walletServiceClient
-                .validateAccess(walletId, userId, WalletPermission.TRANSACT)
-                .block())
+        var totalAmount = amount.add(transferFee);
+
+        var roleValidationRequest = com.bni.orange.transaction.model.request.internal.RoleValidateRequest.builder()
+            .walletId(walletId)
+            .userId(userId)
+            .action(com.bni.orange.transaction.model.enums.InternalAction.DEBIT)
+            .amount(totalAmount)
+            .build();
+
+        var roleValidation = Optional.ofNullable(walletServiceClient.validateRole(roleValidationRequest).block())
             .orElseThrow(() -> new BusinessException(ErrorCode.WALLET_SERVICE_ERROR,
                 "Failed to validate wallet access"));
 
-        if (!validation.hasAccess()) {
-            log.warn("Wallet access denied: userId={}, walletId={}, reason={}",
-                userId, walletId, validation.denialReason());
-            throw new BusinessException(ErrorCode.WALLET_ACCESS_DENIED, validation.denialReason());
-        }
+        if (!roleValidation.allowed()) {
+            log.warn("Wallet access denied: userId={}, walletId={}, code={}, message={}",
+                userId, walletId, roleValidation.code(), roleValidation.message());
 
-        if (validation.walletStatus() == null || !"ACTIVE".equals(validation.walletStatus().name())) {
-            throw new BusinessException(ErrorCode.WALLET_NOT_ACTIVE,
-                "Wallet is not active: " + validation.walletStatus());
-        }
-
-        if (validation.spendingLimit() != null) {
-            var totalAmount = amount.add(transferFee);
-            if (totalAmount.compareTo(validation.spendingLimit()) > 0) {
-                log.warn("Spending limit exceeded: userId={}, walletId={}, amount={}, limit={}",
-                    userId, walletId, totalAmount, validation.spendingLimit());
-                throw new BusinessException(ErrorCode.SPENDING_LIMIT_EXCEEDED,
-                    String.format("Transaction amount %s exceeds your spending limit of %s for this wallet",
-                        totalAmount, validation.spendingLimit()));
+            if ("LIMIT_EXCEEDED".equals(roleValidation.code())) {
+                throw new BusinessException(ErrorCode.SPENDING_LIMIT_EXCEEDED, roleValidation.message());
+            } else if ("WALLET_NOT_ACTIVE".equals(roleValidation.code())) {
+                throw new BusinessException(ErrorCode.WALLET_NOT_ACTIVE, roleValidation.message());
+            } else {
+                throw new BusinessException(ErrorCode.WALLET_ACCESS_DENIED, roleValidation.message());
             }
         }
 
         log.debug("Wallet access validated successfully: userId={}, walletId={}, role={}",
-            userId, walletId, validation.userRole());
+            userId, walletId, roleValidation.effectiveRole());
     }
 
     @Transactional
@@ -233,57 +247,72 @@ public class TransferService {
     }
 
     private BalanceResponse debitSender(Transaction transaction) {
-        var debitRequest = BalanceAdjustmentRequest.builder()
-            .amount(transaction.getTotalAmount().negate())
-            .reason("TRANSFER_OUT")
-            .description("Transfer to " + transaction.getReceiverName())
+        var balanceUpdateRequest = com.bni.orange.transaction.model.request.internal.BalanceUpdateRequest.builder()
+            .walletId(transaction.getSenderWalletId())
+            .delta(transaction.getTotalAmount().negate())
+            .referenceId(transaction.getIdempotencyKey() + "-sender")
+            .reason("Transfer to " + transaction.getReceiverName())
             .build();
 
-        var senderBalance = Optional.ofNullable(walletServiceClient.adjustBalance(
-                transaction.getSenderWalletId(),
-                debitRequest,
-                transaction.getIdempotencyKey() + "-sender"
-            ).block()
-        ).orElseThrow(() -> new BusinessException(ErrorCode.WALLET_SERVICE_ERROR, "Failed to debit sender"));
+        var balanceUpdateResult = Optional.ofNullable(walletServiceClient.updateBalance(balanceUpdateRequest).block())
+            .orElseThrow(() -> new BusinessException(ErrorCode.WALLET_SERVICE_ERROR, "Failed to debit sender"));
 
-        log.debug("Sender debited successfully. New balance: {}", senderBalance.balanceAfter());
-        return senderBalance;
+        if (!"OK".equals(balanceUpdateResult.code())) {
+            throw new BusinessException(ErrorCode.WALLET_SERVICE_ERROR, balanceUpdateResult.message());
+        }
+
+        log.debug("Sender debited successfully. New balance: {}", balanceUpdateResult.newBalance());
+
+        return BalanceResponse.builder()
+            .balance(balanceUpdateResult.newBalance())
+            .balanceBefore(balanceUpdateResult.previousBalance())
+            .balanceAfter(balanceUpdateResult.newBalance())
+            .currency("IDR")
+            .build();
     }
 
     private BalanceResponse creditReceiver(Transaction transaction) {
-        var creditRequest = BalanceAdjustmentRequest.builder()
-            .amount(transaction.getAmount())
-            .reason("TRANSFER_IN")
-            .description("Transfer from sender")
+        var balanceUpdateRequest = com.bni.orange.transaction.model.request.internal.BalanceUpdateRequest.builder()
+            .walletId(transaction.getReceiverWalletId())
+            .delta(transaction.getAmount())
+            .referenceId(transaction.getIdempotencyKey() + "-receiver")
+            .reason("Transfer from sender")
             .build();
 
-        var receiverBalance = Optional.ofNullable(walletServiceClient.adjustBalance(
-                transaction.getReceiverWalletId(),
-                creditRequest,
-                transaction.getIdempotencyKey() + "-receiver"
-            ).block()
-        ).orElseThrow(() -> new BusinessException(ErrorCode.WALLET_SERVICE_ERROR, "Failed to credit receiver"));
+        var balanceUpdateResult = Optional.ofNullable(walletServiceClient.updateBalance(balanceUpdateRequest).block())
+            .orElseThrow(() -> new BusinessException(ErrorCode.WALLET_SERVICE_ERROR, "Failed to credit receiver"));
 
-        log.debug("Receiver credited successfully. New balance: {}", receiverBalance.balanceAfter());
-        return receiverBalance;
+        if (!"OK".equals(balanceUpdateResult.code())) {
+            throw new BusinessException(ErrorCode.WALLET_SERVICE_ERROR, balanceUpdateResult.message());
+        }
+
+        log.debug("Receiver credited successfully. New balance: {}", balanceUpdateResult.newBalance());
+
+        return BalanceResponse.builder()
+            .balance(balanceUpdateResult.newBalance())
+            .balanceBefore(balanceUpdateResult.previousBalance())
+            .balanceAfter(balanceUpdateResult.newBalance())
+            .currency("IDR")
+            .build();
     }
 
     private void reverseSenderDebit(Transaction transaction) {
         log.warn("Reversing sender debit for transaction: {}", transaction.getTransactionRef());
 
-        var reversalRequest = BalanceAdjustmentRequest.builder()
-            .amount(transaction.getTotalAmount())
-            .reason("REVERSAL")
-            .description("Reversal for failed transfer: " + transaction.getTransactionRef())
+        var balanceUpdateRequest = com.bni.orange.transaction.model.request.internal.BalanceUpdateRequest.builder()
+            .walletId(transaction.getSenderWalletId())
+            .delta(transaction.getTotalAmount())
+            .referenceId(transaction.getIdempotencyKey() + "-sender-reversal")
+            .reason("Reversal for failed transfer: " + transaction.getTransactionRef())
             .build();
 
         try {
-            walletServiceClient.adjustBalance(
-                transaction.getSenderWalletId(),
-                reversalRequest,
-                transaction.getIdempotencyKey() + "-sender-reversal"
-            ).block();
-            log.info("Sender debit reversed successfully");
+            var result = walletServiceClient.updateBalance(balanceUpdateRequest).block();
+            if (result != null && "OK".equals(result.code())) {
+                log.info("Sender debit reversed successfully. New balance: {}", result.newBalance());
+            } else {
+                log.error("CRITICAL: Reversal returned non-OK status: {}", result != null ? result.message() : "null");
+            }
         } catch (Exception e) {
             log.error("CRITICAL: Failed to reverse sender debit. Manual intervention required.", e);
         }

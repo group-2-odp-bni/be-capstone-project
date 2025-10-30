@@ -5,6 +5,7 @@ import com.bni.orange.wallet.model.request.internal.BalanceValidateRequest;
 import com.bni.orange.wallet.model.request.internal.RoleValidateRequest;
 import com.bni.orange.wallet.model.response.ApiResponse;
 import com.bni.orange.wallet.model.response.internal.BalanceUpdateResponse;
+import com.bni.orange.wallet.model.response.internal.DefaultWalletResponse;
 import com.bni.orange.wallet.model.response.internal.RoleValidateResponse;
 import com.bni.orange.wallet.model.response.internal.ValidationResultResponse;
 import com.bni.orange.wallet.service.internal.InternalWalletService;
@@ -13,6 +14,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/internal/v1")
@@ -50,5 +53,14 @@ public class InternalWalletController {
   ) {
     var res = service.validateRole(req);
     return ResponseEntity.ok(ApiResponse.ok(res.message(), res));
+  }
+
+  @GetMapping("/users/{userId}/default-wallet")
+  @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
+  public ResponseEntity<ApiResponse<DefaultWalletResponse>> getDefaultWalletByUserId(
+      @PathVariable UUID userId
+  ) {
+    var res = service.getDefaultWalletByUserId(userId);
+    return ResponseEntity.ok(ApiResponse.ok("OK", res));
   }
 }
