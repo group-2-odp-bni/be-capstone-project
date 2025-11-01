@@ -15,9 +15,16 @@ public interface QuickTransferRepository extends JpaRepository<QuickTransfer, UU
     @Query("""
     SELECT qt FROM QuickTransfer qt
     WHERE qt.userId = :userId
-      AND qt.recipientPhone LIKE CONCAT('%', :searchTerm, '%')
+          AND (
+            LOWER(qt.recipientName) LIKE LOWER(CONCAT('%', :searchTerm, '%'))
+            OR LOWER(qt.recipientPhone) LIKE LOWER(CONCAT('%', :searchTerm, '%'))
+          )
     """)
-    List<QuickTransfer> findByUserIdAndSearchTerm(@Param("userId") UUID userId, @Param("searchTerm") String searchTerm, Sort sort);
+    List<QuickTransfer> findByUserIdAndSearchTerm(
+        @Param("userId") UUID userId,
+        @Param("searchTerm") String searchTerm,
+        Sort sort
+    );
 
     List<QuickTransfer> findByUserIdOrderByDisplayOrderAsc(UUID userId);
 

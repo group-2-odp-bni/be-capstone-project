@@ -43,25 +43,55 @@ public class AuthFlowService {
     private final PinValidator pinValidator;
     private final EventPublisher eventPublisher;
     private final KafkaTopicProperties topicProperties;
+    private final com.bni.orange.authentication.service.captcha.CaptchaService captchaService;
 
     @Transactional
-    public ApiResponse<OtpResponse> requestOtp(AuthRequest request, HttpServletRequest servletRequest) {
+    public ApiResponse<OtpResponse> requestLoginOtp(AuthRequest request, HttpServletRequest servletRequest) {
+        validateCaptcha(request.captchaToken());
+
         var normalizedPhoneNumber = normalizePhoneNumber(request.phoneNumber());
         if (otpService.isCooldown(normalizedPhoneNumber)) {
             throw new BusinessException(ErrorCode.OTP_COOLDOWN);
         }
 
         var user = userRepository.findByPhoneNumber(normalizedPhoneNumber)
-            .orElseGet(() -> {
-                var newUser = User.builder()
-                    .userPins("")
-                    .name("New User")
-                    .phoneNumber(normalizedPhoneNumber)
-                    .status(UserStatus.PENDING_VERIFICATION)
-                    .build();
-                return userRepository.save(newUser);
-            });
+            .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
+        return processOtpRequest(user, servletRequest);
+    }
+
+    @Transactional
+    public ApiResponse<OtpResponse> requestRegistrationOtp(AuthRequest request, HttpServletRequest servletRequest) {
+        validateCaptcha(request.captchaToken());
+
+        var normalizedPhoneNumber = normalizePhoneNumber(request.phoneNumber());
+        userRepository.findByPhoneNumber(normalizedPhoneNumber).ifPresent(u -> {
+            throw new BusinessException(ErrorCode.USER_ALREADY_EXISTS);
+        });
+
+        if (otpService.isCooldown(normalizedPhoneNumber)) {
+            throw new BusinessException(ErrorCode.OTP_COOLDOWN);
+        }
+
+        var newUser = User.builder()
+            .userPins("")
+            .name("New User")
+            .phoneNumber(normalizedPhoneNumber)
+            .status(UserStatus.PENDING_VERIFICATION)
+            .build();
+        var user = userRepository.save(newUser);
+
+        return processOtpRequest(user, servletRequest);
+    }
+
+    private void validateCaptcha(String captchaToken) {
+        var captchaValid = captchaService.validateToken(captchaToken).block();
+        if (!Boolean.TRUE.equals(captchaValid)) {
+            throw new BusinessException(ErrorCode.INVALID_CAPTCHA);
+        }
+    }
+
+    private ApiResponse<OtpResponse> processOtpRequest(User user, HttpServletRequest servletRequest) {
         var otp = otpService.generateAndStoreOtp(user.getPhoneNumber());
 
         var otpEvent = DomainEventFactory.createOtpNotificationEvent(

@@ -116,3 +116,8 @@ logging:
     org.springframework.boot.actuate: ERROR
     org.springframework.boot.actuate.endpoint.web: ERROR
     org.springframework.boot.actuate.endpoint: ERROR
+
+google:
+  recaptcha:
+    secret: "YOUR_RECAPTCHA_V3_SECRET_KEY"
+    url: "https://www.google.com/recaptcha/api/siteverify"

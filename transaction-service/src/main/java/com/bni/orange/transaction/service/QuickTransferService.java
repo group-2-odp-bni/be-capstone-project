@@ -54,9 +54,7 @@ public class QuickTransferService {
             default -> () -> quickTransferRepository.findByUserIdOrderByUsageCountDesc(userId);
         };
 
-        return query.get().stream()
-            .map(this::toResponse)
-            .toList();
+        return query.get().stream().map(this::toResponse).toList();
     }
 
     @Transactional(readOnly = true)
