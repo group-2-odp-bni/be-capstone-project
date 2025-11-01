@@ -29,6 +29,8 @@ import com.bni.orange.transaction.utils.TransactionRefGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -59,6 +61,30 @@ public class TransferService {
     @Value("${orange.transaction.fee.transfer:0}")
     private BigDecimal transferFee;
 
+    private <T> CompletableFuture<T> supplyAsyncWithContext(java.util.function.Supplier<T> supplier) {
+        SecurityContext context = SecurityContextHolder.getContext();
+        return CompletableFuture.supplyAsync(() -> {
+            SecurityContextHolder.setContext(context);
+            try {
+                return supplier.get();
+            } finally {
+                SecurityContextHolder.clearContext();
+            }
+        }, virtualThreadTaskExecutor);
+    }
+
+    private CompletableFuture<Void> runAsyncWithContext(Runnable runnable) {
+        SecurityContext context = SecurityContextHolder.getContext();
+        return CompletableFuture.runAsync(() -> {
+            SecurityContextHolder.setContext(context);
+            try {
+                runnable.run();
+            } finally {
+                SecurityContextHolder.clearContext();
+            }
+        }, virtualThreadTaskExecutor);
+    }
+
     public RecipientLookupResponse inquiry(RecipientLookupRequest request, UUID currentUserId, String accessToken) {
         log.info("Looking up recipient for phone: {}", request.phoneNumber());
 
@@ -68,10 +94,9 @@ public class TransferService {
             throw new BusinessException(ErrorCode.INVALID_PHONE_NUMBER, "Invalid phone number format: " + request.phoneNumber());
         }
 
-        var userFuture = CompletableFuture.supplyAsync(() ->
+        var userFuture = supplyAsyncWithContext(() ->
             Optional.ofNullable(userServiceClient.findByPhoneNumber(normalizedPhone, accessToken).block())
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND, "User not found")),
-            virtualThreadTaskExecutor
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND, "User not found"))
         );
 
         try {
@@ -81,7 +106,7 @@ public class TransferService {
                 throw new BusinessException(ErrorCode.SELF_TRANSFER_NOT_ALLOWED, "Cannot transfer money to yourself");
             }
 
-            var walletFuture = CompletableFuture.supplyAsync(() -> {
+            var walletFuture = supplyAsyncWithContext(() -> {
                 try {
                     var wallet = walletServiceClient
                         .getDefaultWalletByUserId(user.id())
@@ -99,7 +124,7 @@ public class TransferService {
                     }
                     throw ex;
                 }
-            }, virtualThreadTaskExecutor);
+            });
 
             var resolvedWallet = walletFuture.join();
             return buildLookupResponse(user, resolvedWallet, normalizedPhone);
@@ -141,12 +166,11 @@ public class TransferService {
 
         var totalAmount = request.amount().add(transferFee);
 
-        var walletAccessValidationFuture = CompletableFuture.runAsync(() ->
-            validateSenderWalletAccess(senderUserId, request.senderWalletId(), request.amount()),
-            virtualThreadTaskExecutor
+        var walletAccessValidationFuture = runAsyncWithContext(() ->
+            validateSenderWalletAccess(senderUserId, request.senderWalletId(), request.amount())
         );
 
-        var balanceValidationFuture = CompletableFuture.supplyAsync(() -> {
+        var balanceValidationFuture = supplyAsyncWithContext(() -> {
             var balanceValidationRequest = BalanceValidateRequest.builder()
                 .walletId(request.senderWalletId())
                 .amount(totalAmount)
@@ -155,16 +179,15 @@ public class TransferService {
 
             return Optional.ofNullable(walletServiceClient.validateBalance(balanceValidationRequest).block())
                 .orElseThrow(() -> new BusinessException(ErrorCode.WALLET_SERVICE_ERROR, "Failed to validate balance"));
-        }, virtualThreadTaskExecutor);
+        });
 
-        var receiverInfoFuture = CompletableFuture.supplyAsync(() ->
+        var receiverInfoFuture = supplyAsyncWithContext(() ->
             Optional.ofNullable(userServiceClient.findById(request.receiverUserId(), accessToken).block())
                 .orElse(UserProfileResponse.builder()
                     .id(request.receiverUserId())
                     .name("Unknown")
                     .phoneNumber("")
-                    .build()),
-            virtualThreadTaskExecutor
+                    .build())
         );
 
         try {
@@ -241,16 +264,14 @@ public class TransferService {
     ) {
         log.info("Confirming transfer: {}", transactionId);
 
-        var transactionFuture = CompletableFuture.supplyAsync(() ->
+        var transactionFuture = supplyAsyncWithContext(() ->
             transactionRepository
                 .findById(transactionId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.TRANSACTION_NOT_FOUND, "Transaction not found: " + transactionId)),
-            virtualThreadTaskExecutor
+                .orElseThrow(() -> new BusinessException(ErrorCode.TRANSACTION_NOT_FOUND, "Transaction not found: " + transactionId))
         );
 
-        var pinVerificationFuture = CompletableFuture.supplyAsync(() ->
-            Boolean.TRUE.equals(authServiceClient.verifyPin(request.pin(), accessToken).block()),
-            virtualThreadTaskExecutor
+        var pinVerificationFuture = supplyAsyncWithContext(() ->
+            Boolean.TRUE.equals(authServiceClient.verifyPin(request.pin(), accessToken).block())
         );
 
         try {

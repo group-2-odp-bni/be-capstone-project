@@ -34,7 +34,6 @@ public class InternalWalletServiceImpl implements InternalWalletService {
   private final UserReceivePrefsRepository userReceivePrefsRepo;
   private final WalletReadRepository walletReadRepo;
   private final WalletMemberRepository walletMemberRepo;
-  public record PolicyCheckResult(boolean allowed, String currency) {}
 
   public InternalWalletServiceImpl(
       WalletInternalRepository walletRepo,

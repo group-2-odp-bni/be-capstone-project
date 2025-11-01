@@ -46,16 +46,6 @@ public abstract class BaseServiceClient {
         this.serviceName = serviceName;
     }
 
-    /**
-     * Execute a GET request and unwrap the ApiResponse.
-     * Applies retry and circuit breaker patterns automatically.
-     *
-     * @param uriFunction Function to build the URI and headers
-     * @param responseType Response type reference
-     * @param errorMapper Custom error mapper for specific error codes
-     * @param <T> Response data type
-     * @return Mono of unwrapped data
-     */
     protected <T> Mono<T> executeGet(
         Function<WebClient.RequestHeadersUriSpec<?>, WebClient.RequestHeadersSpec<?>> uriFunction,
         ParameterizedTypeReference<ApiResponse<T>> responseType,

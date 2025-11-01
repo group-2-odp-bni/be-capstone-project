@@ -28,6 +28,8 @@ import com.bni.orange.transaction.repository.VirtualAccountRepository;
 import com.bni.orange.transaction.utils.TransactionRefGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -58,6 +60,18 @@ public class TopUpService {
     private final WebhookSignatureValidator signatureValidator;
     private final Executor virtualThreadTaskExecutor;
 
+    private <T> CompletableFuture<T> supplyAsyncWithContext(java.util.function.Supplier<T> supplier) {
+        SecurityContext context = SecurityContextHolder.getContext();
+        return CompletableFuture.supplyAsync(() -> {
+            SecurityContextHolder.setContext(context);
+            try {
+                return supplier.get();
+            } finally {
+                SecurityContextHolder.clearContext();
+            }
+        }, virtualThreadTaskExecutor);
+    }
+
     public List<PaymentMethodResponse> getPaymentMethods() {
         log.info("Fetching active payment methods");
 
@@ -81,16 +95,14 @@ public class TopUpService {
     public TopUpInitiateResponse initiateTopUp(TopUpInitiateRequest request, UUID userId) {
         log.info("Initiating top-up for user {} with provider {} and amount {}", userId, request.provider(), request.amount());
 
-        var validationFuture = CompletableFuture.supplyAsync(() ->
-            validateWalletAccess(userId, request.walletId()),
-            virtualThreadTaskExecutor
+        var validationFuture = supplyAsyncWithContext(() ->
+            validateWalletAccess(userId, request.walletId())
         );
 
-        var configFuture = CompletableFuture.supplyAsync(() ->
+        var configFuture = supplyAsyncWithContext(() ->
             topUpConfigRepository
                 .findActiveByProvider(request.provider())
-                .orElseThrow(() -> new BusinessException(ErrorCode.PAYMENT_PROVIDER_NOT_AVAILABLE, "Payment provider not available: " + request.provider())),
-            virtualThreadTaskExecutor
+                .orElseThrow(() -> new BusinessException(ErrorCode.PAYMENT_PROVIDER_NOT_AVAILABLE, "Payment provider not available: " + request.provider()))
         );
 
         try {
@@ -228,83 +240,60 @@ public class TopUpService {
         log.info("Processing payment callback for VA: {} from provider: {}",
             request.vaNumber(), provider);
 
-        var signatureValidationFuture = CompletableFuture.runAsync(() ->
-            signatureValidator.validateWebhookRequest(provider, request, signature),
-            virtualThreadTaskExecutor
-        );
+        signatureValidator.validateWebhookRequest(provider, request, signature);
 
-        var virtualAccountFuture = CompletableFuture.supplyAsync(() ->
-            virtualAccountService.findByVaNumberWithLock(request.vaNumber()),
-            virtualThreadTaskExecutor
-        );
+        var virtualAccount = virtualAccountService.findByVaNumberWithLock(request.vaNumber());
 
-        try {
-            CompletableFuture.allOf(signatureValidationFuture, virtualAccountFuture).join();
-
-            var virtualAccount = virtualAccountFuture.join();
-
-            if (!virtualAccount.getProvider().equals(provider)) {
-                throw new BusinessException(ErrorCode.INVALID_REQUEST, "Provider mismatch: expected " + virtualAccount.getProvider() + ", got " + provider);
-            }
-
-            if (virtualAccount.getStatus() != VirtualAccountStatus.ACTIVE) {
-                log.warn("VA already processed: {}, status: {}", request.vaNumber(), virtualAccount.getStatus());
-                return;
-            }
-
-            if (virtualAccount.isExpired()) {
-                log.warn("VA expired: {}", request.vaNumber());
-                throw new BusinessException(ErrorCode.VIRTUAL_ACCOUNT_EXPIRED, "Virtual Account has expired");
-            }
-
-            var transaction = transactionRepository
-                .findById(virtualAccount.getTransactionId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.TRANSACTION_NOT_FOUND, "Transaction not found"));
-
-            if (request.paidAmount().compareTo(virtualAccount.getAmount()) < 0) {
-                log.error("Paid amount {} is less than expected amount {}", request.paidAmount(), virtualAccount.getAmount());
-                throw new BusinessException(ErrorCode.INVALID_AMOUNT, "Paid amount does not match expected amount");
-            }
-
-            transaction.markAsProcessing();
-            transactionRepository.save(transaction);
-
-            var callbackPayload = new HashMap<String, Object>();
-            callbackPayload.put("paymentReference", request.paymentReference());
-            callbackPayload.put("paymentTimestamp", request.paymentTimestamp());
-            callbackPayload.put("paidAmount", request.paidAmount());
-            if (request.additionalData() != null) {
-                callbackPayload.putAll(request.additionalData());
-            }
-
-            virtualAccount.markAsPaid(request.paidAmount(), callbackPayload);
-            virtualAccountRepository.save(virtualAccount);
-
-            processWalletCredit(transaction, virtualAccount, provider);
-
-        } catch (CompletionException e) {
-            if (e.getCause() instanceof BusinessException be) {
-                throw be;
-            }
-            log.error("Error during payment callback processing", e);
-            throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR, e.getMessage());
+        if (!virtualAccount.getProvider().equals(provider)) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST, "Provider mismatch: expected " + virtualAccount.getProvider() + ", got " + provider);
         }
+
+        if (virtualAccount.getStatus() != VirtualAccountStatus.ACTIVE) {
+            log.warn("VA already processed: {}, status: {}", request.vaNumber(), virtualAccount.getStatus());
+            return;
+        }
+
+        if (virtualAccount.isExpired()) {
+            log.warn("VA expired: {}", request.vaNumber());
+            throw new BusinessException(ErrorCode.VIRTUAL_ACCOUNT_EXPIRED, "Virtual Account has expired");
+        }
+
+        var transaction = transactionRepository
+            .findById(virtualAccount.getTransactionId())
+            .orElseThrow(() -> new BusinessException(ErrorCode.TRANSACTION_NOT_FOUND, "Transaction not found"));
+
+        if (request.paidAmount().compareTo(virtualAccount.getAmount()) < 0) {
+            log.error("Paid amount {} is less than expected amount {}", request.paidAmount(), virtualAccount.getAmount());
+            throw new BusinessException(ErrorCode.INVALID_AMOUNT, "Paid amount does not match expected amount");
+        }
+
+        transaction.markAsProcessing();
+        transactionRepository.save(transaction);
+
+        var callbackPayload = new HashMap<String, Object>();
+        callbackPayload.put("paymentReference", request.paymentReference());
+        callbackPayload.put("paymentTimestamp", request.paymentTimestamp());
+        callbackPayload.put("paidAmount", request.paidAmount());
+        if (request.additionalData() != null) {
+            callbackPayload.putAll(request.additionalData());
+        }
+
+        virtualAccount.markAsPaid(request.paidAmount(), callbackPayload);
+        virtualAccountRepository.save(virtualAccount);
+
+        processWalletCredit(transaction, virtualAccount, provider);
     }
 
     private void processWalletCredit(Transaction transaction, VirtualAccount virtualAccount, PaymentProvider provider) {
         try {
-            var balanceUpdateFuture = CompletableFuture.supplyAsync(() -> {
-                var balanceUpdateRequest = com.bni.orange.transaction.model.request.internal.BalanceUpdateRequest.builder()
-                    .walletId(virtualAccount.getWalletId())
-                    .delta(virtualAccount.getAmount())
-                    .referenceId(transaction.getTransactionRef())
-                    .reason("Top-up via " + provider.getDisplayName())
-                    .build();
+            var balanceUpdateRequest = com.bni.orange.transaction.model.request.internal.BalanceUpdateRequest.builder()
+                .walletId(virtualAccount.getWalletId())
+                .delta(virtualAccount.getAmount())
+                .referenceId(transaction.getTransactionRef())
+                .reason("Top-up via " + provider.getDisplayName())
+                .build();
 
-                return walletServiceClient.updateBalance(balanceUpdateRequest).block();
-            }, virtualThreadTaskExecutor);
-
-            var balanceUpdateResult = balanceUpdateFuture.join();
+            var balanceUpdateResult = walletServiceClient.updateBalance(balanceUpdateRequest).block();
 
             if (balanceUpdateResult == null || !"OK".equals(balanceUpdateResult.code())) {
                 throw new BusinessException(
@@ -322,15 +311,6 @@ public class TopUpService {
                 transaction.getTransactionRef(), balanceUpdateResult.newBalance());
 
             eventPublisher.publishTopUpCompleted(transaction, virtualAccount);
-        } catch (CompletionException e) {
-            var cause = e.getCause();
-            log.error("Failed to credit wallet balance", cause);
-            transaction.markAsFailed("Failed to credit wallet: " + cause.getMessage());
-            transactionRepository.save(transaction);
-
-            eventPublisher.publishTopUpFailed(transaction, virtualAccount, cause.getMessage());
-
-            throw new BusinessException(ErrorCode.WALLET_UPDATE_FAILED, "Failed to credit wallet balance");
         } catch (Exception e) {
             log.error("Failed to credit wallet balance", e);
             transaction.markAsFailed("Failed to credit wallet: " + e.getMessage());

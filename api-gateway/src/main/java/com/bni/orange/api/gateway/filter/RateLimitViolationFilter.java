@@ -6,7 +6,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
@@ -32,11 +31,9 @@ public class RateLimitViolationFilter implements GlobalFilter, Ordered {
             .doOnSuccess(unused -> {
                 var statusCode = exchange.getResponse().getStatusCode();
 
-                // Check if request was rate limited (429 Too Many Requests)
                 if (statusCode != null && statusCode.value() == 429) {
                     log.warn("Rate limit violation detected from IP: {}", ipAddress);
 
-                    // Record violation asynchronously (don't block the response)
                     ipBlockingService.recordViolation(ipAddress)
                         .doOnError(error -> log.error("Failed to record violation for IP: {}", ipAddress, error))
                         .subscribe();

@@ -41,7 +41,7 @@ spring:
               filters:
                 - name: ScopeValidation
                   args:
-                    requiredScope: SCOPE_FULL_ACCESS
+                    requiredScope: FULL_ACCESS
                 - name: CircuitBreaker
                   args:
                     name: user-service
@@ -54,7 +54,7 @@ spring:
               filters:
                 - name: ScopeValidation
                   args:
-                    requiredScope: SCOPE_FULL_ACCESS
+                    requiredScope: FULL_ACCESS
                 - name: CircuitBreaker
                   args:
                     name: wallet-service
@@ -73,7 +73,7 @@ spring:
                     key-resolver: "#{@userKeyResolver}"
                 - name: ScopeValidation
                   args:
-                    requiredScope: SCOPE_FULL_ACCESS
+                    requiredScope: FULL_ACCESS
                 - name: CircuitBreaker
                   args:
                     name: transaction-service
