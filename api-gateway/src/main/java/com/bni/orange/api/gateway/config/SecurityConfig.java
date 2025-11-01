@@ -17,6 +17,9 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.reactive.CorsConfigurationSource;
 import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
 
+import org.springframework.security.web.server.header.XFrameOptionsServerHttpHeadersWriter.Mode;
+
+import java.time.Duration;
 import java.util.List;
 
 import static org.springframework.security.config.Customizer.withDefaults;
@@ -30,6 +33,9 @@ public class SecurityConfig {
     @Value("${spring.security.oauth2.resourceserver.jwt.jwk-set-uri}")
     private String jwkSetUri;
 
+    @Value("${spring.profiles.active:prod}")
+    private String activeProfile;
+
     private final CorsProperties corsProperties;
 
     @Bean
@@ -37,6 +43,16 @@ public class SecurityConfig {
         http
             .cors(cors -> cors.configurationSource(corsConfigurationSource))
             .csrf(ServerHttpSecurity.CsrfSpec::disable)
+            .headers(headers -> {
+                if (activeProfile.contains("prod")) {
+                    headers.hsts(hsts -> hsts.maxAge(Duration.ofDays(365)).includeSubdomains(true));
+                    headers.contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'; script-src 'self'; object-src 'none'; frame-ancestors 'none';"));
+                } else {
+                    headers.contentSecurityPolicy(csp -> csp.policyDirectives("default-src * 'unsafe-inline' 'unsafe-eval'; script-src * 'unsafe-inline' 'unsafe-eval'; connect-src * 'unsafe-inline'; img-src * data: blob: 'unsafe-inline'; frame-src *; style-src * 'unsafe-inline';"));
+                }
+                headers.frameOptions(frameOptions -> frameOptions.mode(Mode.DENY));
+                headers.contentTypeOptions(withDefaults());
+            })
             .authorizeExchange(exchange -> exchange
                 .pathMatchers("/api/v1/auth/**", "/oauth2/jwks", "/actuator/**").permitAll()
                 .anyExchange().authenticated()

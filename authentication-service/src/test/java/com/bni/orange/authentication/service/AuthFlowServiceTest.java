@@ -10,6 +10,7 @@ import com.bni.orange.authentication.model.request.AuthRequest;
 import com.bni.orange.authentication.model.request.OtpVerifyRequest;
 import com.bni.orange.authentication.model.response.TokenResponse;
 import com.bni.orange.authentication.repository.UserRepository;
+import com.bni.orange.authentication.service.captcha.CaptchaService;
 import com.bni.orange.authentication.validator.PinValidator;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,6 +24,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import reactor.core.publisher.Mono;
 
 import java.util.Map;
 import java.util.Optional;
@@ -64,6 +66,8 @@ class AuthFlowServiceTest {
     @Mock
     private KafkaTopicProperties topicProperties;
     @Mock
+    private CaptchaService captchaService;
+    @Mock
     private HttpServletRequest servletRequest;
 
     private User existingUser;
@@ -73,6 +77,7 @@ class AuthFlowServiceTest {
     private final String otp = "123456";
     private final String pin = "112233";
     private final UUID userId = UUID.randomUUID();
+    private final String captchaToken = "test-captcha-token";
 
     @BeforeEach
     void setUp() {
@@ -92,16 +97,17 @@ class AuthFlowServiceTest {
                 .build();
 
         when(servletRequest.getRequestURI()).thenReturn("/api/v1/auth/test");
+        when(captchaService.validateToken(anyString(), anyString())).thenReturn(Mono.just(true));
     }
 
     @Nested
-    @DisplayName("Request OTP Flow")
-    class RequestOtpFlow {
+    @DisplayName("Request Login OTP Flow")
+    class RequestLoginOtpFlow {
 
         @Test
         @DisplayName("Should send OTP for existing user")
-        void requestOtp_forExistingUser_shouldSendOtp() {
-            var request = new AuthRequest(phoneNumber);
+        void requestLoginOtp_forExistingUser_shouldSendOtp() {
+            var request = new AuthRequest(phoneNumber, captchaToken);
             when(otpService.isCooldown(normalizedPhone)).thenReturn(false);
             when(userRepository.findByPhoneNumber(normalizedPhone)).thenReturn(Optional.of(existingUser));
             when(otpService.generateAndStoreOtp(normalizedPhone)).thenReturn(otp);
@@ -109,21 +115,67 @@ class AuthFlowServiceTest {
             var topicConfig = new KafkaTopicProperties.TopicConfig("notification.otp.whatsapp", 3, 1, false);
             when(topicProperties.definitions()).thenReturn(Map.of("otp-notification", topicConfig));
 
-            var response = authFlowService.requestOtp(request, servletRequest);
+            var response = authFlowService.requestLoginOtp(request, servletRequest);
 
             assertNotNull(response);
             assertEquals("OTP sent successfully", response.getMessage());
             assertNotNull(response.getData());
             assertEquals("whatsapp", response.getData().channel());
 
+            verify(captchaService).validateToken(captchaToken, "login");
             verify(eventPublisher).publish(eq("notification.otp.whatsapp"), eq(normalizedPhone), any());
             verify(otpService).setCooldown(normalizedPhone);
         }
 
         @Test
-        @DisplayName("Should create new user and send OTP if user does not exist")
-        void requestOtp_forNewUser_shouldCreateUserAndSendOtp() {
-            var request = new AuthRequest(phoneNumber);
+        @DisplayName("Should throw UserNotFound for new user")
+        void requestLoginOtp_forNewUser_shouldThrowUserNotFound() {
+            var request = new AuthRequest(phoneNumber, captchaToken);
+            when(otpService.isCooldown(normalizedPhone)).thenReturn(false);
+            when(userRepository.findByPhoneNumber(normalizedPhone)).thenReturn(Optional.empty());
+
+            var exception = assertThrows(BusinessException.class, () -> authFlowService.requestLoginOtp(request, servletRequest));
+
+            assertEquals(ErrorCode.USER_NOT_FOUND, exception.getErrorCode());
+            verify(captchaService).validateToken(captchaToken, "login");
+            verify(userRepository, never()).save(any(User.class));
+        }
+
+        @Test
+        @DisplayName("Should throw exception if on cooldown")
+        void requestLoginOtp_whenOnCooldown_shouldThrowException() {
+            var request = new AuthRequest(phoneNumber, captchaToken);
+            when(otpService.isCooldown(normalizedPhone)).thenReturn(true);
+            when(userRepository.findByPhoneNumber(normalizedPhone)).thenReturn(Optional.of(existingUser));
+
+
+            var exception = assertThrows(BusinessException.class, () -> authFlowService.requestLoginOtp(request, servletRequest));
+
+            assertEquals(ErrorCode.OTP_COOLDOWN, exception.getErrorCode());
+            verify(captchaService).validateToken(captchaToken, "login");
+        }
+
+        @Test
+        @DisplayName("Should throw exception for invalid captcha")
+        void requestLoginOtp_withInvalidCaptcha_shouldThrowException() {
+            var request = new AuthRequest(phoneNumber, "invalid-token");
+            when(captchaService.validateToken("invalid-token", "login")).thenReturn(Mono.just(false));
+
+            var exception = assertThrows(BusinessException.class, () -> authFlowService.requestLoginOtp(request, servletRequest));
+
+            assertEquals(ErrorCode.INVALID_CAPTCHA, exception.getErrorCode());
+            verify(otpService, never()).isCooldown(anyString());
+        }
+    }
+
+    @Nested
+    @DisplayName("Request Registration OTP Flow")
+    class RequestRegistrationOtpFlow {
+
+        @Test
+        @DisplayName("Should create new user and send OTP")
+        void requestRegistrationOtp_forNewUser_shouldCreateUserAndSendOtp() {
+            var request = new AuthRequest(phoneNumber, captchaToken);
             when(otpService.isCooldown(normalizedPhone)).thenReturn(false);
             when(userRepository.findByPhoneNumber(normalizedPhone)).thenReturn(Optional.empty());
             when(userRepository.save(any(User.class))).thenReturn(newUser);
@@ -132,26 +184,54 @@ class AuthFlowServiceTest {
             var topicConfig = new KafkaTopicProperties.TopicConfig("notification.otp.whatsapp", 3, 1, false);
             when(topicProperties.definitions()).thenReturn(Map.of("otp-notification", topicConfig));
 
-            var response = authFlowService.requestOtp(request, servletRequest);
+            var response = authFlowService.requestRegistrationOtp(request, servletRequest);
 
             assertNotNull(response);
             assertEquals("OTP sent successfully", response.getMessage());
+            verify(captchaService).validateToken(captchaToken, "register");
             verify(userRepository).save(any(User.class));
             verify(eventPublisher).publish(eq("notification.otp.whatsapp"), eq(normalizedPhone), any());
         }
 
         @Test
+        @DisplayName("Should throw UserAlreadyExists for existing user")
+        void requestRegistrationOtp_forExistingUser_shouldThrowUserAlreadyExists() {
+            var request = new AuthRequest(phoneNumber, captchaToken);
+            when(userRepository.findByPhoneNumber(normalizedPhone)).thenReturn(Optional.of(existingUser));
+
+            var exception = assertThrows(BusinessException.class, () -> authFlowService.requestRegistrationOtp(request, servletRequest));
+
+            assertEquals(ErrorCode.USER_ALREADY_EXISTS, exception.getErrorCode());
+            verify(captchaService).validateToken(captchaToken, "register");
+            verify(otpService, never()).isCooldown(anyString());
+        }
+
+        @Test
         @DisplayName("Should throw exception if on cooldown")
-        void requestOtp_whenOnCooldown_shouldThrowException() {
-            var request = new AuthRequest(phoneNumber);
+        void requestRegistrationOtp_whenOnCooldown_shouldThrowException() {
+            var request = new AuthRequest(phoneNumber, captchaToken);
+            when(userRepository.findByPhoneNumber(normalizedPhone)).thenReturn(Optional.empty());
             when(otpService.isCooldown(normalizedPhone)).thenReturn(true);
 
-            var exception = assertThrows(BusinessException.class, () -> authFlowService.requestOtp(request, servletRequest));
+            var exception = assertThrows(BusinessException.class, () -> authFlowService.requestRegistrationOtp(request, servletRequest));
 
             assertEquals(ErrorCode.OTP_COOLDOWN, exception.getErrorCode());
+            verify(captchaService).validateToken(captchaToken, "register");
+        }
+
+        @Test
+        @DisplayName("Should throw exception for invalid captcha")
+        void requestRegistrationOtp_withInvalidCaptcha_shouldThrowException() {
+            var request = new AuthRequest(phoneNumber, "invalid-token");
+            when(captchaService.validateToken("invalid-token", "register")).thenReturn(Mono.just(false));
+
+            var exception = assertThrows(BusinessException.class, () -> authFlowService.requestRegistrationOtp(request, servletRequest));
+
+            assertEquals(ErrorCode.INVALID_CAPTCHA, exception.getErrorCode());
             verify(userRepository, never()).findByPhoneNumber(anyString());
         }
     }
+
 
     @Nested
     @DisplayName("Verify OTP Flow")

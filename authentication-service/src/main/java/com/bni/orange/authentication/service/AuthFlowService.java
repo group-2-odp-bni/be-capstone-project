@@ -47,7 +47,7 @@ public class AuthFlowService {
 
     @Transactional
     public ApiResponse<OtpResponse> requestLoginOtp(AuthRequest request, HttpServletRequest servletRequest) {
-        validateCaptcha(request.captchaToken());
+        validateCaptcha(request.captchaToken(), "login");
 
         var normalizedPhoneNumber = normalizePhoneNumber(request.phoneNumber());
         if (otpService.isCooldown(normalizedPhoneNumber)) {
@@ -62,7 +62,7 @@ public class AuthFlowService {
 
     @Transactional
     public ApiResponse<OtpResponse> requestRegistrationOtp(AuthRequest request, HttpServletRequest servletRequest) {
-        validateCaptcha(request.captchaToken());
+        validateCaptcha(request.captchaToken(), "register");
 
         var normalizedPhoneNumber = normalizePhoneNumber(request.phoneNumber());
         userRepository.findByPhoneNumber(normalizedPhoneNumber).ifPresent(u -> {
@@ -84,8 +84,8 @@ public class AuthFlowService {
         return processOtpRequest(user, servletRequest);
     }
 
-    private void validateCaptcha(String captchaToken) {
-        var captchaValid = captchaService.validateToken(captchaToken).block();
+    private void validateCaptcha(String captchaToken, String expectedAction) {
+        var captchaValid = captchaService.validateToken(captchaToken, expectedAction).block();
         if (!Boolean.TRUE.equals(captchaValid)) {
             throw new BusinessException(ErrorCode.INVALID_CAPTCHA);
         }

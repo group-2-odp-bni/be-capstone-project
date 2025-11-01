@@ -86,7 +86,8 @@ public class JwtBlacklistGatewayFilter implements GlobalFilter, Ordered {
     }
 
     private boolean isPublicEndpoint(String path) {
-        return path.startsWith("/api/v1/auth/request") ||
+        return path.startsWith("/api/v1/auth/login") ||
+            path.startsWith("/api/v1/auth/register") ||
             path.startsWith("/api/v1/auth/verify") ||
             path.startsWith("/api/v1/auth/refresh") ||
             path.startsWith("/api/v1/auth/resend-otp") ||

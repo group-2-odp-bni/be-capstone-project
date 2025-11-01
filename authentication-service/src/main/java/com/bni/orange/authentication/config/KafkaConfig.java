@@ -101,10 +101,6 @@ public class KafkaConfig {
             .collect(Collectors.toList());
     }
 
-    // ========================================
-    // Consumer Configuration
-    // ========================================
-
     @Bean
     public Map<String, Object> consumerConfigs() {
         Map<String, Object> props = new HashMap<>();

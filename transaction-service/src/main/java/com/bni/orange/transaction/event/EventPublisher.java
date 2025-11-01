@@ -67,14 +67,4 @@ public class EventPublisher {
     public <T extends Message> void publish(String topic, T event) {
         publish(topic, null, event);
     }
-
-    public boolean isKafkaAvailable() {
-        try {
-            kafkaTemplate.getProducerFactory().createProducer().close();
-            return true;
-        } catch (Exception e) {
-            log.warn("Kafka health check failed: {}", e.getMessage());
-            return false;
-        }
-    }
 }

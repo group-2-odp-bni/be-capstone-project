@@ -89,8 +89,8 @@ orange:
       bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
-      acks: all
-      idempotence: true
+      acks: 1
+      idempotence: false
       retries: 3
       backoff: 1s
       compression-type: snappy
@@ -113,11 +113,16 @@ logging:
     org.springframework.kafka: WARN
     org.springframework.security: WARN
     com.bni.orange.authentication: INFO
+    org.apache.kafka.clients.producer.ProducerConfig: DEBUG
+    org.apache.kafka.clients.producer.KafkaProducer: DEBUG
     org.springframework.boot.actuate: ERROR
     org.springframework.boot.actuate.endpoint.web: ERROR
     org.springframework.boot.actuate.endpoint: ERROR
 
 google:
   recaptcha:
-    secret: "YOUR_RECAPTCHA_V3_SECRET_KEY"
-    url: "https://www.google.com/recaptcha/api/siteverify"
+    enabled: true
+    secret: 6LeNJP4rAAAAAGyGNK-K1D8i7UsLx0ev2Q1RADJc
+    url: https://www.google.com/recaptcha/api/siteverify
+    hostname: localhost
+    score-threshold: 0.5
