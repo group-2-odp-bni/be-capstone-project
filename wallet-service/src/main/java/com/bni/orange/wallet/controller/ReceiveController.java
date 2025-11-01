@@ -24,7 +24,7 @@ public class ReceiveController {
     this.query = query;
   }
 
-  @PutMapping("/users/me/receive/default")
+  @PutMapping("/wallets/receive/default")
   @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
   public ResponseEntity<ApiResponse<DefaultReceiveResponse>> setDefaultReceiveWallet(
       @Valid @RequestBody SetDefaultReceiveRequest req
@@ -33,7 +33,7 @@ public class ReceiveController {
     return ResponseEntity.ok(ApiResponse.ok("Default receive wallet updated", dto));
   }
 
-  @GetMapping("/users/me/receive/default")
+  @GetMapping("/wallets/receive/default")
   @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
   public ResponseEntity<ApiResponse<DefaultReceiveResponse>> getDefaultReceiveWallet() {
     var dto = query.getDefaultReceiveWallet();
