@@ -54,7 +54,7 @@ public class SecurityConfig {
                 headers.contentTypeOptions(withDefaults());
             })
             .authorizeExchange(exchange -> exchange
-                .pathMatchers("/api/v1/auth/**", "/oauth2/jwks", "/actuator/**").permitAll()
+                .pathMatchers("/api/v1/auth/**", "/oauth2/jwks", "/actuator/**", "/api/security/**", "/fallback/**").permitAll()
                 .anyExchange().authenticated()
             )
             .oauth2ResourceServer(spec -> spec.jwt(withDefaults()));

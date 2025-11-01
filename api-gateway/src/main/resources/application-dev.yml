@@ -15,8 +15,8 @@ spring:
               filters:
                 - name: RequestRateLimiter
                   args:
-                    redis-rate-limiter.replenishRate: 1
-                    redis-rate-limiter.burstCapacity: 1
+                    redis-rate-limiter.replenishRate: 5
+                    redis-rate-limiter.burstCapacity: 10
                     redis-rate-limiter.requestedTokens: 1
                     key-resolver: "#{@ipKeyResolver}"
                 - name: CircuitBreaker
@@ -65,6 +65,12 @@ spring:
               predicates:
                 - Path=/api/v1/transfers/**, /api/v1/transactions/**, /api/v1/quick-transfers/**, /api/v1/topup/**
               filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 20
+                    redis-rate-limiter.burstCapacity: 50
+                    redis-rate-limiter.requestedTokens: 1
+                    key-resolver: "#{@userKeyResolver}"
                 - name: ScopeValidation
                   args:
                     requiredScope: SCOPE_FULL_ACCESS
@@ -91,6 +97,15 @@ orange:
       - "http://localhost:5173"
       - "http://localhost:8080"
       - "http://localhost:65468"
+
+  security:
+    ip-blocking-enabled: true
+    allow-localhost-blocking: true  # Enable for testing IP blocking on localhost
+    violation-threshold: 10
+    violation-window: 5m
+    block-duration: 1h
+    suspicious-duration: 30m
+    suspicious-threshold: 5
 
 logging:
   level:
