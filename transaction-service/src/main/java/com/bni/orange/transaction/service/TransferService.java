@@ -35,6 +35,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 
 @Slf4j
 @Service
@@ -51,6 +54,7 @@ public class TransferService {
     private final EventPublisher eventPublisher;
     private final KafkaTopicProperties topicProperties;
     private final QuickTransferService quickTransferService;
+    private final Executor virtualThreadTaskExecutor;
 
     @Value("${orange.transaction.fee.transfer:0}")
     private BigDecimal transferFee;
@@ -64,32 +68,49 @@ public class TransferService {
             throw new BusinessException(ErrorCode.INVALID_PHONE_NUMBER, "Invalid phone number format: " + request.phoneNumber());
         }
 
-        var user = Optional.ofNullable(userServiceClient.findByPhoneNumber(normalizedPhone, accessToken).block())
-            .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND, "User not found"));
+        var userFuture = CompletableFuture.supplyAsync(() ->
+            Optional.ofNullable(userServiceClient.findByPhoneNumber(normalizedPhone, accessToken).block())
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND, "User not found")),
+            virtualThreadTaskExecutor
+        );
 
-        if (user.id().equals(currentUserId)) {
-            throw new BusinessException(ErrorCode.SELF_TRANSFER_NOT_ALLOWED, "Cannot transfer money to yourself");
-        }
-
-        WalletResolutionResponse resolvedWallet = null;
         try {
-            resolvedWallet = walletServiceClient
-                .getDefaultWalletByUserId(user.id())
-                .block();
+            var user = userFuture.join();
 
-            if (resolvedWallet != null && resolvedWallet.walletId() == null) {
-                log.warn("User {} has no default wallet configured", user.id());
-                resolvedWallet = null;
+            if (user.id().equals(currentUserId)) {
+                throw new BusinessException(ErrorCode.SELF_TRANSFER_NOT_ALLOWED, "Cannot transfer money to yourself");
             }
-        } catch (BusinessException ex) {
-            if (ex.getErrorCode() == ErrorCode.WALLET_NOT_FOUND) {
-                log.warn("User {} has no default wallet configured", user.id());
-            } else {
-                throw ex;
+
+            var walletFuture = CompletableFuture.supplyAsync(() -> {
+                try {
+                    var wallet = walletServiceClient
+                        .getDefaultWalletByUserId(user.id())
+                        .block();
+
+                    if (wallet != null && wallet.walletId() == null) {
+                        log.warn("User {} has no default wallet configured", user.id());
+                        return null;
+                    }
+                    return wallet;
+                } catch (BusinessException ex) {
+                    if (ex.getErrorCode() == ErrorCode.WALLET_NOT_FOUND) {
+                        log.warn("User {} has no default wallet configured", user.id());
+                        return null;
+                    }
+                    throw ex;
+                }
+            }, virtualThreadTaskExecutor);
+
+            var resolvedWallet = walletFuture.join();
+            return buildLookupResponse(user, resolvedWallet, normalizedPhone);
+
+        } catch (CompletionException e) {
+            if (e.getCause() instanceof BusinessException be) {
+                throw be;
             }
+            log.error("Error during recipient inquiry", e);
+            throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR, e.getMessage());
         }
-
-        return buildLookupResponse(user, resolvedWallet, normalizedPhone);
     }
 
     @Transactional
@@ -118,42 +139,64 @@ public class TransferService {
             throw new BusinessException(ErrorCode.SELF_TRANSFER_NOT_ALLOWED, "Cannot transfer to yourself");
         }
 
-        validateSenderWalletAccess(senderUserId, request.senderWalletId(), request.amount());
-
         var totalAmount = request.amount().add(transferFee);
 
-        var balanceValidationRequest = BalanceValidateRequest.builder()
-            .walletId(request.senderWalletId())
-            .amount(totalAmount)
-            .action(InternalAction.DEBIT)
-            .build();
+        var walletAccessValidationFuture = CompletableFuture.runAsync(() ->
+            validateSenderWalletAccess(senderUserId, request.senderWalletId(), request.amount()),
+            virtualThreadTaskExecutor
+        );
 
-        var balanceValidation = Optional.ofNullable(walletServiceClient.validateBalance(balanceValidationRequest).block())
-            .orElseThrow(() -> new BusinessException(ErrorCode.WALLET_SERVICE_ERROR, "Failed to validate balance"));
+        var balanceValidationFuture = CompletableFuture.supplyAsync(() -> {
+            var balanceValidationRequest = BalanceValidateRequest.builder()
+                .walletId(request.senderWalletId())
+                .amount(totalAmount)
+                .action(InternalAction.DEBIT)
+                .build();
 
-        if (!balanceValidation.allowed()) {
-            log.warn("Balance validation failed: walletId={}, code={}, message={}",
-                request.senderWalletId(), balanceValidation.code(), balanceValidation.message());
+            return Optional.ofNullable(walletServiceClient.validateBalance(balanceValidationRequest).block())
+                .orElseThrow(() -> new BusinessException(ErrorCode.WALLET_SERVICE_ERROR, "Failed to validate balance"));
+        }, virtualThreadTaskExecutor);
 
-            if ("INSUFFICIENT_BALANCE".equals(balanceValidation.code())) {
-                var availableBalance = balanceValidation.extras().get("balance");
-                throw new BusinessException(
-                    ErrorCode.INSUFFICIENT_BALANCE,
-                    String.format("Insufficient balance. Required: %s, Available: %s", totalAmount, availableBalance)
-                );
-            } else {
-                throw new BusinessException(ErrorCode.WALLET_SERVICE_ERROR, balanceValidation.message());
+        var receiverInfoFuture = CompletableFuture.supplyAsync(() ->
+            Optional.ofNullable(userServiceClient.findById(request.receiverUserId(), accessToken).block())
+                .orElse(UserProfileResponse.builder()
+                    .id(request.receiverUserId())
+                    .name("Unknown")
+                    .phoneNumber("")
+                    .build()),
+            virtualThreadTaskExecutor
+        );
+
+        try {
+            CompletableFuture.allOf(walletAccessValidationFuture, balanceValidationFuture, receiverInfoFuture).join();
+
+            var balanceValidation = balanceValidationFuture.join();
+
+            if (!balanceValidation.allowed()) {
+                log.warn("Balance validation failed: walletId={}, code={}, message={}",
+                    request.senderWalletId(), balanceValidation.code(), balanceValidation.message());
+
+                if ("INSUFFICIENT_BALANCE".equals(balanceValidation.code())) {
+                    var availableBalance = balanceValidation.extras().get("balance");
+                    throw new BusinessException(
+                        ErrorCode.INSUFFICIENT_BALANCE,
+                        String.format("Insufficient balance. Required: %s, Available: %s", totalAmount, availableBalance)
+                    );
+                } else {
+                    throw new BusinessException(ErrorCode.WALLET_SERVICE_ERROR, balanceValidation.message());
+                }
             }
+
+            var receiverInfo = receiverInfoFuture.join();
+            return createPendingTransaction(request, senderUserId, idempotencyKey, receiverInfo);
+
+        } catch (CompletionException e) {
+            if (e.getCause() instanceof BusinessException be) {
+                throw be;
+            }
+            log.error("Error during parallel transfer validation", e);
+            throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR, e.getMessage());
         }
-
-        var receiverInfo = Optional.ofNullable(userServiceClient.findById(request.receiverUserId(), accessToken).block())
-            .orElse(UserProfileResponse.builder()
-                .id(request.receiverUserId())
-                .name("Unknown")
-                .phoneNumber("")
-                .build());
-
-        return createPendingTransaction(request, senderUserId, idempotencyKey, receiverInfo);
     }
 
     private void validateSenderWalletAccess(UUID userId, UUID walletId, BigDecimal amount) {
@@ -198,26 +241,48 @@ public class TransferService {
     ) {
         log.info("Confirming transfer: {}", transactionId);
 
-        var transaction = transactionRepository
-            .findById(transactionId)
-            .orElseThrow(() -> new BusinessException(ErrorCode.TRANSACTION_NOT_FOUND, "Transaction not found: " + transactionId));
+        var transactionFuture = CompletableFuture.supplyAsync(() ->
+            transactionRepository
+                .findById(transactionId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.TRANSACTION_NOT_FOUND, "Transaction not found: " + transactionId)),
+            virtualThreadTaskExecutor
+        );
 
-        if (!transaction.getSenderUserId().equals(currentUserId)) {
-            throw new BusinessException(ErrorCode.TRANSACTION_NOT_FOUND, "Transaction not found or you don't have permission");
+        var pinVerificationFuture = CompletableFuture.supplyAsync(() ->
+            Boolean.TRUE.equals(authServiceClient.verifyPin(request.pin(), accessToken).block()),
+            virtualThreadTaskExecutor
+        );
+
+        try {
+            CompletableFuture.allOf(transactionFuture, pinVerificationFuture).join();
+
+            var transaction = transactionFuture.join();
+            var isPinValid = pinVerificationFuture.join();
+
+            if (!transaction.getSenderUserId().equals(currentUserId)) {
+                throw new BusinessException(ErrorCode.TRANSACTION_NOT_FOUND, "Transaction not found or you don't have permission");
+            }
+
+            if (!transaction.getStatus().canBeProcessed()) {
+                throw new BusinessException(ErrorCode.INVALID_TRANSACTION_STATE, "Transaction cannot be processed in current state: " + transaction.getStatus());
+            }
+
+            if (!isPinValid) {
+                throw new BusinessException(ErrorCode.INVALID_PIN, "Invalid PIN provided");
+            }
+
+            transaction.markAsProcessing();
+            transactionRepository.save(transaction);
+
+            return executeTransfer(transaction);
+
+        } catch (CompletionException e) {
+            if (e.getCause() instanceof BusinessException be) {
+                throw be;
+            }
+            log.error("Error during transfer confirmation", e);
+            throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR, e.getMessage());
         }
-
-        if (!transaction.getStatus().canBeProcessed()) {
-            throw new BusinessException(ErrorCode.INVALID_TRANSACTION_STATE, "Transaction cannot be processed in current state: " + transaction.getStatus());
-        }
-
-        if (!Boolean.TRUE.equals(authServiceClient.verifyPin(request.pin(), accessToken).block())) {
-            throw new BusinessException(ErrorCode.INVALID_PIN, "Invalid PIN provided");
-        }
-
-        transaction.markAsProcessing();
-        transactionRepository.save(transaction);
-
-        return executeTransfer(transaction);
     }
 
     private TransactionResponse executeTransfer(Transaction transaction) {
