@@ -151,11 +151,17 @@ public class TopUpService {
                 .fee(fee)
                 .totalAmount(totalAmount)
                 .currency("IDR")
+                .userId(userId)
+                .walletId(request.walletId())
+                .counterpartyUserId(null)
+                .counterpartyWalletId(null)
+                .counterpartyName(config.getProviderName())
+                .counterpartyPhone(null)
+                .description("Top-up via " + config.getProviderName())
                 .senderUserId(userId)
                 .senderWalletId(request.walletId())
                 .receiverUserId(userId)
                 .receiverWalletId(request.walletId())
-                .description("Top-up via " + config.getProviderName())
                 .build()
         );
         log.info("Created transaction: {}", transactionRef);

@@ -23,14 +23,14 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
 
     @Query("""
             SELECT t FROM Transaction t
-            WHERE t.senderUserId = :userId OR t.receiverUserId = :userId
+            WHERE t.userId = :userId
             ORDER BY t.createdAt DESC
         """)
     Page<Transaction> findByUserId(@Param("userId") UUID userId, Pageable pageable);
 
     @Query("""
             SELECT t FROM Transaction t
-            WHERE (t.senderUserId = :userId OR t.receiverUserId = :userId)
+            WHERE t.userId = :userId
             AND t.status = :status
             ORDER BY t.createdAt DESC
         """)
@@ -42,7 +42,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
 
     @Query("""
             SELECT t FROM Transaction t
-            WHERE (t.senderUserId = :userId OR t.receiverUserId = :userId)
+            WHERE t.userId = :userId
             AND t.createdAt BETWEEN :startDate AND :endDate
             ORDER BY t.createdAt DESC
         """)
@@ -53,6 +53,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
         Pageable pageable
     );
 
+    @Deprecated
     @Query("""
             SELECT t FROM Transaction t
             WHERE t.senderUserId = :userId
@@ -60,6 +61,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
         """)
     Page<Transaction> findBySenderUserId(@Param("userId") UUID userId, Pageable pageable);
 
+    @Deprecated
     @Query("""
             SELECT t FROM Transaction t
             WHERE t.receiverUserId = :userId
@@ -69,7 +71,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
 
     @Query("""
             SELECT COUNT(t) FROM Transaction t
-            WHERE (t.senderUserId = :userId OR t.receiverUserId = :userId)
+            WHERE t.userId = :userId
             AND t.status = 'PENDING'
         """)
     long countPendingTransactionsByUserId(@Param("userId") UUID userId);

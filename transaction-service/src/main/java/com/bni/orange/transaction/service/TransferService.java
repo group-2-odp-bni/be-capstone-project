@@ -280,7 +280,7 @@ public class TransferService {
             var transaction = transactionFuture.join();
             var isPinValid = pinVerificationFuture.join();
 
-            if (!transaction.getSenderUserId().equals(currentUserId)) {
+            if (!transaction.getUserId().equals(currentUserId)) {
                 throw new BusinessException(ErrorCode.TRANSACTION_NOT_FOUND, "Transaction not found or you don't have permission");
             }
 
@@ -330,10 +330,10 @@ public class TransferService {
 
     private BalanceResponse debitSender(Transaction transaction) {
         var balanceUpdateRequest = com.bni.orange.transaction.model.request.internal.BalanceUpdateRequest.builder()
-            .walletId(transaction.getSenderWalletId())
+            .walletId(transaction.getWalletId())
             .delta(transaction.getTotalAmount().negate())
             .referenceId(transaction.getIdempotencyKey() + "-sender")
-            .reason("Transfer to " + transaction.getReceiverName())
+            .reason("Transfer to " + transaction.getCounterpartyName())
             .build();
 
         var balanceUpdateResult = Optional.ofNullable(walletServiceClient.updateBalance(balanceUpdateRequest).block())
@@ -355,7 +355,7 @@ public class TransferService {
 
     private BalanceResponse creditReceiver(Transaction transaction) {
         var balanceUpdateRequest = com.bni.orange.transaction.model.request.internal.BalanceUpdateRequest.builder()
-            .walletId(transaction.getReceiverWalletId())
+            .walletId(transaction.getCounterpartyWalletId())
             .delta(transaction.getAmount())
             .referenceId(transaction.getIdempotencyKey() + "-receiver")
             .reason("Transfer from sender")
@@ -382,7 +382,7 @@ public class TransferService {
         log.warn("Reversing sender debit for transaction: {}", transaction.getTransactionRef());
 
         var balanceUpdateRequest = com.bni.orange.transaction.model.request.internal.BalanceUpdateRequest.builder()
-            .walletId(transaction.getSenderWalletId())
+            .walletId(transaction.getWalletId())
             .delta(transaction.getTotalAmount())
             .referenceId(transaction.getIdempotencyKey() + "-sender-reversal")
             .reason("Reversal for failed transfer: " + transaction.getTransactionRef())
@@ -401,28 +401,62 @@ public class TransferService {
     }
 
     private TransactionResponse finalizeSuccessfulTransfer(
-        Transaction transaction,
+        Transaction senderTransaction,
         BalanceResponse senderBalance,
         BalanceResponse receiverBalance
     ) {
-        createLedgerEntries(transaction, senderBalance, receiverBalance, transaction.getSenderUserId());
+        senderTransaction.markAsSuccess();
+        var savedSenderTxn = transactionRepository.save(senderTransaction);
 
-        transaction.markAsSuccess();
-        var savedTransaction = transactionRepository.save(transaction);
+        var receiverTransaction = createReceiverTransaction(senderTransaction);
+        receiverTransaction.markAsSuccess();
+        var savedReceiverTxn = transactionRepository.save(receiverTransaction);
+
+        createLedgerEntries(senderTransaction, senderBalance, receiverBalance, senderTransaction.getUserId());
 
         quickTransferService.addOrUpdateFromTransaction(
-            savedTransaction.getSenderUserId(),
-            savedTransaction.getReceiverUserId(),
-            savedTransaction.getReceiverName(),
-            savedTransaction.getReceiverPhone()
+            savedSenderTxn.getUserId(),
+            savedSenderTxn.getCounterpartyUserId(),
+            savedSenderTxn.getCounterpartyName(),
+            savedSenderTxn.getCounterpartyPhone()
         );
 
-        var event = TransactionEventFactory.createTransactionCompletedEvent(savedTransaction);
+        var senderEvent = TransactionEventFactory.createTransactionCompletedEvent(savedSenderTxn);
+        var receiverEvent = TransactionEventFactory.createTransactionCompletedEvent(savedReceiverTxn);
         var topic = topicProperties.definitions().get("transaction-completed").name();
-        eventPublisher.publish(topic, savedTransaction.getId().toString(), event);
+        eventPublisher.publish(topic, savedSenderTxn.getId().toString(), senderEvent);
+        eventPublisher.publish(topic, savedReceiverTxn.getId().toString(), receiverEvent);
 
-        log.info("Transfer completed successfully: {}", transaction.getTransactionRef());
-        return transactionMapper.toResponse(savedTransaction);
+        log.info("Transfer completed successfully: {} (sender: {}, receiver: {})",
+            senderTransaction.getTransactionRef(), savedSenderTxn.getId(), savedReceiverTxn.getId());
+        return transactionMapper.toResponse(savedSenderTxn);
+    }
+
+    private Transaction createReceiverTransaction(Transaction senderTransaction) {
+        return Transaction.builder()
+            .transactionRef(senderTransaction.getTransactionRef())
+            .idempotencyKey(senderTransaction.getIdempotencyKey() + "-receiver")
+            .type(TransactionType.TRANSFER_IN)
+            .status(TransactionStatus.PROCESSING)
+            .amount(senderTransaction.getAmount())
+            .fee(BigDecimal.ZERO)
+            .totalAmount(senderTransaction.getAmount())
+            .currency(senderTransaction.getCurrency())
+            .userId(senderTransaction.getCounterpartyUserId())
+            .walletId(senderTransaction.getCounterpartyWalletId())
+            .counterpartyUserId(senderTransaction.getUserId())
+            .counterpartyWalletId(senderTransaction.getWalletId())
+            .counterpartyName("Sender")
+            .counterpartyPhone(null)
+            .notes(senderTransaction.getNotes())
+            .description("Transfer from sender")
+            .senderUserId(senderTransaction.getSenderUserId())
+            .senderWalletId(senderTransaction.getSenderWalletId())
+            .receiverUserId(senderTransaction.getReceiverUserId())
+            .receiverWalletId(senderTransaction.getReceiverWalletId())
+            .receiverName(senderTransaction.getReceiverName())
+            .receiverPhone(senderTransaction.getReceiverPhone())
+            .build();
     }
 
     private void handleTransferFailure(Transaction transaction, Exception error) {
@@ -443,19 +477,19 @@ public class TransferService {
         var senderEntry = TransactionLedger.createDebitEntry(
             transaction.getId(),
             transaction.getTransactionRef(),
-            transaction.getSenderWalletId(),
-            transaction.getSenderUserId(),
+            transaction.getWalletId(),
+            transaction.getUserId(),
             transaction.getTotalAmount(),
             senderBalance.balanceBefore(),
-            "Transfer to " + transaction.getReceiverName()
+            "Transfer to " + transaction.getCounterpartyName()
         );
         senderEntry.setPerformedByUserId(performedByUserId);
 
         var receiverEntry = TransactionLedger.createCreditEntry(
             transaction.getId(),
             transaction.getTransactionRef(),
-            transaction.getReceiverWalletId(),
-            transaction.getReceiverUserId(),
+            transaction.getCounterpartyWalletId(),
+            transaction.getCounterpartyUserId(),
             transaction.getAmount(),
             receiverBalance.balanceBefore(),
             "Transfer from sender"
@@ -497,29 +531,37 @@ public class TransferService {
         String idempotencyKey,
         UserProfileResponse receiverInfo
     ) {
-        var transaction = Transaction.builder()
-            .transactionRef(refGenerator.generate())
+        var transactionRef = refGenerator.generate();
+
+        var senderTransaction = Transaction.builder()
+            .transactionRef(transactionRef)
             .idempotencyKey(idempotencyKey)
             .type(TransactionType.TRANSFER_OUT)
             .status(TransactionStatus.PENDING)
             .amount(request.amount())
             .fee(transferFee)
             .currency(request.currency())
+            .userId(senderUserId)
+            .walletId(request.senderWalletId())
+            .counterpartyUserId(request.receiverUserId())
+            .counterpartyWalletId(request.receiverWalletId())
+            .counterpartyName(receiverInfo.name())
+            .counterpartyPhone(receiverInfo.phoneNumber())
+            .notes(request.notes())
+            .description("Transfer to " + receiverInfo.name())
             .senderUserId(senderUserId)
             .senderWalletId(request.senderWalletId())
             .receiverUserId(request.receiverUserId())
             .receiverWalletId(request.receiverWalletId())
             .receiverName(receiverInfo.name())
             .receiverPhone(receiverInfo.phoneNumber())
-            .notes(request.notes())
-            .description("Transfer to " + receiverInfo.name())
             .build();
 
-        transaction.calculateTotalAmount();
+        senderTransaction.calculateTotalAmount();
 
-        var saved = transactionRepository.save(transaction);
-        log.info("Pending transaction created: {}", saved.getTransactionRef());
+        var savedSender = transactionRepository.save(senderTransaction);
+        log.info("Pending sender transaction created: {}", savedSender.getTransactionRef());
 
-        return transactionMapper.toResponse(saved);
+        return transactionMapper.toResponse(savedSender);
     }
 }

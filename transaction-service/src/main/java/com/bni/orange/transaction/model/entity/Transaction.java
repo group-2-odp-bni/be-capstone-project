@@ -66,21 +66,45 @@ public class Transaction {
     @Column(name = "currency", nullable = false, length = 3)
     private String currency;
 
-    @Column(name = "sender_user_id", nullable = false)
+    @Column(name = "user_id", nullable = false)
+    private UUID userId;
+
+    @Column(name = "wallet_id", nullable = false)
+    private UUID walletId;
+
+    @Column(name = "counterparty_user_id")
+    private UUID counterpartyUserId;
+
+    @Column(name = "counterparty_wallet_id")
+    private UUID counterpartyWalletId;
+
+    @Column(name = "counterparty_name", length = 255)
+    private String counterpartyName;
+
+    @Column(name = "counterparty_phone", length = 50)
+    private String counterpartyPhone;
+
+    @Deprecated
+    @Column(name = "sender_user_id")
     private UUID senderUserId;
 
-    @Column(name = "sender_wallet_id", nullable = false)
+    @Deprecated
+    @Column(name = "sender_wallet_id")
     private UUID senderWalletId;
 
-    @Column(name = "receiver_user_id", nullable = false)
+    @Deprecated
+    @Column(name = "receiver_user_id")
     private UUID receiverUserId;
 
-    @Column(name = "receiver_wallet_id", nullable = false)
+    @Deprecated
+    @Column(name = "receiver_wallet_id")
     private UUID receiverWalletId;
 
+    @Deprecated
     @Column(name = "receiver_name", length = 255)
     private String receiverName;
 
+    @Deprecated
     @Column(name = "receiver_phone", length = 50)
     private String receiverPhone;
 
@@ -150,14 +174,27 @@ public class Transaction {
         this.completedAt = null;
     }
 
-    public boolean belongsToUser(UUID userId) {
-        return senderUserId.equals(userId) || receiverUserId.equals(userId);
+    public boolean belongsToUser(UUID targetUserId) {
+        return userId.equals(targetUserId);
     }
 
-    public TransactionType getDirectionForUser(UUID userId) {
-        if (senderUserId.equals(userId)) {
+    public boolean isTransfer() {
+        return type != null && type.isTransfer();
+    }
+
+    public boolean isDebit() {
+        return type != null && type.isDebit();
+    }
+
+    public boolean isCredit() {
+        return type != null && type.isCredit();
+    }
+
+    @Deprecated
+    public TransactionType getDirectionForUser(UUID targetUserId) {
+        if (senderUserId != null && senderUserId.equals(targetUserId)) {
             return TransactionType.TRANSFER_OUT;
-        } else if (receiverUserId.equals(userId)) {
+        } else if (receiverUserId != null && receiverUserId.equals(targetUserId)) {
             return TransactionType.TRANSFER_IN;
         }
         throw new IllegalArgumentException("User is not part of this transaction");
