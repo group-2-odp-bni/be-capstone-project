@@ -27,7 +27,7 @@ spring:
             - id: authentication-service
               uri: http://authentication-service:8080
               predicates:
-                - Path=/api/v1/auth/verify, /api/v1/auth/refresh, /api/v1/auth/logout, /api/v1/pin/**, /api/v1/sessions/**, /oauth2/jwks
+                - Path=/api/v1/auth/verify, /api/v1/auth/refresh, /api/v1/auth/logout, /api/v1/auth/pin, /api/v1/pin/**, /api/v1/sessions/**, /oauth2/jwks
               filters:
                 - name: CircuitBreaker
                   args:

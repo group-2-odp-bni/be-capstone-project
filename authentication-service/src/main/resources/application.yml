@@ -121,7 +121,7 @@ logging:
 
 google:
   recaptcha:
-    enabled: true
+    enabled: false
     secret: 6LeNJP4rAAAAAGyGNK-K1D8i7UsLx0ev2Q1RADJc
     url: https://www.google.com/recaptcha/api/siteverify
     hostname: localhost

@@ -9,8 +9,8 @@ import com.bni.orange.wallet.model.request.internal.RoleValidateRequest;
 import com.bni.orange.wallet.model.response.internal.BalanceUpdateResponse;
 import com.bni.orange.wallet.model.response.internal.DefaultWalletResponse;
 import com.bni.orange.wallet.model.response.internal.RoleValidateResponse;
-import com.bni.orange.wallet.model.response.internal.ValidationResultResponse;
 import com.bni.orange.wallet.model.response.internal.UserWalletsResponse;
+import com.bni.orange.wallet.model.response.internal.ValidationResultResponse;
 import com.bni.orange.wallet.repository.UserReceivePrefsRepository;
 import com.bni.orange.wallet.repository.WalletInternalRepository;
 import com.bni.orange.wallet.repository.WalletMemberInternalRepository;
@@ -21,7 +21,6 @@ import com.bni.orange.wallet.service.internal.InternalWalletService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -148,42 +147,23 @@ public class InternalWalletServiceImpl implements InternalWalletService {
 
   @Override
   public DefaultWalletResponse getDefaultWalletByUserId(UUID userId) {
-    var prefs = userReceivePrefsRepo.findByUserId(userId);
-
-    if (prefs.isEmpty()) {
-      return DefaultWalletResponse.builder()
-          .userId(userId)
-          .hasDefaultWallet(false)
-          .walletId(null)
-          .walletName(null)
-          .walletType(null)
-          .currency(null)
-          .build();
-    }
-
-    var defaultWalletId = prefs.get().getDefaultWalletId();
-    var wallet = walletReadRepo.findById(defaultWalletId).orElse(null);
-
-    if (wallet == null) {
-      return DefaultWalletResponse.builder()
-          .userId(userId)
-          .hasDefaultWallet(false)
-          .walletId(null)
-          .walletName(null)
-          .walletType(null)
-          .currency(null)
-          .build();
-    }
-
-    return DefaultWalletResponse.builder()
-        .userId(userId)
-        .hasDefaultWallet(true)
-        .walletId(wallet.getId())
-        .walletName(wallet.getName())
-        .walletType(wallet.getType())
-        .currency(wallet.getCurrency())
-        .build();
+      return userReceivePrefsRepo
+          .findByUserId(userId)
+          .flatMap(prefs -> walletReadRepo.findById(prefs.getDefaultWalletId()))
+          .map(wallet -> DefaultWalletResponse.builder()
+              .userId(userId)
+              .hasDefaultWallet(true)
+              .walletId(wallet.getId())
+              .walletName(wallet.getName())
+              .walletType(wallet.getType())
+              .currency(wallet.getCurrency())
+              .build())
+          .orElseGet(() -> DefaultWalletResponse.builder()
+              .userId(userId)
+              .hasDefaultWallet(false)
+              .build());
   }
+
 
   @Override
   public UserWalletsResponse getWalletsByUserId(UUID userId, boolean idsOnly) {

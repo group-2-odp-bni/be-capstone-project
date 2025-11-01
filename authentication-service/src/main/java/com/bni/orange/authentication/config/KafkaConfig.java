@@ -25,8 +25,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -70,11 +68,6 @@ public class KafkaConfig {
     @Bean
     public KafkaTemplate<String, byte[]> kafkaTemplate() {
         return new KafkaTemplate<>(producerFactory());
-    }
-
-    @Bean(name = "kafkaVirtualThreadExecutor")
-    public Executor kafkaVirtualThreadExecutor() {
-        return Executors.newVirtualThreadPerTaskExecutor();
     }
 
     @Bean
