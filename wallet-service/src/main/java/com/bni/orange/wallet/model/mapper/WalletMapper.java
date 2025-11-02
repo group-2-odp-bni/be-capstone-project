@@ -36,13 +36,14 @@ public interface WalletMapper {
   @Mapping(target="id",        expression="java(java.util.UUID.randomUUID())")
   @Mapping(target="userId",    source="userId")
   @Mapping(target="currency",  constant="IDR")
-  @Mapping(target="metadata",  expression="java(metadataToString(req.getMetadata()))")
+  @Mapping(target="metadata", source="req.metadata")
   @Mapping(target="createdAt", expression="java(now())")
   @Mapping(target="updatedAt", expression="java(now())")
   Wallet toEntity(WalletCreateRequest req, UUID userId);
 
   @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
   @Mapping(target="updatedAt", expression="java(now())")
+  @Mapping(target="metadata",  source="req.metadata")
   void patch(@MappingTarget Wallet wallet, WalletUpdateRequest req);
 
   default OffsetDateTime now(){ return OffsetDateTime.now(); }
@@ -54,7 +55,6 @@ public interface WalletMapper {
     try {
       return new ObjectMapper().writeValueAsString(metadata);
     } catch (JsonProcessingException e) {
-      // Handle exception, perhaps log it and return a default value
       return "{}";
     }
   }

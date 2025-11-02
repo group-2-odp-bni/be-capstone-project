@@ -20,7 +20,7 @@ import com.bni.orange.wallet.repository.read.WalletReadRepository;
 import com.bni.orange.wallet.service.internal.InternalWalletService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import com.bni.orange.wallet.repository.read.WalletReadRepository;
 import java.util.Map;
 import java.util.UUID;
 
@@ -31,23 +31,24 @@ public class InternalWalletServiceImpl implements InternalWalletService {
   private final WalletInternalRepository walletRepo;
   private final WalletMemberInternalRepository memberRepo;
   private final WalletPolicyInternalRepository policyRepo;
-  private final UserReceivePrefsRepository userReceivePrefsRepo;
   private final WalletReadRepository walletReadRepo;
+  private final UserReceivePrefsRepository userReceivePrefsRepo;
   private final WalletMemberRepository walletMemberRepo;
+  public record PolicyCheckResult(boolean allowed, String currency) {}
 
   public InternalWalletServiceImpl(
       WalletInternalRepository walletRepo,
       WalletMemberInternalRepository memberRepo,
       WalletPolicyInternalRepository policyRepo,
-      UserReceivePrefsRepository userReceivePrefsRepo,
       WalletReadRepository walletReadRepo,
+      UserReceivePrefsRepository userReceivePrefsRepo,
       WalletMemberRepository walletMemberRepo
   ) {
     this.walletRepo = walletRepo;
     this.memberRepo = memberRepo;
     this.policyRepo = policyRepo;
+    this.walletReadRepo=walletReadRepo;
     this.userReceivePrefsRepo = userReceivePrefsRepo;
-    this.walletReadRepo = walletReadRepo;
     this.walletMemberRepo = walletMemberRepo;
   }
 
@@ -87,6 +88,8 @@ public class InternalWalletServiceImpl implements InternalWalletService {
       return new BalanceUpdateResponse(req.walletId(), vw.balanceSnapshot(), vw.balanceSnapshot(),
           "NEGATIVE_NOT_ALLOWED", "Perubahan saldo ditolak karena akan membuat saldo negatif");
     }
+    walletReadRepo.upsertBalanceSnapshot(req.walletId(), after.get());
+
     return new BalanceUpdateResponse(req.walletId(), vw.balanceSnapshot(), after.get(),
         "OK", "Saldo diperbarui");
   }

@@ -109,8 +109,7 @@ public class WalletCommandServiceImpl implements WalletCommandService {
     upsertWalletRead(saved,  true);
     upsertWalletMemberRead(saved.getId(), uid, WalletMemberRole.OWNER, WalletMemberStatus.ACTIVE);
     upsertUserWalletRead(uid, saved);
-
-    var filtered = MetadataFilter.filter(om, saved.getMetadata());
+    var filtered = MetadataFilter.filter(saved.getMetadata());
     var dto = mapper.mergeDetail(
         walletReadRepo.findById(saved.getId()).orElseThrow(), saved, filtered);
     appEvents.publishEvent(new DomainEvents.WalletCreated(saved.getId(), uid));
@@ -132,7 +131,7 @@ public class WalletCommandServiceImpl implements WalletCommandService {
     final Wallet saved = walletRepo.save(wl);
     upsertWalletRead(saved,  false);
     upsertUserWalletRead(saved.getUserId(), saved);
-    var filtered = MetadataFilter.filter(om, saved.getMetadata());
+    var filtered = MetadataFilter.filter(saved.getMetadata());
     var dto = mapper.mergeDetail(
         walletReadRepo.findById(saved.getId()).orElseThrow(), saved, filtered);
     appEvents.publishEvent(new DomainEvents.WalletUpdated(walletId));             // +++
