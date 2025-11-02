@@ -2,6 +2,7 @@ package com.bni.orange.wallet.service.command.impl;
 
 import com.bni.orange.wallet.exception.business.ConflictException;
 import com.bni.orange.wallet.exception.business.ForbiddenOperationException;
+import com.bni.orange.wallet.exception.business.MaxMemberReachException;
 import com.bni.orange.wallet.exception.business.ResourceNotFoundException;
 import com.bni.orange.wallet.exception.business.ValidationFailedException;
 import com.bni.orange.wallet.model.entity.WalletMember;
@@ -17,6 +18,7 @@ import com.bni.orange.wallet.repository.WalletMemberRepository;
 import com.bni.orange.wallet.repository.WalletRepository;
 import com.bni.orange.wallet.repository.read.WalletMemberReadRepository;
 import com.bni.orange.wallet.service.command.MembershipCommandService;
+import com.bni.orange.wallet.service.query.impl.WalletPolicyQueryServiceImpl;
 import com.bni.orange.wallet.utils.security.CurrentUser;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +27,7 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.List;
 
 @Service
 @Transactional
@@ -33,19 +36,20 @@ public class MembershipCommandServiceImpl implements MembershipCommandService {
   private final WalletRepository walletRepo;
   private final WalletMemberRepository memberRepo;               // OLTP
   private final WalletMemberReadRepository memberReadRepo;       // Read
-
+  private final WalletPolicyQueryServiceImpl walletPolicyService;
   public MembershipCommandServiceImpl(WalletRepository walletRepo,
                                       WalletMemberRepository memberRepo,
-                                      WalletMemberReadRepository memberReadRepo) {
+                                      WalletMemberReadRepository memberReadRepo,
+                                      WalletPolicyQueryServiceImpl walletPolicyService ) {
     this.walletRepo = walletRepo;
     this.memberRepo = memberRepo;
     this.memberReadRepo = memberReadRepo;
+    this.walletPolicyService = walletPolicyService;
   }
 
   @Override
   public WalletMemberDetailResponse inviteMember(UUID walletId, WalletMemberInviteRequest req, String idemKey) {
     var actor = requireAdminOrOwner(walletId);
-
     if (req.getUserId() == null) {
       throw new ValidationFailedException("userId is required. For phone-only, use /wallets/{walletId}/invites");
     }
@@ -55,14 +59,25 @@ public class MembershipCommandServiceImpl implements MembershipCommandService {
       throw new ConflictException("You cannot invite yourself");
     }
 
-    walletRepo.findById(walletId).orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
-
-    if (memberRepo.existsByWalletIdAndUserId(walletId, targetUserId)) {
-      throw new ConflictException("User is already a member (or invited)");
-    }
 
     if (req.getRole() == WalletMemberRole.OWNER) {
       throw new ForbiddenOperationException("Cannot invite as OWNER");
+    }
+    var policy = walletPolicyService.getWalletPolicy(walletId);
+    if (!"SHARED".equalsIgnoreCase(policy.getWalletType())) {
+      throw new ForbiddenOperationException("Inviting members is only allowed for SHARED wallets");
+    }
+    long currentMembers = memberRepo.countByWalletIdAndStatusIn(
+        walletId, List.of(WalletMemberStatus.ACTIVE, WalletMemberStatus.INVITED)
+    );
+
+    if (currentMembers >= policy.getMaxMembers()) {
+      throw new MaxMemberReachException("MAX_MEMBERS_REACHED");
+    }
+
+    walletRepo.findById(walletId).orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
+    if (memberRepo.existsByWalletIdAndUserId(walletId, targetUserId)) {
+      throw new ConflictException("User is already a member (or invited)");
     }
 
     var now = OffsetDateTime.now();
