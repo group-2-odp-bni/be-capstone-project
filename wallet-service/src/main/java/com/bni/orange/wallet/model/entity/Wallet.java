@@ -12,8 +12,9 @@ import org.hibernate.type.SqlTypes;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.HashMap;
 import java.util.UUID;
-
+import java.util.Map; 
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 @Entity @DynamicUpdate
 @Table(schema = "wallet_oltp", name = "wallets")
@@ -42,7 +43,7 @@ public class Wallet {
 
   @JdbcTypeCode(SqlTypes.JSON)
   @Column(name = "metadata", nullable = false, columnDefinition = "jsonb")
-  private String metadata = "{}";
+  private Map<String, Object> metadata = new HashMap<>();
 
   @Column(nullable = false) private OffsetDateTime createdAt;
   @Column(nullable = false) private OffsetDateTime updatedAt;
@@ -52,7 +53,7 @@ public class Wallet {
     if (status == null) status = WalletStatus.ACTIVE;
     if (balanceSnapshot == null) balanceSnapshot = BigDecimal.ZERO;
     if (currency == null) currency = "IDR";
-    if (metadata == null) metadata = "{}";
+    if (metadata == null) metadata = new java.util.HashMap<>();
     if (createdAt == null) createdAt = OffsetDateTime.now();
     if (updatedAt == null) updatedAt = createdAt;
   }

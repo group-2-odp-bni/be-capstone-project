@@ -63,8 +63,7 @@ public class WalletQueryServiceImpl implements WalletQueryService {
         .orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
     var oltp = walletRepo.findById(walletId)
         .orElseThrow(() -> new ResourceNotFoundException("Wallet (oltp) not found"));
-
-    var filtered = MetadataFilter.filter(om, oltp.getMetadata());
+    var filtered = MetadataFilter.filter(oltp.getMetadata());
     return mapper.mergeDetail(read, oltp, filtered);
   }
 
