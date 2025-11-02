@@ -23,14 +23,14 @@ public class UserLimitsController {
     this.command = command; this.query = query;
   }
 
-  @GetMapping("/users/me/limits")
+  @GetMapping("/wallets/limits")
   @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
   public ResponseEntity<ApiResponse<UserLimitsResponse>> getMyLimits() {
     var dto = query.getMyLimits();
     return ResponseEntity.ok(ApiResponse.ok("OK", dto));
   }
 
-  @PutMapping("/users/me/limits")
+  @PutMapping("/wallets/limits")
   @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
   public ResponseEntity<ApiResponse<UserLimitsResponse>> updateMyLimits(
       @Valid @RequestBody UserLimitsUpdateRequest req
