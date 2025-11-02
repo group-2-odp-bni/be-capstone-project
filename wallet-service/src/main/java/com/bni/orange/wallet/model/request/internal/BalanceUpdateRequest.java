@@ -11,5 +11,6 @@ public record BalanceUpdateRequest(
     @NotNull UUID walletId,
     @NotNull @Digits(integer = 20, fraction = 2) BigDecimal delta,
     @NotBlank String referenceId,
+    @NotNull UUID actorUserId,
     String reason
-) {}
+    ) {}

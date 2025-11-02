@@ -12,11 +12,24 @@ import com.bni.orange.wallet.model.response.internal.ValidationResultResponse;
 import com.bni.orange.wallet.repository.WalletInternalRepository;
 import com.bni.orange.wallet.repository.WalletMemberInternalRepository;
 import com.bni.orange.wallet.repository.WalletPolicyInternalRepository;
+
+
+import com.bni.orange.wallet.repository.read.UserLimitsReadRepository;
+import com.bni.orange.wallet.service.command.LimitCounterService;
+import com.bni.orange.wallet.model.enums.PeriodType;
+import com.bni.orange.wallet.utils.limits.LimitBuckets; 
+
+
+
 import com.bni.orange.wallet.service.internal.InternalWalletService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.bni.orange.wallet.repository.read.WalletReadRepository;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Map;
+
 
 @Service
 @Transactional(readOnly = true)
@@ -27,17 +40,23 @@ public class InternalWalletServiceImpl implements InternalWalletService {
   private final WalletPolicyInternalRepository policyRepo;
   private final WalletReadRepository walletReadRepo;
   public record PolicyCheckResult(boolean allowed, String currency) {}
+  private final UserLimitsReadRepository userLimitsReadRepo;
+  private final LimitCounterService limitCounterService;
 
   public InternalWalletServiceImpl(
       WalletInternalRepository walletRepo,
       WalletMemberInternalRepository memberRepo,
       WalletPolicyInternalRepository policyRepo,
-      WalletReadRepository walletReadRepo
-  ) {
+      WalletReadRepository walletReadRepo,
+      UserLimitsReadRepository userLimitsReadRepo,
+      LimitCounterService limitCounterService
+      ) {
     this.walletRepo = walletRepo;
     this.memberRepo = memberRepo;
     this.policyRepo = policyRepo;
     this.walletReadRepo=walletReadRepo;
+    this.userLimitsReadRepo = userLimitsReadRepo;
+    this.limitCounterService = limitCounterService;
   }
 
   @Override
@@ -55,6 +74,46 @@ public class InternalWalletServiceImpl implements InternalWalletService {
       return new ValidationResultResponse(false, "INSUFFICIENT_BALANCE", "Saldo tidak mencukupi untuk debit",
           Map.of("balance", vw.balanceSnapshot(), "required", req.amount()));
     }
+    if (req.action() == InternalAction.DEBIT) {
+      var mOpt = userLimitsReadRepo.findByUserId(req.actorUserId());
+      if (mOpt.isPresent()) {
+        var m = mOpt.get();
+        long amt = req.amount().setScale(0, java.math.RoundingMode.DOWN).longValue();
+        if (m.isEnforcePerTx()) {
+          if (m.getPerTxMinRp() > 0 && amt < m.getPerTxMinRp()) {
+            return new ValidationResultResponse(false, "UNDER_MIN_PER_TX", "Nominal di bawah batas minimum per transaksi",
+                Map.of("min", m.getPerTxMinRp(), "amount", amt));
+          }
+          if (m.getPerTxMaxRp() > 0 && amt > m.getPerTxMaxRp()) {
+            return new ValidationResultResponse(false, "OVER_MAX_PER_TX", "Nominal melebihi batas maksimum per transaksi",
+                Map.of("max", m.getPerTxMaxRp(), "amount", amt));
+          }
+        }
+
+        var now = java.time.OffsetDateTime.now();
+        var dayStart   = LimitBuckets.dayStart(now);
+        var weekStart  = LimitBuckets.weekStart(now);
+        var monthStart = LimitBuckets.monthStart(now);
+
+        long usedDay   = limitCounterService.getUsed(req.actorUserId(), PeriodType.DAY,   dayStart);
+        long usedWeek  = limitCounterService.getUsed(req.actorUserId(), PeriodType.WEEK,  weekStart);
+        long usedMonth = limitCounterService.getUsed(req.actorUserId(), PeriodType.MONTH, monthStart);
+
+        if (m.isEnforceDaily() && m.getDailyMaxRp() > 0 && usedDay + amt > m.getDailyMaxRp()) {
+          return new ValidationResultResponse(false, "DAILY_CAP_EXCEEDED", "Batas harian terlampaui",
+              Map.of("used", usedDay, "cap", m.getDailyMaxRp(), "incoming", amt));
+        }
+        if (m.isEnforceWeekly() && m.getWeeklyMaxRp() > 0 && usedWeek + amt > m.getWeeklyMaxRp()) {
+          return new ValidationResultResponse(false, "WEEKLY_CAP_EXCEEDED", "Batas mingguan terlampaui",
+              Map.of("used", usedWeek, "cap", m.getWeeklyMaxRp(), "incoming", amt));
+        }
+        if (m.isEnforceMonthly() && m.getMonthlyMaxRp() > 0 && usedMonth + amt > m.getMonthlyMaxRp()) {
+          return new ValidationResultResponse(false, "MONTHLY_CAP_EXCEEDED", "Batas bulanan terlampaui",
+              Map.of("used", usedMonth, "cap", m.getMonthlyMaxRp(), "incoming", amt));
+        }
+      }
+    }
+
     return new ValidationResultResponse(true, "OK", "Valid",
         Map.of("balance", vw.balanceSnapshot(), "action", req.action().name()));
   }
@@ -70,6 +129,46 @@ public class InternalWalletServiceImpl implements InternalWalletService {
       return new BalanceUpdateResponse(req.walletId(), vw.balanceSnapshot(), vw.balanceSnapshot(),
           "WALLET_NOT_ACTIVE", "Wallet tidak dalam status ACTIVE");
     }
+    if (req.delta().compareTo(BigDecimal.ZERO) < 0) {
+      var mOpt = userLimitsReadRepo.findByUserId(req.actorUserId());
+      if (mOpt.isPresent()) {
+        var m = mOpt.get();
+        long amt = req.delta().abs().setScale(0, java.math.RoundingMode.DOWN).longValue();
+
+        if (m.isEnforcePerTx()) {
+          if (m.getPerTxMinRp() > 0 && amt < m.getPerTxMinRp()) {
+            return new BalanceUpdateResponse(req.walletId(), vw.balanceSnapshot(), vw.balanceSnapshot(),
+                "UNDER_MIN_PER_TX", "Nominal di bawah batas minimum per transaksi");
+          }
+          if (m.getPerTxMaxRp() > 0 && amt > m.getPerTxMaxRp()) {
+            return new BalanceUpdateResponse(req.walletId(), vw.balanceSnapshot(), vw.balanceSnapshot(),
+                "OVER_MAX_PER_TX", "Nominal melebihi batas maksimum per transaksi");
+          }
+        }
+
+        var now = java.time.OffsetDateTime.now();
+        var dayStart   = LimitBuckets.dayStart(now);
+        var weekStart  = LimitBuckets.weekStart(now);
+        var monthStart = LimitBuckets.monthStart(now);
+
+        long usedDay   = limitCounterService.getUsed(req.actorUserId(), PeriodType.DAY,   dayStart);
+        long usedWeek  = limitCounterService.getUsed(req.actorUserId(), PeriodType.WEEK,  weekStart);
+        long usedMonth = limitCounterService.getUsed(req.actorUserId(), PeriodType.MONTH, monthStart);
+
+        if (m.isEnforceDaily() && m.getDailyMaxRp() > 0 && usedDay + amt > m.getDailyMaxRp()) {
+          return new BalanceUpdateResponse(req.walletId(), vw.balanceSnapshot(), vw.balanceSnapshot(),
+              "DAILY_CAP_EXCEEDED", "Batas harian terlampaui");
+        }
+        if (m.isEnforceWeekly() && m.getWeeklyMaxRp() > 0 && usedWeek + amt > m.getWeeklyMaxRp()) {
+          return new BalanceUpdateResponse(req.walletId(), vw.balanceSnapshot(), vw.balanceSnapshot(),
+              "WEEKLY_CAP_EXCEEDED", "Batas mingguan terlampaui");
+        }
+        if (m.isEnforceMonthly() && m.getMonthlyMaxRp() > 0 && usedMonth + amt > m.getMonthlyMaxRp()) {
+          return new BalanceUpdateResponse(req.walletId(), vw.balanceSnapshot(), vw.balanceSnapshot(),
+              "MONTHLY_CAP_EXCEEDED", "Batas bulanan terlampaui");
+        }
+      }
+    }
 
     var after = walletRepo.incrementBalanceAtomically(req.walletId(), req.delta());
     if (after.isEmpty()) {
@@ -77,7 +176,16 @@ public class InternalWalletServiceImpl implements InternalWalletService {
           "NEGATIVE_NOT_ALLOWED", "Perubahan saldo ditolak karena akan membuat saldo negatif");
     }
     walletReadRepo.upsertBalanceSnapshot(req.walletId(), after.get());
-
+    if (req.delta().compareTo(BigDecimal.ZERO) < 0) {
+      long amt = req.delta().abs().setScale(0, RoundingMode.DOWN).longValueExact();
+      var now = java.time.OffsetDateTime.now();
+      var dayStart   = LimitBuckets.dayStart(now);
+      var weekStart  = LimitBuckets.weekStart(now);
+      var monthStart = LimitBuckets.monthStart(now);
+      limitCounterService.addUsage(req.actorUserId(), PeriodType.DAY,   dayStart,   amt);
+      limitCounterService.addUsage(req.actorUserId(), PeriodType.WEEK,  weekStart,  amt);
+      limitCounterService.addUsage(req.actorUserId(), PeriodType.MONTH, monthStart, amt);
+    }
     return new BalanceUpdateResponse(req.walletId(), vw.balanceSnapshot(), after.get(),
         "OK", "Saldo diperbarui");
   }
