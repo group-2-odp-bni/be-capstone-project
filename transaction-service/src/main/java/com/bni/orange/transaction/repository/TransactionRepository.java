@@ -53,22 +53,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
         Pageable pageable
     );
 
-    @Deprecated
-    @Query("""
-            SELECT t FROM Transaction t
-            WHERE t.senderUserId = :userId
-            ORDER BY t.createdAt DESC
-        """)
-    Page<Transaction> findBySenderUserId(@Param("userId") UUID userId, Pageable pageable);
-
-    @Deprecated
-    @Query("""
-            SELECT t FROM Transaction t
-            WHERE t.receiverUserId = :userId
-            ORDER BY t.createdAt DESC
-        """)
-    Page<Transaction> findByReceiverUserId(@Param("userId") UUID userId, Pageable pageable);
-
     @Query("""
             SELECT COUNT(t) FROM Transaction t
             WHERE t.userId = :userId

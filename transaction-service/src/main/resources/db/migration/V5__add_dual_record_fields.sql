@@ -1,8 +1,3 @@
--- Migration: Add dual record support for transactions
--- This migration adds new columns for dual-record transaction pattern
--- where each transfer creates 2 records: one for sender, one for receiver
-
--- Add new columns for dual record pattern
 ALTER TABLE transaction_oltp.transactions
     ADD COLUMN IF NOT EXISTS user_id UUID,
     ADD COLUMN IF NOT EXISTS wallet_id UUID,
@@ -11,8 +6,6 @@ ALTER TABLE transaction_oltp.transactions
     ADD COLUMN IF NOT EXISTS counterparty_name VARCHAR(255),
     ADD COLUMN IF NOT EXISTS counterparty_phone VARCHAR(50);
 
--- Migrate existing data
--- For TRANSFER_OUT transactions
 UPDATE transaction_oltp.transactions
 SET
     user_id = sender_user_id,
@@ -23,7 +16,6 @@ SET
     counterparty_phone = receiver_phone
 WHERE type = 'TRANSFER_OUT';
 
--- For TOP_UP transactions (user is the receiver)
 UPDATE transaction_oltp.transactions
 SET
     user_id = receiver_user_id,
@@ -34,12 +26,10 @@ SET
     counterparty_phone = NULL
 WHERE type = 'TOP_UP';
 
--- Set NOT NULL constraint after data migration
 ALTER TABLE transaction_oltp.transactions
     ALTER COLUMN user_id SET NOT NULL,
     ALTER COLUMN wallet_id SET NOT NULL;
 
--- Create indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_transactions_user_id
     ON transaction_oltp.transactions(user_id);
 
@@ -55,7 +45,6 @@ CREATE INDEX IF NOT EXISTS idx_transactions_user_status
 CREATE INDEX IF NOT EXISTS idx_transactions_user_created
     ON transaction_oltp.transactions(user_id, created_at DESC);
 
--- Add comment
 COMMENT ON COLUMN transaction_oltp.transactions.user_id IS 'Primary user (owner) of this transaction record';
 COMMENT ON COLUMN transaction_oltp.transactions.wallet_id IS 'Primary wallet involved in this transaction';
 COMMENT ON COLUMN transaction_oltp.transactions.counterparty_user_id IS 'The other party in the transaction (null for top-up)';

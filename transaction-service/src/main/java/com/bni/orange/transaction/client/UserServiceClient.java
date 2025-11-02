@@ -40,7 +40,7 @@ public class UserServiceClient extends BaseServiceClient {
                     .queryParam("phone", phoneNumber)
                     .build())
                 .header("Authorization", "Bearer " + accessToken),
-            new ParameterizedTypeReference<ApiResponse<UserProfileResponse>>() {},
+            new ParameterizedTypeReference<>() {},
             notFoundMapper(ErrorCode.USER_NOT_FOUND, "User not found with phone number: " + phoneNumber)
         );
     }
@@ -52,7 +52,7 @@ public class UserServiceClient extends BaseServiceClient {
             uriSpec -> uriSpec
                 .uri(uriBuilder -> uriBuilder.path("/internal/v1/user/{id}").build(userId))
                 .header("Authorization", "Bearer " + accessToken),
-            new ParameterizedTypeReference<>() {},
+            new ParameterizedTypeReference<ApiResponse<UserProfileResponse>>() {},
             notFoundMapper(ErrorCode.USER_NOT_FOUND, "User not found with ID: " + userId)
         );
     }

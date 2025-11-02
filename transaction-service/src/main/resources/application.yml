@@ -60,6 +60,10 @@ orange:
     reference:
       prefix: "TRX"
       date-format: "yyyyMMdd"
+    limit:
+      transfer:
+        min-amount: 10000
+        max-amount: 10000000
 
   # BNI Virtual Account Integration
   integration:

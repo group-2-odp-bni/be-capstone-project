@@ -127,7 +127,7 @@ public class TopUpService {
                 throw be;
             }
             log.error("Error during top-up initiation", e);
-            throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR, e.getMessage());
+            throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -158,10 +158,6 @@ public class TopUpService {
                 .counterpartyName(config.getProviderName())
                 .counterpartyPhone(null)
                 .description("Top-up via " + config.getProviderName())
-                .senderUserId(userId)
-                .senderWalletId(request.walletId())
-                .receiverUserId(userId)
-                .receiverWalletId(request.walletId())
                 .build()
         );
         log.info("Created transaction: {}", transactionRef);

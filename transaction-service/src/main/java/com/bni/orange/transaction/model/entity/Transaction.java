@@ -84,30 +84,6 @@ public class Transaction {
     @Column(name = "counterparty_phone", length = 50)
     private String counterpartyPhone;
 
-    @Deprecated
-    @Column(name = "sender_user_id")
-    private UUID senderUserId;
-
-    @Deprecated
-    @Column(name = "sender_wallet_id")
-    private UUID senderWalletId;
-
-    @Deprecated
-    @Column(name = "receiver_user_id")
-    private UUID receiverUserId;
-
-    @Deprecated
-    @Column(name = "receiver_wallet_id")
-    private UUID receiverWalletId;
-
-    @Deprecated
-    @Column(name = "receiver_name", length = 255)
-    private String receiverName;
-
-    @Deprecated
-    @Column(name = "receiver_phone", length = 50)
-    private String receiverPhone;
-
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
@@ -188,16 +164,6 @@ public class Transaction {
 
     public boolean isCredit() {
         return type != null && type.isCredit();
-    }
-
-    @Deprecated
-    public TransactionType getDirectionForUser(UUID targetUserId) {
-        if (senderUserId != null && senderUserId.equals(targetUserId)) {
-            return TransactionType.TRANSFER_OUT;
-        } else if (receiverUserId != null && receiverUserId.equals(targetUserId)) {
-            return TransactionType.TRANSFER_IN;
-        }
-        throw new IllegalArgumentException("User is not part of this transaction");
     }
 
     public void calculateTotalAmount() {

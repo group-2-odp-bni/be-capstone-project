@@ -19,7 +19,7 @@ public class TopUpEventPublisher {
     public void publishTopUpInitiated(Transaction transaction, VirtualAccount virtualAccount) {
         try {
             var event = eventFactory.createTopUpInitiatedEvent(transaction, virtualAccount);
-            var key = transaction.getSenderUserId().toString();
+            var key = transaction.getUserId().toString();
 
             eventPublisher.publish(topicProperties.topUpInitiated(), key, event);
 
@@ -35,7 +35,7 @@ public class TopUpEventPublisher {
     public void publishTopUpCompleted(Transaction transaction, VirtualAccount virtualAccount) {
         try {
             var event = eventFactory.createTopUpCompletedEvent(transaction, virtualAccount);
-            var key = transaction.getSenderUserId().toString();
+            var key = transaction.getUserId().toString();
 
             eventPublisher.publish(topicProperties.topUpCompleted(), key, event);
 
@@ -48,7 +48,7 @@ public class TopUpEventPublisher {
     public void publishTopUpFailed(Transaction transaction, VirtualAccount virtualAccount, String failureReason) {
         try {
             var event = eventFactory.createTopUpFailedEvent(transaction, virtualAccount, failureReason);
-            var key = transaction.getSenderUserId().toString();
+            var key = transaction.getUserId().toString();
 
             eventPublisher.publish(topicProperties.topUpFailed(), key, event);
 
@@ -64,7 +64,7 @@ public class TopUpEventPublisher {
     public void publishTopUpExpired(Transaction transaction, VirtualAccount virtualAccount) {
         try {
             var event = eventFactory.createTopUpExpiredEvent(transaction, virtualAccount);
-            var key = transaction.getSenderUserId().toString();
+            var key = transaction.getUserId().toString();
 
             eventPublisher.publish(topicProperties.topUpExpired(), key, event);
 
@@ -79,7 +79,7 @@ public class TopUpEventPublisher {
     public void publishTopUpCancelled(Transaction transaction, VirtualAccount virtualAccount) {
         try {
             var event = eventFactory.createTopUpCancelledEvent(transaction, virtualAccount);
-            var key = transaction.getSenderUserId().toString();
+            var key = transaction.getUserId().toString();
 
             eventPublisher.publish(topicProperties.topUpCancelled(), key, event);
 

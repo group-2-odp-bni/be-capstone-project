@@ -4,6 +4,7 @@ import com.bni.orange.transaction.client.AuthServiceClient;
 import com.bni.orange.transaction.client.UserServiceClient;
 import com.bni.orange.transaction.client.WalletServiceClient;
 import com.bni.orange.transaction.config.properties.KafkaTopicProperties;
+import com.bni.orange.transaction.config.properties.TransferLimitProperties;
 import com.bni.orange.transaction.error.BusinessException;
 import com.bni.orange.transaction.error.ErrorCode;
 import com.bni.orange.transaction.event.EventPublisher;
@@ -57,6 +58,7 @@ public class TransferService {
     private final KafkaTopicProperties topicProperties;
     private final QuickTransferService quickTransferService;
     private final Executor virtualThreadTaskExecutor;
+    private final TransferLimitProperties transferLimitProperties;
 
     @Value("${orange.transaction.fee.transfer:0}")
     private BigDecimal transferFee;
@@ -156,8 +158,12 @@ public class TransferService {
             return transactionMapper.toResponse(existing);
         }
 
-        if (request.amount().compareTo(BigDecimal.ONE) < 0) {
-            throw new BusinessException(ErrorCode.INVALID_AMOUNT, "Amount must be at least 1.00");
+        if (request.amount().compareTo(transferLimitProperties.minAmount()) < 0 ||
+            request.amount().compareTo(transferLimitProperties.maxAmount()) > 0) {
+            throw new BusinessException(
+                ErrorCode.INVALID_AMOUNT,
+                "Transfer amount must be between %s and %s".formatted(transferLimitProperties.minAmount(), transferLimitProperties.maxAmount())
+            );
         }
 
         if (request.receiverUserId().equals(senderUserId)) {
@@ -450,12 +456,6 @@ public class TransferService {
             .counterpartyPhone(null)
             .notes(senderTransaction.getNotes())
             .description("Transfer from sender")
-            .senderUserId(senderTransaction.getSenderUserId())
-            .senderWalletId(senderTransaction.getSenderWalletId())
-            .receiverUserId(senderTransaction.getReceiverUserId())
-            .receiverWalletId(senderTransaction.getReceiverWalletId())
-            .receiverName(senderTransaction.getReceiverName())
-            .receiverPhone(senderTransaction.getReceiverPhone())
             .build();
     }
 
@@ -549,12 +549,6 @@ public class TransferService {
             .counterpartyPhone(receiverInfo.phoneNumber())
             .notes(request.notes())
             .description("Transfer to " + receiverInfo.name())
-            .senderUserId(senderUserId)
-            .senderWalletId(request.senderWalletId())
-            .receiverUserId(request.receiverUserId())
-            .receiverWalletId(request.receiverWalletId())
-            .receiverName(receiverInfo.name())
-            .receiverPhone(receiverInfo.phoneNumber())
             .build();
 
         senderTransaction.calculateTotalAmount();
