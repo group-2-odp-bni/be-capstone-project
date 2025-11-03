@@ -52,13 +52,13 @@ variable "subnet_cidr" {
 variable "master_machine_type" {
   description = "GCP machine type for K3s master node (e.g., e2-medium, e2-standard-2)"
   type        = string
-  default     = "e2-small" # 2 vCPU, 2 GB RAM - sufficient for K3s master
+  default     = "e2-standard-2" # 2 vCPU, 8 GB RAM - recommended for production
 }
 
 variable "master_disk_size" {
   description = "Boot disk size for master node in GB"
   type        = number
-  default     = 30
+  default     = 50
 }
 
 variable "master_disk_type" {

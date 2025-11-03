@@ -104,6 +104,8 @@ resource "google_compute_instance" "master" {
   lifecycle {
     ignore_changes = [
       metadata_startup_script, # Prevent rerun on every apply
+      boot_disk[0].initialize_params[0].image, # Prevent replacement on image updates
+      metadata, # Ignore SSH key changes from Google Console
     ]
   }
 }
@@ -178,6 +180,9 @@ resource "google_compute_instance" "worker" {
   lifecycle {
     ignore_changes = [
       metadata_startup_script,
+      boot_disk[0].initialize_params[0].image, # Prevent replacement on image updates
+      metadata, # Ignore SSH key changes from Google Console
+      attached_disk, # Ignore dynamically attached PVCs from Kubernetes
     ]
   }
 }

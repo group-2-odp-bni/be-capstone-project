@@ -17,6 +17,7 @@ import com.bni.orange.transaction.model.enums.TransactionType;
 import com.bni.orange.transaction.model.request.RecipientLookupRequest;
 import com.bni.orange.transaction.model.request.TransferConfirmRequest;
 import com.bni.orange.transaction.model.request.TransferInitiateRequest;
+import com.bni.orange.transaction.model.request.internal.BalanceUpdateRequest;
 import com.bni.orange.transaction.model.request.internal.BalanceValidateRequest;
 import com.bni.orange.transaction.model.response.BalanceResponse;
 import com.bni.orange.transaction.model.response.RecipientLookupResponse;
@@ -335,7 +336,7 @@ public class TransferService {
     }
 
     private BalanceResponse debitSender(Transaction transaction) {
-        var balanceUpdateRequest = com.bni.orange.transaction.model.request.internal.BalanceUpdateRequest.builder()
+        var balanceUpdateRequest = BalanceUpdateRequest.builder()
             .walletId(transaction.getWalletId())
             .delta(transaction.getTotalAmount().negate())
             .referenceId(transaction.getIdempotencyKey() + "-sender")
@@ -360,7 +361,7 @@ public class TransferService {
     }
 
     private BalanceResponse creditReceiver(Transaction transaction) {
-        var balanceUpdateRequest = com.bni.orange.transaction.model.request.internal.BalanceUpdateRequest.builder()
+        var balanceUpdateRequest = BalanceUpdateRequest.builder()
             .walletId(transaction.getCounterpartyWalletId())
             .delta(transaction.getAmount())
             .referenceId(transaction.getIdempotencyKey() + "-receiver")
@@ -387,7 +388,7 @@ public class TransferService {
     private void reverseSenderDebit(Transaction transaction) {
         log.warn("Reversing sender debit for transaction: {}", transaction.getTransactionRef());
 
-        var balanceUpdateRequest = com.bni.orange.transaction.model.request.internal.BalanceUpdateRequest.builder()
+        var balanceUpdateRequest = BalanceUpdateRequest.builder()
             .walletId(transaction.getWalletId())
             .delta(transaction.getTotalAmount())
             .referenceId(transaction.getIdempotencyKey() + "-sender-reversal")

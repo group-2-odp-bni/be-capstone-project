@@ -63,7 +63,7 @@ spring:
             - id: transaction-service
               uri: http://transaction-service:8080
               predicates:
-                - Path=/api/v1/transfers/**, /api/v1/transactions/**, /api/v1/quick-transfers/**, /api/v1/topup/**
+                - Path=/api/v1/transfers/**, /api/v1/transactions/**, /api/v1/quick-transfers/**, /api/v1/topup/**, /api/v1/contacts/**
               filters:
                 - name: RequestRateLimiter
                   args:

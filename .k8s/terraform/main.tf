@@ -116,9 +116,10 @@ module "compute" {
   ssh_user            = var.ssh_user
 
   # Feature flags
-  enable_preemptible_vms = var.enable_preemptible_vms
-  enable_monitoring      = var.enable_monitoring
-  enable_external_ip     = var.enable_external_ip
+  enable_preemptible_vms  = var.enable_preemptible_vms
+  enable_monitoring       = var.enable_monitoring
+  enable_external_ip      = var.enable_external_ip
+  use_static_ip_for_master = false  # Static IP already exists manually (orange-wallet-vpn-static-ip)
 
   labels = local.common_labels
 

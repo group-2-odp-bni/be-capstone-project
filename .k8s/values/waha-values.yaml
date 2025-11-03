@@ -30,14 +30,12 @@ secret:
 config:
   timezone: "Asia/Jakarta"
 
-  # CRITICAL: Use NOWEB for lightweight deployment
-  # NOWEB uses @whiskeysockets/baileys (no Chromium)
-  # Perfect for text-only OTP messages
-  whatsappEngine: "NOWEB"
+  # Based on research: Use GOWS for minimal resource OTP engine
+  whatsappEngine: "GOWS"
 
   # Minimal logging for performance
   logFormat: "PRETTY"  # PRETTY is lighter than JSON
-  logLevel: "info"     # info is sufficient, avoid debug
+  logLevel: "warn"     # Per research, use warn to reduce verbosity
 
   # Disable file management (OTP is text-only)
   filesLifetime: 0
@@ -48,9 +46,9 @@ config:
   webhookEvents: "message.ack,session.status"
 
   # Session Management
-  autoStartDelay: 3      # Faster startup for NOWEB
+  autoStartDelay: 3
   restartAllSessions: true
-  workerId: "waha-noweb-otp"
+  workerId: "waha-gows-otp" # Changed to gows
   printQR: true
 
 # Persistent Storage - Minimized for OTP use case
@@ -69,15 +67,15 @@ persistence:
     accessMode: ReadWriteOnce
     mountPath: /app/.media
 
-# Resource Limits - Optimized for NOWEB
-# Based on research: NOWEB uses 128-256MB RAM
+# Resource Limits - Aligned with NODE_OPTIONS max-old-space-size
+# NODE_OPTIONS requires 200MB + overhead = 256Mi minimum
 resources:
   requests:
-    memory: "128Mi"     # Reduced from 256Mi
-    cpu: "100m"         # Reduced from 200m
+    memory: "256Mi"
+    cpu: "100m"
   limits:
-    memory: "256Mi"     # Reduced from 512Mi (NOWEB is lightweight)
-    cpu: "200m"         # Reduced from 500m
+    memory: "512Mi"     # Sufficient headroom for GOWS engine
+    cpu: "500m"
 
 # Health Checks - Adjusted for NOWEB
 healthcheck:
@@ -93,7 +91,7 @@ healthcheck:
     failureThreshold: 5       # More tolerant
 
 # Additional Environment Variables for Optimization
-# These will be added to deployment template
+# Based on comprehensive WAHA optimization research
 additionalEnv:
   # Disable file handling (not needed for OTP)
   - name: WAHA_FILES_ENABLED
@@ -111,11 +109,21 @@ additionalEnv:
   - name: WAHA_SWAGGER_ENABLED
     value: "false"
 
-  # Performance tuning
-  - name: NODE_OPTIONS
-    value: "--max-old-space-size=200"  # Limit Node.js heap to 200MB
+  # CRITICAL: Ignore non-essential events (MAJOR CPU/Memory reduction)
+  - name: WAHA_SESSION_CONFIG_IGNORE_GROUPS
+    value: "true"
+  - name: WAHA_SESSION_CONFIG_IGNORE_CHANNELS
+    value: "true"
+  - name: WAHA_SESSION_CONFIG_IGNORE_STATUS
+    value: "true"
+  - name: WAHA_SESSION_CONFIG_IGNORE_BROADCAST
+    value: "true"
 
-  # CRITICAL: Disable API key for health endpoints (fix 401 on probes)
+  # Disable dashboard (not needed in production OTP)
+  - name: WAHA_DASHBOARD_ENABLED
+    value: "false"
+
+  # CRITICAL: API key strategy for health endpoints
   - name: WAHA_HEALTH_MEDIA_FILES_THRESHOLD_MB
     value: "100"
   - name: WAHA_API_KEY_STRATEGY

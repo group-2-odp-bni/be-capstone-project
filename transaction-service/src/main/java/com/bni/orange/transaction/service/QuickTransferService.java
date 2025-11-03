@@ -4,10 +4,13 @@ import com.bni.orange.transaction.error.BusinessException;
 import com.bni.orange.transaction.error.ErrorCode;
 import com.bni.orange.transaction.model.entity.QuickTransfer;
 import com.bni.orange.transaction.model.request.QuickTransferAddRequest;
+import com.bni.orange.transaction.model.response.PageResponse;
 import com.bni.orange.transaction.model.response.QuickTransferResponse;
 import com.bni.orange.transaction.repository.QuickTransferRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -151,6 +154,39 @@ public class QuickTransferService {
         log.info("New quick transfer auto-added for user: {}", userId);
     }
 
+    @Transactional(readOnly = true)
+    public PageResponse<QuickTransferResponse> getQuickTransfers(UUID userId, int page, int size) {
+        Objects.requireNonNull(userId, "userId cannot be null");
+
+        var pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "usageCount", "lastUsedAt"));
+        var quickTransferPage = quickTransferRepository.findByUserId(userId, pageable);
+
+        return toPageResponse(quickTransferPage, page, size);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<QuickTransferResponse> searchQuickTransfers(UUID userId, String query, int page, int size) {
+        Objects.requireNonNull(userId, "userId cannot be null");
+
+        if (query == null || query.isBlank()) {
+            return PageResponse.empty(page, size);
+        }
+
+        var pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "recipientName"));
+        var quickTransferPage = quickTransferRepository.findByUserIdAndSearchTermPaginated(userId, query.trim(), pageable);
+
+        return toPageResponse(quickTransferPage, page, size);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<QuickTransferResponse> getQuickTransferByRecipientId(UUID userId, UUID recipientUserId) {
+        Objects.requireNonNull(userId, "userId cannot be null");
+        Objects.requireNonNull(recipientUserId, "recipientUserId cannot be null");
+
+        return quickTransferRepository.findByUserIdAndRecipientUserId(userId, recipientUserId)
+            .map(this::toResponse);
+    }
+
     private QuickTransferResponse toResponse(QuickTransfer quickTransfer) {
         return QuickTransferResponse.builder()
             .id(quickTransfer.getId())
@@ -163,6 +199,24 @@ public class QuickTransferService {
             .usageCount(quickTransfer.getUsageCount())
             .displayOrder(quickTransfer.getDisplayOrder())
             .createdAt(quickTransfer.getCreatedAt())
+            .build();
+    }
+
+    private PageResponse<QuickTransferResponse> toPageResponse(Page<QuickTransfer> page, int pageNumber, int pageSize) {
+        var content = page.getContent().stream()
+            .map(this::toResponse)
+            .toList();
+
+        return PageResponse.<QuickTransferResponse>builder()
+            .content(content)
+            .page(PageResponse.PageMetadata.builder()
+                .number(pageNumber)
+                .size(pageSize)
+                .totalPages(page.getTotalPages())
+                .totalElements(page.getTotalElements())
+                .first(page.isFirst())
+                .last(page.isLast())
+                .build())
             .build();
     }
 }

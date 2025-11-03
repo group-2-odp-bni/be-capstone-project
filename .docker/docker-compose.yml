@@ -95,24 +95,36 @@ services:
       - ./waha/sessions:/app/.sessions
       - ./waha/media:/app/.media
     environment:
+      # Core GOWS engine configuration
       - WHATSAPP_DEFAULT_ENGINE=GOWS
       - WAHA_LOG_LEVEL=warn
       - WHATSAPP_DOWNLOAD_MEDIA=false
+      - WAHA_FILES_ENABLED=false
+
+      # Disable UI and documentation (security & resource optimization)
       - WAHA_DASHBOARD_ENABLED=false
       - WAHA_SWAGGER_ENABLED=false
+
+      # CRITICAL: Ignore non-essential events (research-backed optimization)
       - WAHA_SESSION_CONFIG_IGNORE_GROUPS=true
       - WAHA_SESSION_CONFIG_IGNORE_CHANNELS=true
       - WAHA_SESSION_CONFIG_IGNORE_STATUS=true
       - WAHA_SESSION_CONFIG_IGNORE_BROADCAST=true
+
+      # Service configuration
       - WAHA_BASE_URL=http://localhost:3000
       - WHATSAPP_API_PORT=3000
       - TZ=Asia/Jakarta
       - WAHA_WORKER_ID=waha-gows-otp
       - WHATSAPP_RESTART_ALL_SESSIONS=True
       - WAHA_PRINT_QR=True
+
+      # Webhook configuration
       - WHATSAPP_HOOK_URL=http://host.docker.internal:8085/api/webhooks/waha
       - WHATSAPP_HOOK_EVENTS=message.ack,session.status
       - WHATSAPP_HOOK_HMAC_KEY=${WAHA_WEBHOOK_HMAC_SECRET:-64eb6963dd30bbe9786cb9193f9eabee6ddac7e9aeb0deb6fc72a1bd065abb52}
+
+      # Authentication (keeping for backward compatibility, dashboard disabled anyway)
       - WAHA_API_KEY=${WAHA_API_KEY:-f5010a544c324fc483623e2031b2b92f}
       - WAHA_DASHBOARD_USERNAME=admin
       - WAHA_DASHBOARD_PASSWORD=76a63dc99b9c426999aac835f88bb6dab65e47887a8b706d034ea4ef7c13507a
@@ -131,7 +143,7 @@ services:
           memory: 512M
         reservations:
           cpus: '0.1'
-          memory: 105M
+          memory: 256M
 
 #  notification-worker:
 #    build:

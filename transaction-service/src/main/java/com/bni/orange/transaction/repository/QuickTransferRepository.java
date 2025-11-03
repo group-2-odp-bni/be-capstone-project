@@ -1,6 +1,8 @@
 package com.bni.orange.transaction.repository;
 
 import com.bni.orange.transaction.model.entity.QuickTransfer;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -44,4 +46,21 @@ public interface QuickTransferRepository extends JpaRepository<QuickTransfer, UU
             ORDER BY qt.usageCount DESC, qt.lastUsedAt DESC
         """)
     List<QuickTransfer> findTopByUserId(@Param("userId") UUID userId);
+
+    // Paginated queries for contact management
+    Page<QuickTransfer> findByUserId(UUID userId, Pageable pageable);
+
+    @Query("""
+    SELECT qt FROM QuickTransfer qt
+    WHERE qt.userId = :userId
+          AND (
+            LOWER(qt.recipientName) LIKE LOWER(CONCAT('%', :searchTerm, '%'))
+            OR LOWER(qt.recipientPhone) LIKE LOWER(CONCAT('%', :searchTerm, '%'))
+          )
+    """)
+    Page<QuickTransfer> findByUserIdAndSearchTermPaginated(
+        @Param("userId") UUID userId,
+        @Param("searchTerm") String searchTerm,
+        Pageable pageable
+    );
 }
