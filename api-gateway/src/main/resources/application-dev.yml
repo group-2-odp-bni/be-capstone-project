@@ -100,7 +100,7 @@ orange:
 
   security:
     ip-blocking-enabled: true
-    allow-localhost-blocking: true  # Enable for testing IP blocking on localhost
+    allow-localhost-blocking: false
     violation-threshold: 10
     violation-window: 5m
     block-duration: 1h

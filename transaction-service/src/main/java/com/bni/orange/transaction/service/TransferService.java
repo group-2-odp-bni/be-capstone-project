@@ -418,7 +418,7 @@ public class TransferService {
         receiverTransaction.markAsSuccess();
         var savedReceiverTxn = transactionRepository.save(receiverTransaction);
 
-        createLedgerEntries(senderTransaction, senderBalance, receiverBalance, senderTransaction.getUserId());
+        createLedgerEntries(savedSenderTxn, savedReceiverTxn, senderBalance, receiverBalance, savedSenderTxn.getUserId());
 
         quickTransferService.addOrUpdateFromTransaction(
             savedSenderTxn.getUserId(),
@@ -433,8 +433,8 @@ public class TransferService {
         eventPublisher.publish(topic, savedSenderTxn.getId().toString(), senderEvent);
         eventPublisher.publish(topic, savedReceiverTxn.getId().toString(), receiverEvent);
 
-        log.info("Transfer completed successfully: {} (sender: {}, receiver: {})",
-            senderTransaction.getTransactionRef(), savedSenderTxn.getId(), savedReceiverTxn.getId());
+        log.info("Transfer completed successfully: ref={} (sender_id: {}, receiver_id: {})",
+            savedSenderTxn.getTransactionRef(), savedSenderTxn.getId(), savedReceiverTxn.getId());
         return transactionMapper.toResponse(savedSenderTxn);
     }
 
@@ -469,28 +469,29 @@ public class TransferService {
     }
 
     private void createLedgerEntries(
-        Transaction transaction,
+        Transaction senderTransaction,
+        Transaction receiverTransaction,
         BalanceResponse senderBalance,
         BalanceResponse receiverBalance,
         UUID performedByUserId
     ) {
         var senderEntry = TransactionLedger.createDebitEntry(
-            transaction.getId(),
-            transaction.getTransactionRef(),
-            transaction.getWalletId(),
-            transaction.getUserId(),
-            transaction.getTotalAmount(),
+            senderTransaction.getId(),
+            senderTransaction.getTransactionRef(),
+            senderTransaction.getWalletId(),
+            senderTransaction.getUserId(),
+            senderTransaction.getTotalAmount(),
             senderBalance.balanceBefore(),
-            "Transfer to " + transaction.getCounterpartyName()
+            "Transfer to " + senderTransaction.getCounterpartyName()
         );
         senderEntry.setPerformedByUserId(performedByUserId);
 
         var receiverEntry = TransactionLedger.createCreditEntry(
-            transaction.getId(),
-            transaction.getTransactionRef(),
-            transaction.getCounterpartyWalletId(),
-            transaction.getCounterpartyUserId(),
-            transaction.getAmount(),
+            receiverTransaction.getId(),
+            receiverTransaction.getTransactionRef(),
+            receiverTransaction.getWalletId(),
+            receiverTransaction.getUserId(),
+            receiverTransaction.getAmount(),
             receiverBalance.balanceBefore(),
             "Transfer from sender"
         );
@@ -499,8 +500,8 @@ public class TransferService {
         ledgerRepository.save(senderEntry);
         ledgerRepository.save(receiverEntry);
 
-        log.debug("Ledger entries created for transaction: {}, performedBy: {}",
-            transaction.getTransactionRef(), performedByUserId);
+        log.debug("Ledger entries created for ref: {}, performedBy: {}",
+            senderTransaction.getTransactionRef(), performedByUserId);
     }
 
     private RecipientLookupResponse buildLookupResponse(
