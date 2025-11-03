@@ -13,6 +13,7 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.List;
 
 public interface WalletMemberRepository extends JpaRepository<WalletMember, UUID> {
 
@@ -27,7 +28,9 @@ public interface WalletMemberRepository extends JpaRepository<WalletMember, UUID
 
   Page<WalletMember> findByWalletId(UUID walletId, Pageable pageable);
 
-  long countByWalletIdAndStatus(UUID walletId, WalletMemberStatus status);
+  // long countByWalletIdAndStatus(UUID walletId, WalletMemberStatus status);
+  long countByWalletIdAndStatusIn(UUID walletId, List<WalletMemberStatus> statuses);
+
   void deleteByWalletIdAndUserId(java.util.UUID walletId, java.util.UUID userId);
 }
 

@@ -12,7 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import com.bni.orange.wallet.exception.business.ResourceNotFoundException;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
@@ -29,7 +29,7 @@ public class WalletPolicyQueryServiceImpl implements WalletPolicyQueryService {
   @Transactional(readOnly = true)
   public WalletPolicyResponse getWalletPolicy(UUID walletId) {
     WalletRead wallet = walletReadRepo.findById(walletId)
-        .orElseThrow(() -> new IllegalArgumentException("Wallet not found"));
+        .orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
 
     return mapToResponse(loadPolicyOrThrow(wallet.getType()));
   }

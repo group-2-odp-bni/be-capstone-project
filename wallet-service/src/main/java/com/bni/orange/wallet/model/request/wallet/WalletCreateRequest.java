@@ -9,4 +9,5 @@ public class WalletCreateRequest {
   @NotNull private WalletType type;       // PERSONAL | SHARED
   @Size(max=160) private String name;
   private Map<String, Object> metadata;
+  private Boolean setAsDefaultReceive;
 }

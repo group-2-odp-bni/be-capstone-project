@@ -1,6 +1,7 @@
 package com.bni.orange.wallet.service.command.impl;
 
 import com.bni.orange.wallet.exception.business.ResourceNotFoundException;
+import com.bni.orange.wallet.model.entity.UserReceivePrefs;
 import com.bni.orange.wallet.model.entity.Wallet;
 import com.bni.orange.wallet.model.entity.WalletMember;
 import com.bni.orange.wallet.model.entity.read.WalletRead;
@@ -13,6 +14,7 @@ import com.bni.orange.wallet.model.request.wallet.WalletCreateRequest;
 import com.bni.orange.wallet.model.request.wallet.WalletUpdateRequest;
 import com.bni.orange.wallet.model.response.WalletDetailResponse;
 import com.bni.orange.wallet.repository.WalletRepository;
+import com.bni.orange.wallet.repository.UserReceivePrefsRepository;
 import com.bni.orange.wallet.repository.WalletMemberRepository;
 import com.bni.orange.wallet.repository.read.WalletReadRepository;
 import com.bni.orange.wallet.repository.read.WalletMemberReadRepository;
@@ -27,6 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.context.ApplicationEventPublisher;           // +++
 import com.bni.orange.wallet.domain.DomainEvents;                    // +++
+import org.springframework.security.access.AccessDeniedException;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -47,7 +50,7 @@ public class WalletCommandServiceImpl implements WalletCommandService {
   private final PermissionGuard guard;
   private final IdempotencyService idem;
   private final ApplicationEventPublisher appEvents;                // +++
-
+  private final UserReceivePrefsRepository prefsRepo;
   public WalletCommandServiceImpl(
       WalletRepository walletRepo,
       WalletMemberRepository walletMemberRepo,
@@ -58,7 +61,8 @@ public class WalletCommandServiceImpl implements WalletCommandService {
       ObjectMapper om,
       PermissionGuard guard,
       IdempotencyService idem,
-      ApplicationEventPublisher appEvents
+      ApplicationEventPublisher appEvents,
+      UserReceivePrefsRepository prefsRepo
   ) {
     this.walletRepo = walletRepo;
     this.walletMemberRepo = walletMemberRepo;
@@ -70,7 +74,7 @@ public class WalletCommandServiceImpl implements WalletCommandService {
     this.guard = guard;
     this.idem = idem;
     this.appEvents = appEvents;                                        // +++
-
+    this.prefsRepo =prefsRepo;
   }
 
   @Override
@@ -109,6 +113,12 @@ public class WalletCommandServiceImpl implements WalletCommandService {
     upsertWalletRead(saved,  true);
     upsertWalletMemberRead(saved.getId(), uid, WalletMemberRole.OWNER, WalletMemberStatus.ACTIVE);
     upsertUserWalletRead(uid, saved);
+    boolean wantDefault = Boolean.TRUE.equals(req.getSetAsDefaultReceive());
+    boolean hasDefault = prefsRepo.findById(uid).map(UserReceivePrefs::getDefaultWalletId).isPresent();
+
+    if (wantDefault || !hasDefault) {
+      markAsDefaultReceive(uid, saved.getId());
+    }
     var filtered = MetadataFilter.filter(saved.getMetadata());
     var dto = mapper.mergeDetail(
         walletReadRepo.findById(saved.getId()).orElseThrow(), saved, filtered);
@@ -224,4 +234,29 @@ public class WalletCommandServiceImpl implements WalletCommandService {
     try { return om.writeValueAsString(o); }
     catch (Exception e) { throw new RuntimeException(e); }
   }
+@Transactional
+private void markAsDefaultReceive(UUID userId, UUID newDefaultWalletId) {
+  userWalletReadRepo.findByUserIdAndWalletId(userId, newDefaultWalletId)
+      .orElseThrow(() -> new AccessDeniedException("You are not a member of this wallet"));
+
+  var prefs = prefsRepo.findById(userId)
+      .orElse(UserReceivePrefs.builder().userId(userId).build());
+  UUID oldDefault = prefs.getDefaultWalletId();
+
+  prefs.setDefaultWalletId(newDefaultWalletId);
+  prefs.setUpdatedAt(OffsetDateTime.now());
+  prefsRepo.save(prefs);
+
+  if (oldDefault != null && !oldDefault.equals(newDefaultWalletId)) {
+    walletReadRepo.findById(oldDefault).ifPresent(wr -> {
+      wr.setDefaultForUser(false);
+      walletReadRepo.save(wr);
+    });
+  }
+
+  WalletRead newWr = walletReadRepo.findById(newDefaultWalletId)
+      .orElseThrow(() -> new IllegalStateException("WalletRead data is inconsistent"));
+  newWr.setDefaultForUser(true);
+  walletReadRepo.save(newWr);
+}
 }
