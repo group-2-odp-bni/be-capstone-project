@@ -2,10 +2,10 @@ package com.bni.orange.transaction.controller;
 
 import com.bni.orange.transaction.model.enums.TransactionStatus;
 import com.bni.orange.transaction.model.response.ApiResponse;
+import com.bni.orange.transaction.model.response.PageResponse;
 import com.bni.orange.transaction.model.response.TransactionResponse;
 import com.bni.orange.transaction.service.TransactionHistoryService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -31,7 +31,7 @@ public class TransactionHistoryController {
 
     @GetMapping
     @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
-    public ResponseEntity<ApiResponse<Page<TransactionResponse>>> getUserTransactions(
+    public ResponseEntity<ApiResponse<PageResponse<TransactionResponse>>> getUserTransactions(
         @RequestParam(required = false) UUID walletId,
         @RequestParam(defaultValue = "0") int page,
         @RequestParam(defaultValue = "20") int size,
@@ -42,16 +42,16 @@ public class TransactionHistoryController {
         @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime endDate,
         @AuthenticationPrincipal Jwt jwt
     ) {
-        var response = historyService.getUserTransactions(
+        var pageResult = historyService.getUserTransactions(
             getUserIdFromJwt(jwt), walletId, status, startDate, endDate,
             PageRequest.of(page, size, Sort.by(direction, sortBy))
         );
-        return ResponseEntity.ok(ApiResponse.success(response));
+        return ResponseEntity.ok(ApiResponse.success(PageResponse.of(pageResult)));
     }
 
     @GetMapping("/all-wallets")
     @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
-    public ResponseEntity<ApiResponse<Page<TransactionResponse>>> getAllWalletTransactions(
+    public ResponseEntity<ApiResponse<PageResponse<TransactionResponse>>> getAllWalletTransactions(
         @RequestParam(defaultValue = "0") int page,
         @RequestParam(defaultValue = "20") int size,
         @RequestParam(defaultValue = "createdAt") String sortBy,
@@ -61,11 +61,11 @@ public class TransactionHistoryController {
         @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime endDate,
         @AuthenticationPrincipal Jwt jwt
     ) {
-        var response = historyService.getAllWalletTransactions(
+        var pageResult = historyService.getAllWalletTransactions(
             getUserIdFromJwt(jwt), status, startDate, endDate,
             PageRequest.of(page, size, Sort.by(direction, sortBy))
         );
-        return ResponseEntity.ok(ApiResponse.success(response));
+        return ResponseEntity.ok(ApiResponse.success(PageResponse.of(pageResult)));
     }
 
     @GetMapping("/{transactionId}")

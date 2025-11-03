@@ -19,6 +19,12 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
 
     Optional<Transaction> findByTransactionRef(String transactionRef);
 
+    /**
+     * Find transaction by ref AND userId (dual-record model safe)
+     * Returns the transaction record that belongs to the specified user
+     */
+    Optional<Transaction> findByTransactionRefAndUserId(String transactionRef, UUID userId);
+
     Optional<Transaction> findByIdempotencyKey(String idempotencyKey);
 
     @Query("""
