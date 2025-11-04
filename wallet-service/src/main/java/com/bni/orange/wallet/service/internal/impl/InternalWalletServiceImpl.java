@@ -7,16 +7,22 @@ import com.bni.orange.wallet.model.request.internal.BalanceUpdateRequest;
 import com.bni.orange.wallet.model.request.internal.BalanceValidateRequest;
 import com.bni.orange.wallet.model.request.internal.RoleValidateRequest;
 import com.bni.orange.wallet.model.response.internal.BalanceUpdateResponse;
+import com.bni.orange.wallet.model.response.internal.DefaultWalletResponse;
 import com.bni.orange.wallet.model.response.internal.RoleValidateResponse;
+import com.bni.orange.wallet.model.response.internal.UserWalletsResponse;
 import com.bni.orange.wallet.model.response.internal.ValidationResultResponse;
+import com.bni.orange.wallet.repository.UserReceivePrefsRepository;
 import com.bni.orange.wallet.repository.WalletInternalRepository;
 import com.bni.orange.wallet.repository.WalletMemberInternalRepository;
+import com.bni.orange.wallet.repository.WalletMemberRepository;
 import com.bni.orange.wallet.repository.WalletPolicyInternalRepository;
+import com.bni.orange.wallet.repository.read.WalletReadRepository;
 import com.bni.orange.wallet.service.internal.InternalWalletService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.bni.orange.wallet.repository.read.WalletReadRepository;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 @Transactional(readOnly = true)
@@ -26,18 +32,24 @@ public class InternalWalletServiceImpl implements InternalWalletService {
   private final WalletMemberInternalRepository memberRepo;
   private final WalletPolicyInternalRepository policyRepo;
   private final WalletReadRepository walletReadRepo;
+  private final UserReceivePrefsRepository userReceivePrefsRepo;
+  private final WalletMemberRepository walletMemberRepo;
   public record PolicyCheckResult(boolean allowed, String currency) {}
 
   public InternalWalletServiceImpl(
       WalletInternalRepository walletRepo,
       WalletMemberInternalRepository memberRepo,
       WalletPolicyInternalRepository policyRepo,
-      WalletReadRepository walletReadRepo
+      WalletReadRepository walletReadRepo,
+      UserReceivePrefsRepository userReceivePrefsRepo,
+      WalletMemberRepository walletMemberRepo
   ) {
     this.walletRepo = walletRepo;
     this.memberRepo = memberRepo;
     this.policyRepo = policyRepo;
     this.walletReadRepo=walletReadRepo;
+    this.userReceivePrefsRepo = userReceivePrefsRepo;
+    this.walletMemberRepo = walletMemberRepo;
   }
 
   @Override
@@ -125,11 +137,42 @@ public class InternalWalletServiceImpl implements InternalWalletService {
       }
     }
 
+    var details = new java.util.HashMap<String, Object>();
+    details.put("walletId", req.walletId());
+    details.put("currency", currency);
+
     return new RoleValidateResponse(
         allowed, code, message, mv.role(),
-        Map.of("walletId", req.walletId(),
-                  "currency", currency
-)
+        details
     );
+  }
+
+  @Override
+  public DefaultWalletResponse getDefaultWalletByUserId(UUID userId) {
+      return userReceivePrefsRepo
+          .findByUserId(userId)
+          .flatMap(prefs -> walletReadRepo.findById(prefs.getDefaultWalletId()))
+          .map(wallet -> DefaultWalletResponse.builder()
+              .userId(userId)
+              .hasDefaultWallet(true)
+              .walletId(wallet.getId())
+              .walletName(wallet.getName())
+              .walletType(wallet.getType())
+              .currency(wallet.getCurrency())
+              .build())
+          .orElseGet(() -> DefaultWalletResponse.builder()
+              .userId(userId)
+              .hasDefaultWallet(false)
+              .build());
+  }
+
+
+  @Override
+  public UserWalletsResponse getWalletsByUserId(UUID userId, boolean idsOnly) {
+    if (idsOnly) {
+      var ids = walletMemberRepo.findWalletIdsByUserId(userId);
+      return UserWalletsResponse.builder().walletIds(ids).build();
+    }
+    throw new UnsupportedOperationException("Full wallet details not supported via this internal method");
   }
 }

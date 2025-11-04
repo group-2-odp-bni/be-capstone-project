@@ -12,6 +12,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.util.List;
+import java.util.UUID;
+
 @Slf4j
 @Service
 public class UserServiceClient extends BaseServiceClient {
@@ -35,12 +38,24 @@ public class UserServiceClient extends BaseServiceClient {
         return executeGet(
             uriSpec -> uriSpec
                 .uri(uriBuilder -> uriBuilder
-                    .path("/api/v1/user/by-phone")
+                    .path("/internal/v1/user/by-phone")
                     .queryParam("phone", phoneNumber)
                     .build())
                 .header("Authorization", "Bearer " + accessToken),
-            new ParameterizedTypeReference<ApiResponse<UserProfileResponse>>() {},
+            new ParameterizedTypeReference<>() {},
             notFoundMapper(ErrorCode.USER_NOT_FOUND, "User not found with phone number: " + phoneNumber)
+        );
+    }
+
+    public Mono<UserProfileResponse> findById(UUID userId, String accessToken) {
+        log.debug("Finding user by ID: {}", userId);
+
+        return executeGet(
+            uriSpec -> uriSpec
+                .uri(uriBuilder -> uriBuilder.path("/internal/v1/user/{id}").build(userId))
+                .header("Authorization", "Bearer " + accessToken),
+            new ParameterizedTypeReference<ApiResponse<UserProfileResponse>>() {},
+            notFoundMapper(ErrorCode.USER_NOT_FOUND, "User not found with ID: " + userId)
         );
     }
 }

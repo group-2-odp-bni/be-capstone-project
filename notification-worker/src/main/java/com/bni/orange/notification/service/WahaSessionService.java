@@ -27,11 +27,24 @@ public class WahaSessionService {
     }
 
     public Mono<Void> startSession() {
-        log.info("Starting WhatsApp session");
-        return wahaApiClient.startSession()
-            .doOnSuccess(v ->
-                log.info("Session start request successful")
-            );
+        log.info("Starting WhatsApp session process...");
+        return getSessionStatus()
+            .flatMap(session -> {
+                String status = session.status();
+                if ("WORKING".equalsIgnoreCase(status)) {
+                    log.info("Session is already WORKING.");
+                    return Mono.empty();
+                }
+                log.warn("Session status is '{}', not 'WORKING'. Attempting to stop and restart.", status);
+                return wahaApiClient.stopSession(true)
+                    .then(wahaApiClient.startSession());
+            })
+            .onErrorResume(e -> {
+                log.warn("Could not get or check session status ({}). Proceeding with a fresh start attempt.", e.getMessage());
+                return wahaApiClient.startSession();
+            })
+            .doOnSuccess(v -> log.info("Session start request processed successfully."))
+            .then();
     }
 
     public Mono<Void> stopSession(boolean logout) {

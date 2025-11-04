@@ -1,0 +1,39 @@
+---
+# PVC for WAHA Sessions (QR codes, session data)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.name }}-sessions-pvc
+  namespace: {{ .Values.namespace | default "default" }}
+  labels:
+    app: {{ .Values.name }}
+    component: sessions-storage
+spec:
+  accessModes:
+    - {{ .Values.persistence.sessions.accessMode }}
+  {{- if .Values.persistence.sessions.storageClass }}
+  storageClassName: {{ .Values.persistence.sessions.storageClass }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.sessions.size }}
+
+---
+# PVC for WAHA Media Files (sent/received media)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.name }}-media-pvc
+  namespace: {{ .Values.namespace | default "default" }}
+  labels:
+    app: {{ .Values.name }}
+    component: media-storage
+spec:
+  accessModes:
+    - {{ .Values.persistence.media.accessMode }}
+  {{- if .Values.persistence.media.storageClass }}
+  storageClassName: {{ .Values.persistence.media.storageClass }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.media.size }}

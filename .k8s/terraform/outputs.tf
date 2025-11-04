@@ -11,13 +11,29 @@ output "master_internal_ip" {
   value       = module.compute.master_internal_ip
 }
 
+output "worker_external_ips" {
+  description = "External IP addresses of all K3s worker nodes"
+  value       = module.compute.worker_external_ips
+}
+
+output "worker_internal_ips" {
+  description = "Internal IP addresses of all K3s worker nodes"
+  value       = module.compute.worker_internal_ips
+}
+
+output "worker_names" {
+  description = "Names of all K3s worker nodes"
+  value       = module.compute.worker_instance_names
+}
+
+# Backward compatibility - returns first worker
 output "worker_external_ip" {
-  description = "External IP address of K3s worker node"
+  description = "[Deprecated] External IP of first worker node (use worker_external_ips)"
   value       = module.compute.worker_external_ip
 }
 
 output "worker_internal_ip" {
-  description = "Internal IP address of K3s worker node"
+  description = "[Deprecated] Internal IP of first worker node (use worker_internal_ips)"
   value       = module.compute.worker_internal_ip
 }
 
@@ -31,10 +47,6 @@ output "subnet_name" {
   value       = module.network.subnet_name
 }
 
-output "metallb_ip_range" {
-  description = "IP address range allocated for MetalLB load balancer"
-  value       = "${module.network.metallb_ip_range_start}-${module.network.metallb_ip_range_end}"
-}
 
 output "ssh_command_master" {
   description = "SSH command to connect to master node"
@@ -75,7 +87,7 @@ output "github_actions_setup" {
 # Quick reference summary
 output "deployment_summary" {
   description = "Summary of deployed infrastructure"
-  value = <<-EOT
+  value       = <<-EOT
 
     ========================================
     Orange Wallet K3s Infrastructure
@@ -91,16 +103,23 @@ output "deployment_summary" {
       - Machine Type: ${var.master_machine_type}
       - SSH: ssh ${var.ssh_user}@${module.compute.master_external_ip}
 
-    Worker Node:
-      - External IP: ${module.compute.worker_external_ip}
-      - Internal IP: ${module.compute.worker_internal_ip}
-      - Machine Type: ${var.worker_machine_type}
-      - SSH: ssh ${var.ssh_user}@${module.compute.worker_external_ip}
+    Worker Nodes (${var.worker_count} total):
+      %{for idx, ip in module.compute.worker_external_ips~}
+      Worker ${idx + 1}:
+        - External IP: ${ip}
+        - Internal IP: ${module.compute.worker_internal_ips[idx]}
+        - Machine Type: ${var.worker_machine_type}
+        - SSH: ssh ${var.ssh_user}@${ip}
+      %{endfor~}
 
     Network:
       - VPC: ${module.network.vpc_network_name}
       - Subnet: ${module.network.subnet_name}
-      - MetalLB IP Range: ${module.network.metallb_ip_range_start}-${module.network.metallb_ip_range_end}
+
+    Load Balancer (GCP External):
+      - External IP: ${module.load_balancer.ingress_ip}
+      - Instance Group: ${module.load_balancer.instance_group_name}
+      - Health Check: Monitoring NodePort :30080/healthz
 
     Next Steps:
       1. SSH to master: ssh ${var.ssh_user}@${module.compute.master_external_ip}
@@ -111,4 +130,25 @@ output "deployment_summary" {
 
     ========================================
   EOT
+}
+
+# Load Balancer Outputs
+output "ingress_external_ip" {
+  description = "External IP address for accessing the cluster via Load Balancer"
+  value       = module.load_balancer.ingress_ip
+}
+
+output "ingress_ip_name" {
+  description = "Name of the static external IP for ingress"
+  value       = module.load_balancer.ingress_ip_name
+}
+
+output "load_balancer_summary" {
+  description = "Load Balancer configuration summary"
+  value = {
+    external_ip     = module.load_balancer.ingress_ip
+    instance_group  = module.load_balancer.instance_group_name
+    health_check    = module.load_balancer.health_check_name
+    backend_service = module.load_balancer.backend_service_name
+  }
 }

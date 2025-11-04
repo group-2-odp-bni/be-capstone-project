@@ -30,13 +30,17 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(authorize -> authorize
                 .requestMatchers(
-                    "/api/v1/auth/request",
+                    "/api/v1/auth/login",
+                    "/api/v1/auth/register",
                     "/api/v1/auth/verify",
                     "/api/v1/auth/refresh",
                     "/api/v1/auth/resend-otp",
                     "/api/v1/pin/reset/request",
                     "/api/v1/pin/reset/verify",
-                    "/oauth2/jwks"
+                    "/oauth2/jwks",
+                    "/actuator/health",
+                    "/actuator/health/liveness",
+                    "/actuator/health/readiness"
                 )
                 .permitAll()
                 .anyRequest().authenticated()

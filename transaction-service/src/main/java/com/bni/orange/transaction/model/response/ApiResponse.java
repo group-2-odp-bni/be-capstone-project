@@ -2,48 +2,41 @@ package com.bni.orange.transaction.model.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Builder;
+import lombok.Getter;
 
-import java.time.OffsetDateTime;
+import java.time.Instant;
 
+@Getter
 @Builder
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public record ApiResponse<T>(
-    String status,
-    String message,
-    T data,
-    OffsetDateTime timestamp
-) {
+public class ApiResponse<T> {
+
+    private final String message;
+    private final T data;
+    private final ErrorDetail error;
+    @Builder.Default
+    private final Instant timestamp = Instant.now();
+    private final String path;
+
+    @Getter
+    @Builder
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class ErrorDetail {
+        private final String code;
+        private final String message;
+        private final Object details;
+    }
+
     public static <T> ApiResponse<T> success(T data) {
         return ApiResponse.<T>builder()
-            .status("success")
             .data(data)
-            .timestamp(OffsetDateTime.now())
             .build();
     }
 
     public static <T> ApiResponse<T> success(String message, T data) {
         return ApiResponse.<T>builder()
-            .status("success")
             .message(message)
             .data(data)
-            .timestamp(OffsetDateTime.now())
-            .build();
-    }
-
-    public static <T> ApiResponse<T> error(String message) {
-        return ApiResponse.<T>builder()
-            .status("error")
-            .message(message)
-            .timestamp(OffsetDateTime.now())
-            .build();
-    }
-
-    public static <T> ApiResponse<T> error(String message, T data) {
-        return ApiResponse.<T>builder()
-            .status("error")
-            .message(message)
-            .data(data)
-            .timestamp(OffsetDateTime.now())
             .build();
     }
 }

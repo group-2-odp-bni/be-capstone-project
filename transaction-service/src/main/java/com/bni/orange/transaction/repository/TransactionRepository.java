@@ -19,18 +19,24 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
 
     Optional<Transaction> findByTransactionRef(String transactionRef);
 
+    /**
+     * Find transaction by ref AND userId (dual-record model safe)
+     * Returns the transaction record that belongs to the specified user
+     */
+    Optional<Transaction> findByTransactionRefAndUserId(String transactionRef, UUID userId);
+
     Optional<Transaction> findByIdempotencyKey(String idempotencyKey);
 
     @Query("""
             SELECT t FROM Transaction t
-            WHERE t.senderUserId = :userId OR t.receiverUserId = :userId
+            WHERE t.userId = :userId
             ORDER BY t.createdAt DESC
         """)
     Page<Transaction> findByUserId(@Param("userId") UUID userId, Pageable pageable);
 
     @Query("""
             SELECT t FROM Transaction t
-            WHERE (t.senderUserId = :userId OR t.receiverUserId = :userId)
+            WHERE t.userId = :userId
             AND t.status = :status
             ORDER BY t.createdAt DESC
         """)
@@ -42,7 +48,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
 
     @Query("""
             SELECT t FROM Transaction t
-            WHERE (t.senderUserId = :userId OR t.receiverUserId = :userId)
+            WHERE t.userId = :userId
             AND t.createdAt BETWEEN :startDate AND :endDate
             ORDER BY t.createdAt DESC
         """)
@@ -54,22 +60,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
     );
 
     @Query("""
-            SELECT t FROM Transaction t
-            WHERE t.senderUserId = :userId
-            ORDER BY t.createdAt DESC
-        """)
-    Page<Transaction> findBySenderUserId(@Param("userId") UUID userId, Pageable pageable);
-
-    @Query("""
-            SELECT t FROM Transaction t
-            WHERE t.receiverUserId = :userId
-            ORDER BY t.createdAt DESC
-        """)
-    Page<Transaction> findByReceiverUserId(@Param("userId") UUID userId, Pageable pageable);
-
-    @Query("""
             SELECT COUNT(t) FROM Transaction t
-            WHERE (t.senderUserId = :userId OR t.receiverUserId = :userId)
+            WHERE t.userId = :userId
             AND t.status = 'PENDING'
         """)
     long countPendingTransactionsByUserId(@Param("userId") UUID userId);

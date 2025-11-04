@@ -114,8 +114,8 @@ public class WahaWebhookController {
     }
 
     private Mono<Void> handleMessageAck(WahaWebhookEvent event) {
-        String ackStatus = (String) event.payload().get("ack");
-        String messageId = (String) event.payload().get("id");
+        var ackStatus = event.payload().get("ack");
+        var messageId = event.payload().get("id");
 
         log.info("Message acknowledgment received. Message ID: {}, ACK: {}", messageId, ackStatus);
 

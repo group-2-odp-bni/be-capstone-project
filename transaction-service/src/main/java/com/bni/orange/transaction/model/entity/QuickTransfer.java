@@ -28,8 +28,7 @@ import java.util.UUID;
     name = "quick_transfers",
     schema = "transaction_oltp",
     uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"user_id", "recipient_user_id"}),
-        @UniqueConstraint(columnNames = {"wallet_id", "recipient_user_id"})
+        @UniqueConstraint(columnNames = {"user_id", "recipient_user_id"})
     }
 )
 public class QuickTransfer {
@@ -38,37 +37,33 @@ public class QuickTransfer {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "user_id", nullable = false)
+    @Column(nullable = false)
     private UUID userId;
 
-    @Column(name = "wallet_id")
-    private UUID walletId;
-
-    @Column(name = "recipient_user_id", nullable = false)
+    @Column(nullable = false)
     private UUID recipientUserId;
 
-    @Column(name = "recipient_name", nullable = false, length = 255)
+    @Column(nullable = false)
     private String recipientName;
 
-    @Column(name = "recipient_phone", nullable = false, length = 50)
+    @Column(nullable = false, length = 50)
     private String recipientPhone;
 
-    @Column(name = "recipient_avatar_initial", length = 1)
+    @Column(length = 1)
     private String recipientAvatarInitial;
 
-    @Column(name = "last_used_at")
     private OffsetDateTime lastUsedAt;
 
-    @Column(name = "usage_count", nullable = false)
+    @Column(nullable = false)
     private Integer usageCount;
 
-    @Column(name = "display_order", nullable = false)
+    @Column(nullable = false)
     private Integer displayOrder;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
+    @Column(nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
-    @Column(name = "updated_at", nullable = false)
+    @Column(nullable = false)
     private OffsetDateTime updatedAt;
 
     public static String getAvatarInitial(String name) {

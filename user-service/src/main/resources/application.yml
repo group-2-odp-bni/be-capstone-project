@@ -120,9 +120,16 @@ server:
 
 logging:
   level:
-    com.bni.orange.users: DEBUG
-    org.springframework.security: DEBUG
-    org.springframework.kafka: INFO
+    root: INFO
+    com.bni.orange: INFO
+    com.bni.orange.users: INFO
+    org.springframework.web: WARN
+    org.springframework.kafka: WARN
+    org.springframework.security: WARN
+    com.bni.orange.authentication: INFO
+    org.springframework.boot.actuate: ERROR
+    org.springframework.boot.actuate.endpoint.web: ERROR
+    org.springframework.boot.actuate.endpoint: ERROR
 
 management:
   endpoints:
