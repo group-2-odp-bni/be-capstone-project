@@ -118,7 +118,7 @@ public class WalletMemberController {
   private static String normalizePhone(String p) {
     if (p == null) return null;
     var s = p.trim().replaceAll("\\s+", "");
-    if (s.startsWith("0")) s = "+62" + s.substring(1); // opsional default ID
+    if (s.startsWith("0")) s = "+62" + s.substring(1);
     return s;
   }
   private static void validateE164(String p) {

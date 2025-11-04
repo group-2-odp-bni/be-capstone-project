@@ -33,8 +33,22 @@ public interface WalletMapper {
   @Mapping(target="updatedAt",       expression="java(oltp.getUpdatedAt())")
   WalletDetailResponse mergeDetail(WalletRead read, Wallet oltp, Map<String,Object> filteredMetadata);
 
+  @Mapping(target="id",               source="oltp.id")
+  @Mapping(target="userId",           source="oltp.userId")
+  @Mapping(target="currency",         source="oltp.currency")
+  @Mapping(target="status",           source="oltp.status")
+  @Mapping(target="type",             source="oltp.type")
+  @Mapping(target="name",             source="oltp.name")
+  @Mapping(target="balanceSnapshot",  source="oltp.balanceSnapshot")
+  @Mapping(target="defaultForUser",   source="isDefault")
+  @Mapping(target="metadata",         source="filteredMetadata")
+  @Mapping(target="createdAt",        source="oltp.createdAt")
+  @Mapping(target="updatedAt",        source="oltp.updatedAt")
+  WalletDetailResponse toDetailResponseFromWalletEntity(Wallet oltp, Map<String,Object> filteredMetadata, boolean isDefault);
+
   @Mapping(target="id",        expression="java(java.util.UUID.randomUUID())")
   @Mapping(target="userId",    source="userId")
+  @Mapping(target="name", expression="java(unquote(req.getName()))")
   @Mapping(target="currency",  constant="IDR")
   @Mapping(target="metadata", source="req.metadata")
   @Mapping(target="createdAt", expression="java(now())")
@@ -47,7 +61,10 @@ public interface WalletMapper {
   void patch(@MappingTarget Wallet wallet, WalletUpdateRequest req);
 
   default OffsetDateTime now(){ return OffsetDateTime.now(); }
-
+  default String unquote(String s) {
+    if (s == null) return null;
+    return s.replaceAll("^\"+|\"+$", "");
+  }
   default String metadataToString(Object metadata) {
     if (metadata == null) {
       return "{}";
