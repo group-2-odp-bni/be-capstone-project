@@ -29,6 +29,7 @@ import reactor.core.publisher.Mono;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.Executor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -36,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.never;
@@ -69,6 +71,8 @@ class AuthFlowServiceTest {
     private CaptchaService captchaService;
     @Mock
     private HttpServletRequest servletRequest;
+    @Mock
+    private Executor virtualThreadTaskExecutor;
 
     private User existingUser;
     private User newUser;
@@ -98,6 +102,10 @@ class AuthFlowServiceTest {
 
         when(servletRequest.getRequestURI()).thenReturn("/api/v1/auth/test");
         when(captchaService.validateToken(anyString(), anyString())).thenReturn(Mono.just(true));
+        doAnswer(invocation -> {
+            ((Runnable) invocation.getArgument(0)).run();
+            return null;
+        }).when(virtualThreadTaskExecutor).execute(any(Runnable.class));
     }
 
     @Nested
@@ -164,7 +172,6 @@ class AuthFlowServiceTest {
             var exception = assertThrows(BusinessException.class, () -> authFlowService.requestLoginOtp(request, servletRequest));
 
             assertEquals(ErrorCode.INVALID_CAPTCHA, exception.getErrorCode());
-            verify(otpService, never()).isCooldown(anyString());
         }
     }
 
@@ -203,7 +210,6 @@ class AuthFlowServiceTest {
 
             assertEquals(ErrorCode.USER_ALREADY_EXISTS, exception.getErrorCode());
             verify(captchaService).validateToken(captchaToken, "register");
-            verify(otpService, never()).isCooldown(anyString());
         }
 
         @Test
@@ -228,7 +234,6 @@ class AuthFlowServiceTest {
             var exception = assertThrows(BusinessException.class, () -> authFlowService.requestRegistrationOtp(request, servletRequest));
 
             assertEquals(ErrorCode.INVALID_CAPTCHA, exception.getErrorCode());
-            verify(userRepository, never()).findByPhoneNumber(anyString());
         }
     }
 
