@@ -6,6 +6,8 @@ import com.bni.orange.wallet.model.request.wallet.WalletCreateRequest;
 import com.bni.orange.wallet.model.request.wallet.WalletUpdateRequest;
 import com.bni.orange.wallet.model.response.WalletDetailResponse;
 import com.bni.orange.wallet.model.response.WalletListItemResponse;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.mapstruct.*;
 
 import java.time.OffsetDateTime;
@@ -45,4 +47,15 @@ public interface WalletMapper {
   void patch(@MappingTarget Wallet wallet, WalletUpdateRequest req);
 
   default OffsetDateTime now(){ return OffsetDateTime.now(); }
+
+  default String metadataToString(Object metadata) {
+    if (metadata == null) {
+      return "{}";
+    }
+    try {
+      return new ObjectMapper().writeValueAsString(metadata);
+    } catch (JsonProcessingException e) {
+      return "{}";
+    }
+  }
 }

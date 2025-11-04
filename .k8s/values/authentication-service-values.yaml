@@ -4,6 +4,7 @@
 replicaCount: 1
 
 image:
+  registry: docker.io
   repository: teukumunawar/orange-pay-authentication-service
   tag: latest
   pullPolicy: Always
@@ -18,7 +19,7 @@ service:
   annotations: {}
 
 ingress:
-  enabled: true
+  enabled: false
   className: nginx
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
@@ -53,7 +54,7 @@ resources:
     memory: "512Mi"
     cpu: "500m"
 
-# Health checks
+# Health checks (using HTTP probes with actuator endpoints)
 livenessProbe:
   enabled: true
   httpGet:
@@ -74,6 +75,16 @@ readinessProbe:
   timeoutSeconds: 3
   failureThreshold: 3
 
+startupProbe:
+  enabled: true
+  httpGet:
+    path: /actuator/health
+    port: 8080
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 30
+
 # Environment variables
 env:
   SPRING_PROFILES_ACTIVE: "prod"
@@ -85,6 +96,10 @@ env:
   # Redis configuration
   SPRING_DATA_REDIS_HOST: "redis"
   SPRING_DATA_REDIS_PORT: "6379"
+
+  # RSA Keys configuration (override classpath to file system path)
+  ORANGE_RSA_PUBLIC_KEY: "file:/app/keys/public.pem"
+  ORANGE_RSA_PRIVATE_KEY: "file:/app/keys/private.pem"
 
   # JWT configuration
   JWT_SECRET_KEY:

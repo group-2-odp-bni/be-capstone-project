@@ -4,17 +4,24 @@ import com.bni.orange.transaction.error.BusinessException;
 import com.bni.orange.transaction.error.ErrorCode;
 import com.bni.orange.transaction.model.entity.QuickTransfer;
 import com.bni.orange.transaction.model.request.QuickTransferAddRequest;
+import com.bni.orange.transaction.model.response.PageResponse;
 import com.bni.orange.transaction.model.response.QuickTransferResponse;
 import com.bni.orange.transaction.repository.QuickTransferRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
+
 
 @Slf4j
 @Service
@@ -23,43 +30,41 @@ public class QuickTransferService {
 
     private final QuickTransferRepository quickTransferRepository;
 
+    private record SortConfig(
+        String field,
+        Sort.Direction direction
+    ) {
+    }
+
+    @Transactional(readOnly = true)
+    public List<QuickTransferResponse> getQuickTransfers(UUID userId, String orderBy, String search) {
+        Objects.requireNonNull(userId, "userId cannot be null");
+
+        var sortConfig = switch (Optional.ofNullable(orderBy).map(String::toLowerCase).orElse("usage")) {
+            case "recent" -> new SortConfig("lastUsedAt", Sort.Direction.DESC);
+            case "order" -> new SortConfig("displayOrder", Sort.Direction.ASC);
+            default -> new SortConfig("usageCount", Sort.Direction.DESC);
+        };
+
+        var sort = Sort.by(sortConfig.direction(), sortConfig.field());
+        var hasSearch = search != null && !search.isBlank();
+
+        Supplier<List<QuickTransfer>> query = hasSearch
+            ? () -> quickTransferRepository.findByUserIdAndSearchTerm(userId, search.trim(), sort)
+            : switch (sortConfig.field()) {
+            case "lastUsedAt" -> () -> quickTransferRepository.findByUserIdOrderByLastUsedAtDesc(userId);
+            case "displayOrder" -> () -> quickTransferRepository.findByUserIdOrderByDisplayOrderAsc(userId);
+            default -> () -> quickTransferRepository.findByUserIdOrderByUsageCountDesc(userId);
+        };
+
+        return query.get().stream().map(this::toResponse).toList();
+    }
+
     @Transactional(readOnly = true)
     public List<QuickTransferResponse> getTopQuickTransfers(UUID userId, int limit) {
         var quickTransfers = quickTransferRepository.findTopByUserId(userId);
 
-        return quickTransfers.stream()
-            .limit(limit)
-            .map(this::toResponse)
-            .toList();
-    }
-
-    @Transactional(readOnly = true)
-    public List<QuickTransferResponse> getWalletQuickTransfers(UUID userId, UUID walletId, String orderBy) {
-        log.debug("Getting quick transfers for user {} on wallet {}", userId, walletId);
-
-        var sortKey = Optional.ofNullable(orderBy)
-            .map(String::toLowerCase)
-            .orElse("usage");
-
-        var quickTransfers = switch (sortKey) {
-            case "recent" -> quickTransferRepository.findByWalletIdOrderByLastUsedAtDesc(walletId);
-            case "order" -> quickTransferRepository.findByWalletIdOrderByDisplayOrderAsc(walletId);
-            default -> quickTransferRepository.findByWalletIdOrderByUsageCountDesc(walletId);
-        };
-
-        return quickTransfers.stream()
-            .map(this::toResponse)
-            .toList();
-    }
-
-    @Transactional(readOnly = true)
-    public List<QuickTransferResponse> getTopWalletQuickTransfers(UUID userId, UUID walletId, int limit) {
-        log.debug("Getting top {} quick transfers for user {} on wallet {}", limit, userId, walletId);
-
-        var quickTransfers = quickTransferRepository.findTopByWalletId(walletId);
-
-        return quickTransfers.stream()
-            .limit(limit)
+        return quickTransfers.stream().limit(limit)
             .map(this::toResponse)
             .toList();
     }
@@ -117,7 +122,7 @@ public class QuickTransferService {
             .orElseThrow(() -> new BusinessException(ErrorCode.TRANSACTION_NOT_FOUND, "Quick transfer not found"));
 
         if (!quickTransfer.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.TRANSACTION_NOT_FOUND, "Quick transfer not found or you don't have permission");
+            throw new BusinessException(ErrorCode.TRANSACTION_NOT_FOUND, "Quick transfer not found or you don\'t have permission");
         }
 
         quickTransfer.setDisplayOrder(newOrder);
@@ -149,6 +154,39 @@ public class QuickTransferService {
         log.info("New quick transfer auto-added for user: {}", userId);
     }
 
+    @Transactional(readOnly = true)
+    public PageResponse<QuickTransferResponse> getQuickTransfers(UUID userId, int page, int size) {
+        Objects.requireNonNull(userId, "userId cannot be null");
+
+        var pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "usageCount", "lastUsedAt"));
+        var quickTransferPage = quickTransferRepository.findByUserId(userId, pageable);
+
+        return toPageResponse(quickTransferPage, page, size);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<QuickTransferResponse> searchQuickTransfers(UUID userId, String query, int page, int size) {
+        Objects.requireNonNull(userId, "userId cannot be null");
+
+        if (query == null || query.isBlank()) {
+            return PageResponse.empty(page, size);
+        }
+
+        var pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "recipientName"));
+        var quickTransferPage = quickTransferRepository.findByUserIdAndSearchTermPaginated(userId, query.trim(), pageable);
+
+        return toPageResponse(quickTransferPage, page, size);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<QuickTransferResponse> getQuickTransferByRecipientId(UUID userId, UUID recipientUserId) {
+        Objects.requireNonNull(userId, "userId cannot be null");
+        Objects.requireNonNull(recipientUserId, "recipientUserId cannot be null");
+
+        return quickTransferRepository.findByUserIdAndRecipientUserId(userId, recipientUserId)
+            .map(this::toResponse);
+    }
+
     private QuickTransferResponse toResponse(QuickTransfer quickTransfer) {
         return QuickTransferResponse.builder()
             .id(quickTransfer.getId())
@@ -161,6 +199,24 @@ public class QuickTransferService {
             .usageCount(quickTransfer.getUsageCount())
             .displayOrder(quickTransfer.getDisplayOrder())
             .createdAt(quickTransfer.getCreatedAt())
+            .build();
+    }
+
+    private PageResponse<QuickTransferResponse> toPageResponse(Page<QuickTransfer> page, int pageNumber, int pageSize) {
+        var content = page.getContent().stream()
+            .map(this::toResponse)
+            .toList();
+
+        return PageResponse.<QuickTransferResponse>builder()
+            .content(content)
+            .page(PageResponse.PageMetadata.builder()
+                .number(pageNumber)
+                .size(pageSize)
+                .totalPages(page.getTotalPages())
+                .totalElements(page.getTotalElements())
+                .first(page.isFirst())
+                .last(page.isLast())
+                .build())
             .build();
     }
 }

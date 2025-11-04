@@ -18,12 +18,12 @@ import java.util.function.Consumer;
 public class EventPublisher {
 
     private final KafkaTemplate<String, byte[]> kafkaTemplate;
-    private final Executor kafkaVirtualThreadExecutor;
+    private final Executor virtualThreadTaskExecutor;
 
     public <T extends Message> void publish(String topic, String key, T event) {
         CompletableFuture
             .runAsync(
-                () -> publishSync(topic, key, event), kafkaVirtualThreadExecutor
+                () -> publishSync(topic, key, event), virtualThreadTaskExecutor
             )
             .exceptionally(throwable -> {
                 log.error("Async publish failed for topic: {}, key: {}, error: {}",
@@ -35,7 +35,7 @@ public class EventPublisher {
     public <T extends Message> CompletableFuture<SendResult<String, byte[]>> publishAsync(String topic, String key, T event) {
         return CompletableFuture.supplyAsync(
             () -> publishSync(topic, key, event),
-            kafkaVirtualThreadExecutor
+            virtualThreadTaskExecutor
         );
     }
 
@@ -89,15 +89,5 @@ public class EventPublisher {
             .toArray(CompletableFuture[]::new);
 
         return CompletableFuture.allOf(futures);
-    }
-
-    public boolean isKafkaAvailable() {
-        try {
-            kafkaTemplate.getProducerFactory().createProducer().close();
-            return true;
-        } catch (Exception e) {
-            log.warn("Kafka health check failed: {}", e.getMessage());
-            return false;
-        }
     }
 }

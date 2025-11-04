@@ -65,6 +65,12 @@ variable "master_disk_type" {
   type        = string
 }
 
+variable "worker_count" {
+  description = "Number of worker nodes to create"
+  type        = number
+  default     = 1
+}
+
 variable "worker_machine_type" {
   description = "Machine type for worker node"
   type        = string
@@ -91,15 +97,7 @@ variable "k3s_token" {
   sensitive   = true
 }
 
-variable "metallb_ip_range_start" {
-  description = "MetalLB IP range start (last octet)"
-  type        = number
-}
 
-variable "metallb_ip_range_end" {
-  description = "MetalLB IP range end (last octet)"
-  type        = number
-}
 
 variable "ssh_public_key_path" {
   description = "Path to SSH public key"
@@ -124,6 +122,12 @@ variable "enable_monitoring" {
 variable "enable_external_ip" {
   description = "Enable external IP addresses"
   type        = bool
+}
+
+variable "use_static_ip_for_master" {
+  description = "Use static IP for master node (recommended for VPN stability)"
+  type        = bool
+  default     = true
 }
 
 variable "labels" {

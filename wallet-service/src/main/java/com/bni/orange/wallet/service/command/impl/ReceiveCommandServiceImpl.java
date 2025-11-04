@@ -32,7 +32,7 @@ public class ReceiveCommandServiceImpl implements ReceiveCommandService {
     var userId = currentUserId();
     var newDefaultWalletId = req.getWalletId();
 
-    var membership = userWalletReadRepo.findByUserIdAndWalletId(userId, newDefaultWalletId)
+      userWalletReadRepo.findByUserIdAndWalletId(userId, newDefaultWalletId)
         .orElseThrow(() -> new AccessDeniedException("You are not a member of this wallet"));
 
     var prefs = prefsRepo.findById(userId)
@@ -52,7 +52,7 @@ public class ReceiveCommandServiceImpl implements ReceiveCommandService {
             });
     WalletRead newWalletRead = walletReadRepo.findById(newDefaultWalletId)
                 .orElseThrow(() -> new IllegalStateException("WalletRead data is inconsistent"));
-        
+
     newWalletRead.setDefaultForUser(true);
     walletReadRepo.save(newWalletRead);
     return DefaultReceiveResponse.builder()

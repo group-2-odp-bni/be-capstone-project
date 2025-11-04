@@ -19,9 +19,9 @@ auth:
 
 persistence:
   enabled: true
-  storageClass: "local-path"
+  storageClass: "gcp-pd-standard"  # Cost-effective for cache
   accessMode: ReadWriteOnce
-  size: 2Gi
+  size: 5Gi
   mountPath: /data
 
 resources:

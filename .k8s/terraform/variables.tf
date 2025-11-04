@@ -52,7 +52,7 @@ variable "subnet_cidr" {
 variable "master_machine_type" {
   description = "GCP machine type for K3s master node (e.g., e2-medium, e2-standard-2)"
   type        = string
-  default     = "e2-medium" # 2 vCPU, 4 GB RAM - suitable for K3s master
+  default     = "e2-standard-2" # 2 vCPU, 8 GB RAM - recommended for production
 }
 
 variable "master_disk_size" {
@@ -64,10 +64,21 @@ variable "master_disk_size" {
 variable "master_disk_type" {
   description = "Boot disk type for master node (pd-standard, pd-ssd, pd-balanced)"
   type        = string
-  default     = "pd-balanced"
+  default     = "pd-standard"
 }
 
 # Compute Configuration - Worker Node
+variable "worker_count" {
+  description = "Number of K3s worker nodes (scale horizontally by increasing this value)"
+  type        = number
+  default     = 1
+
+  validation {
+    condition     = var.worker_count >= 1 && var.worker_count <= 10
+    error_message = "Worker count must be between 1 and 10 for cost and management purposes."
+  }
+}
+
 variable "worker_machine_type" {
   description = "GCP machine type for K3s worker node"
   type        = string
@@ -83,7 +94,7 @@ variable "worker_disk_size" {
 variable "worker_disk_type" {
   description = "Boot disk type for worker node"
   type        = string
-  default     = "pd-balanced"
+  default     = "pd-standard"
 }
 
 # K3s Configuration
@@ -100,28 +111,7 @@ variable "k3s_token" {
   sensitive   = true
 }
 
-# MetalLB IP Range
-variable "metallb_ip_range_start" {
-  description = "Start of MetalLB IP address pool (last octet, e.g., 200)"
-  type        = number
-  default     = 200
 
-  validation {
-    condition     = var.metallb_ip_range_start >= 2 && var.metallb_ip_range_start <= 250
-    error_message = "MetalLB IP range start must be between 2 and 250."
-  }
-}
-
-variable "metallb_ip_range_end" {
-  description = "End of MetalLB IP address pool (last octet, e.g., 250)"
-  type        = number
-  default     = 250
-
-  validation {
-    condition     = var.metallb_ip_range_end >= 2 && var.metallb_ip_range_end <= 254
-    error_message = "MetalLB IP range end must be between 2 and 254."
-  }
-}
 
 # SSH Configuration
 variable "ssh_public_key_path" {
@@ -140,7 +130,7 @@ variable "ssh_user" {
 variable "labels" {
   description = "Additional labels/tags for all resources"
   type        = map(string)
-  default     = {
+  default = {
     managed_by = "terraform"
     project    = "orange-wallet"
   }
@@ -150,13 +140,13 @@ variable "labels" {
 variable "enable_preemptible_vms" {
   description = "Use preemptible VMs for cost savings (not recommended for production)"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "enable_monitoring" {
   description = "Enable GCP monitoring and logging for VMs"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "enable_external_ip" {

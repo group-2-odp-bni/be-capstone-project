@@ -51,7 +51,7 @@ public class PinController {
         @RequestBody @Valid AuthRequest request,
         HttpServletRequest servletRequest
     ) {
-        return ResponseEntity.ok(authFlowService.requestOtp(request, servletRequest));
+        return ResponseEntity.ok(authFlowService.requestLoginOtp(request, servletRequest));
     }
 
     @PostMapping("/reset/verify")
