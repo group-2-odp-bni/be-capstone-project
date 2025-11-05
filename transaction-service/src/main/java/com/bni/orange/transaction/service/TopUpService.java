@@ -1,13 +1,16 @@
 package com.bni.orange.transaction.service;
 
 import com.bni.orange.transaction.client.BniVaClient;
+import com.bni.orange.transaction.client.UserServiceClient;
 import com.bni.orange.transaction.client.WalletServiceClient;
 import com.bni.orange.transaction.error.BusinessException;
 import com.bni.orange.transaction.error.ErrorCode;
 import com.bni.orange.transaction.event.TopUpEventPublisher;
+import com.bni.orange.transaction.model.entity.TopUpConfig;
 import com.bni.orange.transaction.model.entity.Transaction;
 import com.bni.orange.transaction.model.entity.TransactionLedger;
 import com.bni.orange.transaction.model.entity.VirtualAccount;
+import com.bni.orange.transaction.model.enums.InternalAction;
 import com.bni.orange.transaction.model.enums.PaymentProvider;
 import com.bni.orange.transaction.model.enums.TransactionStatus;
 import com.bni.orange.transaction.model.enums.TransactionType;
@@ -16,8 +19,10 @@ import com.bni.orange.transaction.model.enums.WalletRole;
 import com.bni.orange.transaction.model.enums.WalletStatus;
 import com.bni.orange.transaction.model.request.TopUpCallbackRequest;
 import com.bni.orange.transaction.model.request.TopUpInitiateRequest;
+import com.bni.orange.transaction.model.request.internal.RoleValidateRequest;
 import com.bni.orange.transaction.model.response.PaymentMethodResponse;
 import com.bni.orange.transaction.model.response.TopUpInitiateResponse;
+import com.bni.orange.transaction.model.response.UserProfileResponse;
 import com.bni.orange.transaction.model.response.VirtualAccountResponse;
 import com.bni.orange.transaction.model.response.WalletAccessValidation;
 import com.bni.orange.transaction.model.response.WalletInfo;
@@ -33,6 +38,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
@@ -53,6 +59,7 @@ public class TopUpService {
     private final VirtualAccountRepository virtualAccountRepository;
     private final VirtualAccountService virtualAccountService;
     private final WalletServiceClient walletServiceClient;
+    private final UserServiceClient userServiceClient;
     private final BniVaClient bniVaClient;
     private final TransactionRefGenerator refGenerator;
     private final TopUpEventPublisher eventPublisher;
@@ -92,24 +99,30 @@ public class TopUpService {
     }
 
     @Transactional
-    public TopUpInitiateResponse initiateTopUp(TopUpInitiateRequest request, UUID userId) {
+    public TopUpInitiateResponse initiateTopUp(TopUpInitiateRequest request, UUID userId, String accessToken) {
         log.info("Initiating top-up for user {} with provider {} and amount {}", userId, request.provider(), request.amount());
 
         var validationFuture = supplyAsyncWithContext(() ->
             validateWalletAccess(userId, request.walletId())
         );
 
-        var configFuture = supplyAsyncWithContext(() ->
-            topUpConfigRepository
+        var configFuture = supplyAsyncWithContext(() -> topUpConfigRepository
                 .findActiveByProvider(request.provider())
                 .orElseThrow(() -> new BusinessException(ErrorCode.PAYMENT_PROVIDER_NOT_AVAILABLE, "Payment provider not available: " + request.provider()))
         );
 
+        var userProfileFuture = supplyAsyncWithContext(() -> userServiceClient
+            .findById(userId, accessToken)
+            .map(UserProfileResponse::name)
+            .block()
+        );
+
         try {
-            CompletableFuture.allOf(validationFuture, configFuture).join();
+            CompletableFuture.allOf(validationFuture, configFuture, userProfileFuture).join();
 
             var validation = validationFuture.join();
             var config = configFuture.join();
+            var accountName = userProfileFuture.join();
 
             if (!config.isAmountValid(request.amount())) {
                 throw new BusinessException(ErrorCode.INVALID_AMOUNT, String.format("Amount must be between %s and %s", config.getMinAmount(), config.getMaxAmount()));
@@ -120,7 +133,7 @@ public class TopUpService {
 
             var transactionRef = refGenerator.generate();
 
-            return createTopUpTransaction(request, userId, config, validation, transactionRef, fee, totalAmount);
+            return createTopUpTransaction(request, userId, config, validation, transactionRef, fee, totalAmount, accountName);
 
         } catch (CompletionException e) {
             if (e.getCause() instanceof BusinessException be) {
@@ -134,11 +147,12 @@ public class TopUpService {
     private TopUpInitiateResponse createTopUpTransaction(
         TopUpInitiateRequest request,
         UUID userId,
-        com.bni.orange.transaction.model.entity.TopUpConfig config,
+        TopUpConfig config,
         WalletAccessValidation validation,
         String transactionRef,
-        java.math.BigDecimal fee,
-        java.math.BigDecimal totalAmount
+        BigDecimal fee,
+        BigDecimal totalAmount,
+        String accountName
     ) {
 
         var transaction = transactionRepository.save(
@@ -168,6 +182,7 @@ public class TopUpService {
         var virtualAccount = virtualAccountRepository.save(
             VirtualAccount.builder()
             .vaNumber(vaNumber)
+                .accountName(accountName)
             .transactionId(transaction.getId())
             .userId(userId)
             .walletId(request.walletId())
@@ -189,7 +204,7 @@ public class TopUpService {
                 var vaRequest = new BniVaClient.VaRegistrationRequest(
                     vaNumber,
                     request.amount(),
-                    "User-" + userId,
+                    accountName,
                     expiryTime.format(EXPIRY_FORMATTER)
                 );
 
@@ -351,6 +366,7 @@ public class TopUpService {
             return VirtualAccountResponse.builder()
                 .id(virtualAccount.getId())
                 .vaNumber(virtualAccount.getVaNumber())
+                .accountName(virtualAccount.getAccountName())
                 .transactionId(transaction.getId())
                 .transactionRef(transaction.getTransactionRef())
                 .provider(virtualAccount.getProvider())
@@ -427,7 +443,7 @@ public class TopUpService {
         }
     }
 
-    private void createLedgerEntry(Transaction transaction, VirtualAccount virtualAccount, java.math.BigDecimal balanceBefore) {
+    private void createLedgerEntry(Transaction transaction, VirtualAccount virtualAccount, BigDecimal balanceBefore) {
         var ledgerEntry = TransactionLedger.createCreditEntry(
             transaction.getId(),
             transaction.getTransactionRef(),
@@ -442,13 +458,43 @@ public class TopUpService {
         log.info("Created CREDIT ledger entry for transactionRef: {}", transaction.getTransactionRef());
     }
 
+    public VirtualAccountResponse inquiryByVaNumber(String vaNumber) {
+        log.info("Inquiry for VA number: {}", vaNumber);
+
+        var virtualAccount = virtualAccountRepository
+            .findByVaNumber(vaNumber)
+            .orElseThrow(() -> new BusinessException(ErrorCode.VIRTUAL_ACCOUNT_NOT_FOUND, "Virtual Account not found"));
+
+        var transaction = transactionRepository
+            .findById(virtualAccount.getTransactionId())
+            .orElseThrow(() -> new BusinessException(ErrorCode.TRANSACTION_NOT_FOUND, "Transaction not found"));
+
+        log.info("VA inquiry successful: vaNumber={}, status={}, amount={}",
+            vaNumber, virtualAccount.getStatus(), virtualAccount.getAmount());
+
+        return VirtualAccountResponse.builder()
+            .id(virtualAccount.getId())
+            .vaNumber(virtualAccount.getVaNumber())
+            .accountName(virtualAccount.getAccountName())
+            .transactionId(transaction.getId())
+            .transactionRef(transaction.getTransactionRef())
+            .provider(virtualAccount.getProvider())
+            .status(virtualAccount.getStatus())
+            .amount(virtualAccount.getAmount())
+            .paidAmount(virtualAccount.getPaidAmount())
+            .expiresAt(virtualAccount.getExpiresAt())
+            .paidAt(virtualAccount.getPaidAt())
+            .createdAt(virtualAccount.getCreatedAt())
+            .build();
+    }
+
     private WalletAccessValidation validateWalletAccess(UUID userId, UUID walletId) {
         log.debug("Validating wallet access for user {} on wallet {}", userId, walletId);
 
-        var roleValidationRequest = com.bni.orange.transaction.model.request.internal.RoleValidateRequest.builder()
+        var roleValidationRequest = RoleValidateRequest.builder()
             .walletId(walletId)
             .userId(userId)
-            .action(com.bni.orange.transaction.model.enums.InternalAction.CREDIT)
+            .action(InternalAction.CREDIT)
             .build();
 
         var roleValidation = walletServiceClient.validateRole(roleValidationRequest).block();
@@ -464,7 +510,7 @@ public class TopUpService {
             throw new BusinessException(ErrorCode.WALLET_ACCESS_DENIED, roleValidation.message());
         }
 
-        String currency = (String) roleValidation.extras().get("currency");
+        var currency = (String) roleValidation.extras().get("currency");
 
         log.info("Wallet access validated successfully: userId={}, walletId={}, role={}, currency={}",
             userId, walletId, roleValidation.effectiveRole(), currency);

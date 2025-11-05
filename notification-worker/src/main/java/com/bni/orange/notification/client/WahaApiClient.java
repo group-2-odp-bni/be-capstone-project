@@ -152,7 +152,8 @@ public class WahaApiClient {
     }
 
     private Function<ClientResponse, Mono<? extends Throwable>> handleClientError(String context) {
-        return response -> response.bodyToMono(String.class)
+        return response -> response.bodyToMono(Object.class)
+            .map(Object::toString)
             .switchIfEmpty(Mono.just("[no body]"))
             .flatMap(body -> {
                 log.error("Client error for {}: {}", context, body);
@@ -161,7 +162,8 @@ public class WahaApiClient {
     }
 
     private Function<ClientResponse, Mono<? extends Throwable>> handleServerError(String context) {
-        return response -> response.bodyToMono(String.class)
+        return response -> response.bodyToMono(Object.class)
+            .map(Object::toString)
             .switchIfEmpty(Mono.just("[no body]"))
             .flatMap(body -> {
                 log.error("Server error for {}: {}", context, body);

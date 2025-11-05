@@ -37,7 +37,6 @@ public class TransactionHistoryService {
     ) {
         log.debug("Getting transactions for user: {}, walletId: {}", userId, walletId);
 
-        // Security: Validate wallet access if walletId is provided
         if (walletId != null) {
             var userWallets = walletServiceClient.getUserWalletIds(userId).block();
             if (userWallets == null || !userWallets.contains(walletId)) {
@@ -46,10 +45,9 @@ public class TransactionHistoryService {
             }
         }
 
-        return transactionRepository.findAll(
-            TransactionSpecification.buildSpecification(userId, walletId, status, startDate, endDate),
-            pageable
-        ).map(transactionMapper::toResponse);
+        return transactionRepository
+            .findAll(TransactionSpecification.buildSpecification(userId, walletId, status, startDate, endDate), pageable)
+            .map(transactionMapper::toResponse);
     }
 
     @Transactional(readOnly = true)
@@ -92,8 +90,6 @@ public class TransactionHistoryService {
 
     @Transactional(readOnly = true)
     public TransactionResponse getTransactionByRef(String transactionRef, UUID userId) {
-        // In dual-record model, transaction_ref is shared between sender and receiver
-        // We need to find the transaction record that belongs to the requesting user
         var transaction = transactionRepository
             .findByTransactionRefAndUserId(transactionRef, userId)
             .orElseThrow(() -> new BusinessException(ErrorCode.TRANSACTION_NOT_FOUND, "Transaction not found: " + transactionRef));

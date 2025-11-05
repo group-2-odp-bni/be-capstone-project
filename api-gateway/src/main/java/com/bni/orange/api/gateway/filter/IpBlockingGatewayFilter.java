@@ -31,11 +31,13 @@ public class IpBlockingGatewayFilter implements GlobalFilter, Ordered {
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         var ipAddress = extractIpAddress(exchange);
 
-        return ipBlockingService.isIpBlocked(ipAddress)
+        return ipBlockingService
+            .isIpBlocked(ipAddress)
             .flatMap(isBlocked -> {
                 if (isBlocked) {
                     log.warn("Blocking request from blacklisted IP: {}", ipAddress);
-                    return ipBlockingService.getBlockTimeRemaining(ipAddress)
+                    return ipBlockingService
+                        .getBlockTimeRemaining(ipAddress)
                         .flatMap(remainingSeconds -> sendBlockedResponse(exchange, ipAddress, remainingSeconds));
                 }
                 return chain.filter(exchange);
@@ -43,7 +45,8 @@ public class IpBlockingGatewayFilter implements GlobalFilter, Ordered {
     }
 
     private String extractIpAddress(ServerWebExchange exchange) {
-        return Optional.ofNullable(exchange.getRequest().getHeaders().getFirst("X-Forwarded-For"))
+        return Optional
+            .ofNullable(exchange.getRequest().getHeaders().getFirst("X-Forwarded-For"))
             .map(ip -> ip.split(",")[0].trim())
             .orElse(Optional.ofNullable(exchange.getRequest().getRemoteAddress())
                 .map(address -> address.getAddress().getHostAddress())
@@ -63,8 +66,8 @@ public class IpBlockingGatewayFilter implements GlobalFilter, Ordered {
         errorResponse.put("timestamp", System.currentTimeMillis());
 
         try {
-            byte[] bytes = objectMapper.writeValueAsBytes(errorResponse);
-            DataBuffer buffer = exchange.getResponse().bufferFactory().wrap(bytes);
+            var bytes = objectMapper.writeValueAsBytes(errorResponse);
+            var buffer = exchange.getResponse().bufferFactory().wrap(bytes);
             return exchange.getResponse().writeWith(Mono.just(buffer));
         } catch (JsonProcessingException e) {
             log.error("Error creating blocked response", e);

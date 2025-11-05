@@ -60,6 +60,17 @@ spring:
                     name: wallet-service
                     fallbackUri: forward:/fallback/wallet
 
+            - id: transaction-service-topup-external
+              uri: http://localhost:8084
+              predicates:
+                - Path=/api/v1/topup/inquiry/**, /api/v1/topup/callback/**
+              filters:
+                - name: ApiKeyAuth
+                - name: CircuitBreaker
+                  args:
+                    name: transaction-service
+                    fallbackUri: forward:/fallback/transaction
+
             - id: transaction-service
               uri: http://localhost:8084
               predicates:
@@ -106,6 +117,10 @@ orange:
     block-duration: 1h
     suspicious-duration: 30m
     suspicious-threshold: 5
+
+  payment:
+    bni:
+      api-key: ${BNI_API_KEY:bni-api-key-dev}
 
 logging:
   level:

@@ -175,6 +175,54 @@ public class ProfileService {
         return VerificationResponse.success("phoneNumber", verifiedPhone);
     }
 
+    @Transactional(readOnly = true)
+    public ProfileUpdateResponse.PendingVerification resendEmailOtp(UUID userId) {
+        log.info("Resending email OTP for user: {}", userId);
+
+        var profile = profileRepository.findById(userId)
+            .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        if (profile.getPendingEmail() == null) {
+            throw new BusinessException(ErrorCode.NO_PENDING_VERIFICATION, "No pending email verification found");
+        }
+
+        verificationService.generateEmailOtp(userId, profile.getPendingEmail());
+
+        log.info("Email OTP resent successfully for user: {}. OTP sent to: {}", userId, profile.getPendingEmail());
+
+        return ProfileUpdateResponse.PendingVerification.builder()
+            .field("email")
+            .value(profile.getPendingEmail())
+            .otpSent(true)
+            .expiresInSeconds(300L)
+            .verifyEndpoint("/api/v1/users/profile/verify-email")
+            .build();
+    }
+
+    @Transactional(readOnly = true)
+    public ProfileUpdateResponse.PendingVerification resendPhoneOtp(UUID userId) {
+        log.info("Resending phone OTP for user: {}", userId);
+
+        var profile = profileRepository.findById(userId)
+            .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        if (profile.getPendingPhone() == null) {
+            throw new BusinessException(ErrorCode.NO_PENDING_VERIFICATION, "No pending phone verification found");
+        }
+
+        verificationService.generatePhoneOtp(userId, profile.getPendingPhone());
+
+        log.info("Phone OTP resent successfully for user: {}. OTP sent to: {}", userId, profile.getPendingPhone());
+
+        return ProfileUpdateResponse.PendingVerification.builder()
+            .field("phoneNumber")
+            .value(profile.getPendingPhone())
+            .otpSent(true)
+            .expiresInSeconds(300L)
+            .verifyEndpoint("/api/v1/users/profile/verify-phone")
+            .build();
+    }
+
     private String buildResponseMessage(
         ArrayList<String> updatedFields,
         HashMap<String, ProfileUpdateResponse.PendingVerification> pendingVerifications

@@ -37,7 +37,8 @@ public class IpBlockingService {
         }
 
         var key = BLOCKED_IP_PREFIX + ipAddress;
-        return redisTemplate.hasKey(key)
+        return redisTemplate
+            .hasKey(key)
             .doOnNext(blocked -> {
                 if (blocked) {
                     log.warn("Blocked IP attempted access: {}", ipAddress);
@@ -70,7 +71,8 @@ public class IpBlockingService {
 
         var countKey = VIOLATION_COUNT_PREFIX + ipAddress;
 
-        return redisTemplate.opsForValue()
+        return redisTemplate
+            .opsForValue()
             .increment(countKey)
             .flatMap(count -> {
                 log.info("Violation recorded for IP {}: count = {}/{}", ipAddress, count, securityProperties.violationThreshold());
@@ -87,7 +89,6 @@ public class IpBlockingService {
                         ipAddress, count, securityProperties.blockDuration());
                     return blockIp(ipAddress, "Exceeded rate limit violations: " + count);
                 } else if (count >= securityProperties.suspiciousThreshold()) {
-                    // Mark as suspicious at threshold
                     return markAsSuspicious(ipAddress);
                 }
                 return Mono.empty();
@@ -121,7 +122,6 @@ public class IpBlockingService {
             return Mono.empty();
         }
 
-        // Skip localhost unless explicitly allowed (for testing)
         if (isLocalhost(ipAddress) && !securityProperties.allowLocalhostBlocking()) {
             return Mono.empty();
         }

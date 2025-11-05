@@ -12,6 +12,7 @@ import java.util.UUID;
 public record VirtualAccountResponse(
     UUID id,
     String vaNumber,
+    String accountName,
     UUID transactionId,
     String transactionRef,
     PaymentProvider provider,

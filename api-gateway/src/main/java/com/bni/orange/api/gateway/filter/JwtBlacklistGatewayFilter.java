@@ -39,7 +39,8 @@ public class JwtBlacklistGatewayFilter implements GlobalFilter, Ordered {
         }
 
         return extractBearerToken(exchange)
-            .map(token -> reactiveJwtDecoder.decode(token)
+            .map(token -> reactiveJwtDecoder
+                .decode(token)
                 .doOnNext(jwt -> {
                     if (Objects.isNull(jwt.getId())) {
                         log.warn("JWT without JTI claim detected. Token might be invalid.");
@@ -93,11 +94,15 @@ public class JwtBlacklistGatewayFilter implements GlobalFilter, Ordered {
             path.startsWith("/api/v1/auth/resend-otp") ||
             path.startsWith("/api/v1/pin/reset/request") ||
             path.startsWith("/api/v1/pin/reset/verify") ||
-            path.startsWith("/oauth2/jwks");
+            path.startsWith("/oauth2/jwks") ||
+            // External payment gateway endpoints - authenticated via API key
+            path.startsWith("/api/v1/topup/inquiry/") ||
+            path.startsWith("/api/v1/topup/callback/");
     }
 
     private Optional<String> extractBearerToken(ServerWebExchange exchange) {
-        return Optional.ofNullable(exchange.getRequest().getHeaders().getFirst("Authorization"))
+        return Optional
+            .ofNullable(exchange.getRequest().getHeaders().getFirst("Authorization"))
             .filter(header -> header.startsWith("Bearer "))
             .map(header -> header.substring(7));
     }

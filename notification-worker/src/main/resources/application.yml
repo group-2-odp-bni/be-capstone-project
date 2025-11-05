@@ -5,6 +5,26 @@ spring:
     virtual:
       enabled: true
 
+  mail:
+    # Gmail SMTP Configuration (default)
+    # For Gmail: Generate App Password at https://myaccount.google.com/apppasswords
+    # Other providers: SendGrid (smtp.sendgrid.net), Amazon SES, Mailgun, etc.
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}  # Your email address
+    password: ${MAIL_PASSWORD:}  # Gmail App Password (16 digits)
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+    default-encoding: UTF-8
+
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
@@ -31,6 +51,8 @@ orange:
     topics:
       otp-whatsapp: notification.otp.whatsapp
       otp-whatsapp-dlq: notification.otp.whatsapp.dlq
+      otp-email: notification.otp.email
+      otp-email-dlq: notification.otp.email.dlq
   waha-client:
     base-url: ${WAHA_BASE_URL:http://localhost:3000}
     api-key: ${WAHA_API_KEY:f5010a544c324fc483623e2031b2b92f}
@@ -43,6 +65,14 @@ orange:
       multiplier: 2.0
   webhook:
     hmac-secret: ${WAHA_WEBHOOK_HMAC_SECRET:64eb6963dd30bbe9786cb9193f9eabee6ddac7e9aeb0deb6fc72a1bd065abb52}
+  email:
+    from-address: ${EMAIL_FROM_ADDRESS:noreply@bni-orange.com}
+    from-name: ${EMAIL_FROM_NAME:BNI Orange E-Wallet}
+    retry:
+      max-attempts: 3
+      initial-backoff: 1s
+      max-backoff: 5s
+      multiplier: 2.0
 
 resilience:
   retry:

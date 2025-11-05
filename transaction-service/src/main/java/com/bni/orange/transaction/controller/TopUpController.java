@@ -47,6 +47,20 @@ public class TopUpController {
         return ResponseEntity.ok(ApiResponse.success(methods));
     }
 
+    /**
+     * Inquiry endpoint for external payment gateway (BNI).
+     * Protected by API key validation at API Gateway level.
+     * No JWT required.
+     */
+    @GetMapping("/inquiry/{vaNumber}")
+    public ResponseEntity<ApiResponse<VirtualAccountResponse>> inquiryVirtualAccount(
+        @PathVariable String vaNumber
+    ) {
+        log.info("GET /api/v1/topup/inquiry/{}", vaNumber);
+        var response = topUpService.inquiryByVaNumber(vaNumber);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
     @PostMapping("/initiate")
     @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
     public ResponseEntity<ApiResponse<TopUpInitiateResponse>> initiateTopUp(
@@ -54,7 +68,7 @@ public class TopUpController {
         @AuthenticationPrincipal Jwt jwt
     ) {
         log.info("POST /api/v1/topup/initiate - provider: {}, amount: {}", request.provider(), request.amount());
-        var response = topUpService.initiateTopUp(request, getUserIdFromJwt(jwt));
+        var response = topUpService.initiateTopUp(request, getUserIdFromJwt(jwt), jwt.getTokenValue());
         return ResponseEntity
             .status(HttpStatus.CREATED)
             .body(ApiResponse.success("Top-up initiated successfully", response));

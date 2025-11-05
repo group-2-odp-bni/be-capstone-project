@@ -35,7 +35,6 @@ public class InternalWalletController {
   private final InternalWalletService service;
 
   @GetMapping("/users/{userId}/wallets")
-  @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
   public ResponseEntity<ApiResponse<UserWalletsResponse>> getUserWallets(
       @PathVariable UUID userId,
       @RequestParam(defaultValue = "true") boolean idsOnly
@@ -45,7 +44,6 @@ public class InternalWalletController {
   }
 
   @PostMapping("/wallets/balance:validate")
-  @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
   public ResponseEntity<ApiResponse<ValidationResultResponse>> validateBalance(
       @RequestBody @Valid BalanceValidateRequest req
   ) {
@@ -54,7 +52,6 @@ public class InternalWalletController {
   }
 
   @PostMapping("/wallets/balance:update")
-  @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
   public ResponseEntity<ApiResponse<BalanceUpdateResponse>> updateBalance(
       @RequestBody @Valid BalanceUpdateRequest req
   ) {
@@ -63,7 +60,6 @@ public class InternalWalletController {
   }
 
   @PostMapping("/wallets/roles:validate")
-  @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
   public ResponseEntity<ApiResponse<RoleValidateResponse>> validateRole(
       @RequestBody @Valid RoleValidateRequest req
   ) {
@@ -72,7 +68,6 @@ public class InternalWalletController {
   }
 
   @GetMapping("/users/{userId}/default-wallet")
-  @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
   public ResponseEntity<ApiResponse<DefaultWalletResponse>> getDefaultWalletByUserId(
       @PathVariable UUID userId
   ) {
