@@ -3,12 +3,15 @@ package com.bni.orange.wallet.controller;
 import com.bni.orange.wallet.model.request.internal.BalanceUpdateRequest;
 import com.bni.orange.wallet.model.request.internal.BalanceValidateRequest;
 import com.bni.orange.wallet.model.request.internal.RoleValidateRequest;
+import com.bni.orange.wallet.model.request.wallet.WalletCreateRequest;
 import com.bni.orange.wallet.model.response.ApiResponse;
+import com.bni.orange.wallet.model.response.WalletDetailResponse;
 import com.bni.orange.wallet.model.response.internal.BalanceUpdateResponse;
 import com.bni.orange.wallet.model.response.internal.DefaultWalletResponse;
 import com.bni.orange.wallet.model.response.internal.RoleValidateResponse;
 import com.bni.orange.wallet.model.response.internal.UserWalletsResponse;
 import com.bni.orange.wallet.model.response.internal.ValidationResultResponse;
+import com.bni.orange.wallet.service.command.WalletCommandService;
 import com.bni.orange.wallet.service.internal.InternalWalletService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -19,11 +22,12 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
+import java.net.URI;
 import java.util.UUID;
 
 @Validated
@@ -33,6 +37,7 @@ import java.util.UUID;
 public class InternalWalletController {
 
   private final InternalWalletService service;
+  private final WalletCommandService command;
 
   @GetMapping("/users/{userId}/wallets")
   public ResponseEntity<ApiResponse<UserWalletsResponse>> getUserWallets(
@@ -74,4 +79,16 @@ public class InternalWalletController {
     var res = service.getDefaultWalletByUserId(userId);
     return ResponseEntity.ok(ApiResponse.ok("OK", res));
   }
+  @PostMapping("/wallets")
+  @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
+  public ResponseEntity<ApiResponse<WalletDetailResponse>> createWallet(
+      @RequestHeader(value="Idempotency-Key", required=false) String idemKey,
+      @Valid @RequestBody WalletCreateRequest req
+  ) {
+    var dto = command.createWallet(req, idemKey);
+    return ResponseEntity
+        .created(URI.create("/internal/v1/wallets/" + dto.getId()))
+        .body(ApiResponse.ok("Wallet created", dto));
+  }
+
 }

@@ -22,10 +22,16 @@ public class WalletEventPublisher {
   @Value("${orange.kafka.topics.wallet-created:wallet.events.created}")
   private String topicWalletCreated;
 
+  @Value("${orange.kafka.topics.wallet-updated:wallet.events.updated}")
+  private String topicWalletUpdated;
+
+  @Value("${orange.kafka.topics.wallet-member-invited:wallet.events.member-invited}")
+  private String topicMemberInvited;
+
   public void publish(String topic, String key, com.google.protobuf.Message payload,
                       String eventType, int version) {
 
-    var envelope = EventEnvelope.newBuilder()
+  var envelope = EventEnvelope.newBuilder()
         .setEventId(UUID.randomUUID().toString())
         .setEventType(eventType)
         .setEventVersion(version)
@@ -46,5 +52,11 @@ public class WalletEventPublisher {
 
   public void publishWalletCreated(String walletId, com.google.protobuf.Message walletCreatedPayload) {
     publish(topicWalletCreated, walletId, walletCreatedPayload, "WalletCreated", 1);
+  }
+  public void publishWalletUpdated(String walletId, com.google.protobuf.Message walletUpdatedPayload) {
+      publish(topicWalletUpdated, walletId, walletUpdatedPayload, "WalletUpdated", 1);
+  }
+  public void publishWalletMemberInvited(String key, com.google.protobuf.Message payload) {
+      publish(topicMemberInvited, key, payload, "WalletMemberInvited", 1);
   }
 }

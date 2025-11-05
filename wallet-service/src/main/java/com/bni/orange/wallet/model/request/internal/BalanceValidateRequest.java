@@ -11,5 +11,6 @@ import java.util.UUID;
 public record BalanceValidateRequest(
     @NotNull UUID walletId,
     @NotNull @DecimalMin("0.00") @Digits(integer = 20, fraction = 2) BigDecimal amount,
-    @NotNull InternalAction action
+    @NotNull InternalAction action,
+    @NotNull UUID actorUserId 
 ) {}

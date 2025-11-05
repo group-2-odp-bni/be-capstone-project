@@ -5,10 +5,30 @@ package com.bni.orange.wallet.proto;
 
 message WalletCreatedEvent {
   string wallet_id = 1;
-  string user_id   = 2;
-  string currency  = 3;
-  string status    = 4; // e.g., ACTIVE
-  string type      = 5; // e.g., PERSONAL
-  string name      = 6;
-  string metadata_json = 7; // optional: dump metadata as JSON string
+  string user_id = 2;
+  string currency = 3;
+  string status = 4;   
+  string type = 5;     
+  string name = 6;
+  string balance_snapshot = 7; 
+  bool is_default_for_user = 8; 
+  string created_at = 9;  
+  string updated_at = 10; 
+}
+message WalletUpdatedEvent {
+  string wallet_id = 1;
+  string user_id = 2;
+  string currency = 3;
+  string status = 4;
+  string type = 5;
+  string name = 6;
+  string balance_snapshot = 7;
+  string updated_at = 8;
+}
+message WalletMemberInvitedEvent {
+  string wallet_id = 1;
+  string inviter_user_id = 2;
+  string invited_user_id = 3;
+  string role = 4;
+  string wallet_name = 5;
 }

@@ -11,4 +11,9 @@ public class UserLimitsResponse {
   private boolean enforcePerTx, enforceDaily, enforceWeekly, enforceMonthly;
   private OffsetDateTime effectiveFrom, effectiveThrough, updatedAt;
   private String timezone;
+
+  private Long dailyUsedRp, weeklyUsedRp, monthlyUsedRp;
+  private Long dailyRemainingRp, weeklyRemainingRp, monthlyRemainingRp;
+  private OffsetDateTime dailyResetAt, weeklyResetAt, monthlyResetAt;
+
 }
