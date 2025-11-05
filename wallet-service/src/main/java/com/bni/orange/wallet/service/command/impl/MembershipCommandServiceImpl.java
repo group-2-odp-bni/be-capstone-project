@@ -1,5 +1,6 @@
 package com.bni.orange.wallet.service.command.impl;
 
+import com.bni.orange.wallet.domain.DomainEvents;
 import com.bni.orange.wallet.exception.business.ConflictException;
 import com.bni.orange.wallet.exception.business.ForbiddenOperationException;
 import com.bni.orange.wallet.exception.business.MaxMemberReachException;
@@ -22,7 +23,8 @@ import com.bni.orange.wallet.service.query.impl.WalletPolicyQueryServiceImpl;
 import com.bni.orange.wallet.utils.security.CurrentUser;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import org.springframework.context.ApplicationEventPublisher;           
+import com.bni.orange.wallet.model.entity.Wallet;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Objects;
@@ -32,7 +34,7 @@ import java.util.List;
 @Service
 @Transactional
 public class MembershipCommandServiceImpl implements MembershipCommandService {
-
+  private final ApplicationEventPublisher appEvents;
   private final WalletRepository walletRepo;
   private final WalletMemberRepository memberRepo;               // OLTP
   private final WalletMemberReadRepository memberReadRepo;       // Read
@@ -40,11 +42,14 @@ public class MembershipCommandServiceImpl implements MembershipCommandService {
   public MembershipCommandServiceImpl(WalletRepository walletRepo,
                                       WalletMemberRepository memberRepo,
                                       WalletMemberReadRepository memberReadRepo,
-                                      WalletPolicyQueryServiceImpl walletPolicyService ) {
+                                      WalletPolicyQueryServiceImpl walletPolicyService,
+                                      ApplicationEventPublisher appEvents ) {
+                                        
     this.walletRepo = walletRepo;
     this.memberRepo = memberRepo;
     this.memberReadRepo = memberReadRepo;
     this.walletPolicyService = walletPolicyService;
+    this.appEvents = appEvents; 
   }
 
   @Override
@@ -75,7 +80,7 @@ public class MembershipCommandServiceImpl implements MembershipCommandService {
       throw new MaxMemberReachException("MAX_MEMBERS_REACHED");
     }
 
-    walletRepo.findById(walletId).orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
+    var wallet=walletRepo.findById(walletId).orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
     if (memberRepo.existsByWalletIdAndUserId(walletId, targetUserId)) {
       throw new ConflictException("User is already a member (or invited)");
     }
@@ -96,6 +101,13 @@ public class MembershipCommandServiceImpl implements MembershipCommandService {
 
     entity = memberRepo.save(entity);
     upsertRead(entity);              
+    appEvents.publishEvent(DomainEvents.WalletMemberInvited.builder()
+                    .walletId(walletId)
+                    .inviterUserId(actor.getUserId())
+                    .invitedUserId(entity.getUserId())
+                    .role(entity.getRole())
+                    .walletName(wallet.getName())
+                    .build());
     return toDetailDTO(entity);
   }
 
