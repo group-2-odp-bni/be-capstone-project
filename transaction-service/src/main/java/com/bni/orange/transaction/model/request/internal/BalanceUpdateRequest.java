@@ -10,8 +10,18 @@ import java.util.UUID;
 
 @Builder
 public record BalanceUpdateRequest(
-    @NotNull UUID walletId,
-    @NotNull @Digits(integer = 20, fraction = 2) BigDecimal delta,
-    @NotBlank String referenceId,
-    String reason
+    @NotNull
+    UUID walletId,
+
+    @NotNull
+    @Digits(integer = 20, fraction = 2)
+    BigDecimal delta,
+
+    @NotBlank
+    String referenceId,
+
+    String reason,
+
+    @NotNull
+    UUID actorUserId
 ) {}

@@ -22,6 +22,8 @@ public class TransactionMapper {
             .totalAmount(transaction.getTotalAmount())
             .currency(transaction.getCurrency())
             .userId(transaction.getUserId())
+            .userName(transaction.getUserName())
+            .userPhone(transaction.getUserPhone())
             .walletId(transaction.getWalletId())
             .counterpartyUserId(transaction.getCounterpartyUserId())
             .counterpartyWalletId(transaction.getCounterpartyWalletId())

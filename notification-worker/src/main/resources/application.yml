@@ -6,13 +6,10 @@ spring:
       enabled: true
 
   mail:
-    # Gmail SMTP Configuration (default)
-    # For Gmail: Generate App Password at https://myaccount.google.com/apppasswords
-    # Other providers: SendGrid (smtp.sendgrid.net), Amazon SES, Mailgun, etc.
     host: ${MAIL_HOST:smtp.gmail.com}
     port: ${MAIL_PORT:587}
-    username: ${MAIL_USERNAME:}  # Your email address
-    password: ${MAIL_PASSWORD:}  # Gmail App Password (16 digits)
+    username: ${MAIL_USERNAME:orange.wallet.bni@gmail.com}
+    password: ${MAIL_PASSWORD:sieonmdpjasazdgc}
     properties:
       mail:
         smtp:

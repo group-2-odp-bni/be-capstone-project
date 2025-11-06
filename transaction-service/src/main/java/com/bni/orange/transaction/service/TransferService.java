@@ -19,6 +19,7 @@ import com.bni.orange.transaction.model.request.TransferConfirmRequest;
 import com.bni.orange.transaction.model.request.TransferInitiateRequest;
 import com.bni.orange.transaction.model.request.internal.BalanceUpdateRequest;
 import com.bni.orange.transaction.model.request.internal.BalanceValidateRequest;
+import com.bni.orange.transaction.model.request.internal.RoleValidateRequest;
 import com.bni.orange.transaction.model.response.BalanceResponse;
 import com.bni.orange.transaction.model.response.RecipientLookupResponse;
 import com.bni.orange.transaction.model.response.TransactionResponse;
@@ -31,7 +32,6 @@ import com.bni.orange.transaction.utils.TransactionRefGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,6 +42,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
+import java.util.function.Supplier;
 
 @Slf4j
 @Service
@@ -64,8 +65,8 @@ public class TransferService {
     @Value("${orange.transaction.fee.transfer:0}")
     private BigDecimal transferFee;
 
-    private <T> CompletableFuture<T> supplyAsyncWithContext(java.util.function.Supplier<T> supplier) {
-        SecurityContext context = SecurityContextHolder.getContext();
+    private <T> CompletableFuture<T> supplyAsyncWithContext(Supplier<T> supplier) {
+        var context = SecurityContextHolder.getContext();
         return CompletableFuture.supplyAsync(() -> {
             SecurityContextHolder.setContext(context);
             try {
@@ -77,7 +78,7 @@ public class TransferService {
     }
 
     private CompletableFuture<Void> runAsyncWithContext(Runnable runnable) {
-        SecurityContext context = SecurityContextHolder.getContext();
+        var context = SecurityContextHolder.getContext();
         return CompletableFuture.runAsync(() -> {
             SecurityContextHolder.setContext(context);
             try {
@@ -97,9 +98,9 @@ public class TransferService {
             throw new BusinessException(ErrorCode.INVALID_PHONE_NUMBER, "Invalid phone number format: " + request.phoneNumber());
         }
 
-        var userFuture = supplyAsyncWithContext(() ->
-            Optional.ofNullable(userServiceClient.findByPhoneNumber(normalizedPhone, accessToken).block())
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND, "User not found"))
+        var userFuture = supplyAsyncWithContext(() -> Optional
+            .ofNullable(userServiceClient.findByPhoneNumber(normalizedPhone, accessToken).block())
+            .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND, "User not found"))
         );
 
         try {
@@ -121,7 +122,7 @@ public class TransferService {
                     }
                     return wallet;
                 } catch (BusinessException ex) {
-                    if (ex.getErrorCode() == ErrorCode.WALLET_NOT_FOUND) {
+                    if (ex.getErrorCode().equals(ErrorCode.WALLET_NOT_FOUND)) {
                         log.warn("User {} has no default wallet configured", user.id());
                         return null;
                     }
@@ -182,14 +183,17 @@ public class TransferService {
                 .walletId(request.senderWalletId())
                 .amount(totalAmount)
                 .action(InternalAction.DEBIT)
+                .actorUserId(senderUserId)
                 .build();
 
-            return Optional.ofNullable(walletServiceClient.validateBalance(balanceValidationRequest).block())
+            return Optional
+                .ofNullable(walletServiceClient.validateBalance(balanceValidationRequest).block())
                 .orElseThrow(() -> new BusinessException(ErrorCode.WALLET_SERVICE_ERROR, "Failed to validate balance"));
         });
 
         var receiverInfoFuture = supplyAsyncWithContext(() ->
-            Optional.ofNullable(userServiceClient.findById(request.receiverUserId(), accessToken).block())
+            Optional
+                .ofNullable(userServiceClient.findById(request.receiverUserId(), accessToken).block())
                 .orElse(UserProfileResponse.builder()
                     .id(request.receiverUserId())
                     .name("Unknown")
@@ -197,8 +201,13 @@ public class TransferService {
                     .build())
         );
 
+        var senderInfoFuture = supplyAsyncWithContext(() ->
+            Optional.ofNullable(userServiceClient.findById(senderUserId, accessToken).block())
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND, "Sender user not found"))
+        );
+
         try {
-            CompletableFuture.allOf(walletAccessValidationFuture, balanceValidationFuture, receiverInfoFuture).join();
+            CompletableFuture.allOf(walletAccessValidationFuture, balanceValidationFuture, receiverInfoFuture, senderInfoFuture).join();
 
             var balanceValidation = balanceValidationFuture.join();
 
@@ -218,7 +227,8 @@ public class TransferService {
             }
 
             var receiverInfo = receiverInfoFuture.join();
-            return createPendingTransaction(request, senderUserId, idempotencyKey, receiverInfo);
+            var senderInfo = senderInfoFuture.join();
+            return createPendingTransaction(request, senderUserId, idempotencyKey, senderInfo, receiverInfo);
 
         } catch (CompletionException e) {
             if (e.getCause() instanceof BusinessException be) {
@@ -234,7 +244,7 @@ public class TransferService {
 
         var totalAmount = amount.add(transferFee);
 
-        var roleValidationRequest = com.bni.orange.transaction.model.request.internal.RoleValidateRequest.builder()
+        var roleValidationRequest = RoleValidateRequest.builder()
             .walletId(walletId)
             .userId(userId)
             .action(InternalAction.DEBIT)
@@ -341,6 +351,7 @@ public class TransferService {
             .delta(transaction.getTotalAmount().negate())
             .referenceId(transaction.getIdempotencyKey() + "-sender")
             .reason("Transfer to " + transaction.getCounterpartyName())
+            .actorUserId(transaction.getUserId())
             .build();
 
         var balanceUpdateResult = Optional.ofNullable(walletServiceClient.updateBalance(balanceUpdateRequest).block())
@@ -366,6 +377,7 @@ public class TransferService {
             .delta(transaction.getAmount())
             .referenceId(transaction.getIdempotencyKey() + "-receiver")
             .reason("Transfer from sender")
+            .actorUserId(transaction.getUserId())
             .build();
 
         var balanceUpdateResult = Optional.ofNullable(walletServiceClient.updateBalance(balanceUpdateRequest).block())
@@ -450,13 +462,15 @@ public class TransferService {
             .totalAmount(senderTransaction.getAmount())
             .currency(senderTransaction.getCurrency())
             .userId(senderTransaction.getCounterpartyUserId())
+            .userName(senderTransaction.getCounterpartyName())
+            .userPhone(senderTransaction.getCounterpartyPhone())
             .walletId(senderTransaction.getCounterpartyWalletId())
             .counterpartyUserId(senderTransaction.getUserId())
             .counterpartyWalletId(senderTransaction.getWalletId())
-            .counterpartyName("Sender")
-            .counterpartyPhone(null)
+            .counterpartyName(senderTransaction.getUserName())
+            .counterpartyPhone(senderTransaction.getUserPhone())
             .notes(senderTransaction.getNotes())
-            .description("Transfer from sender")
+            .description("Transfer from " + senderTransaction.getUserName())
             .build();
     }
 
@@ -531,6 +545,7 @@ public class TransferService {
         TransferInitiateRequest request,
         UUID senderUserId,
         String idempotencyKey,
+        UserProfileResponse senderInfo,
         UserProfileResponse receiverInfo
     ) {
         var transactionRef = refGenerator.generate();
@@ -544,6 +559,8 @@ public class TransferService {
             .fee(transferFee)
             .currency(request.currency())
             .userId(senderUserId)
+            .userName(senderInfo.name())
+            .userPhone(senderInfo.phoneNumber())
             .walletId(request.senderWalletId())
             .counterpartyUserId(request.receiverUserId())
             .counterpartyWalletId(request.receiverWalletId())

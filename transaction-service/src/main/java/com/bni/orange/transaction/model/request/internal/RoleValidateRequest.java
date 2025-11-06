@@ -10,8 +10,15 @@ import java.util.UUID;
 
 @Builder
 public record RoleValidateRequest(
-    @NotNull UUID walletId,
-    @NotNull UUID userId,
-    @NotNull InternalAction action,
-    @Digits(integer = 20, fraction = 2) BigDecimal amount
+    @NotNull
+    UUID walletId,
+
+    @NotNull
+    UUID userId,
+
+    @NotNull
+    InternalAction action,
+
+    @Digits(integer = 20, fraction = 2)
+    BigDecimal amount
 ) {}

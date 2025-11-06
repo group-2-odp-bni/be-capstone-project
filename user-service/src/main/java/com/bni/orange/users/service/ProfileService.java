@@ -131,7 +131,7 @@ public class ProfileService {
     }
 
     @Transactional
-    public VerificationResponse verifyEmail(UUID userId, String otpCode) {
+       public VerificationResponse verifyEmail(UUID userId, String otpCode) {
         log.info("Verifying email OTP for user: {}", userId);
         var profile = profileRepository.findById(userId)
             .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));

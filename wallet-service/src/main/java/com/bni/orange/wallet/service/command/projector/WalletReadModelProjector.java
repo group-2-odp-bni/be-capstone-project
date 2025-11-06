@@ -1,16 +1,22 @@
 package com.bni.orange.wallet.service.command.projector;
-import com.bni.orange.wallet.model.entity.Wallet;
+
+import com.bni.orange.wallet.domain.DomainEvents;
 import com.bni.orange.wallet.model.entity.UserReceivePrefs;
-import com.bni.orange.wallet.model.entity.read.*;
+import com.bni.orange.wallet.model.entity.Wallet;
+import com.bni.orange.wallet.model.entity.read.UserWalletRead;
+import com.bni.orange.wallet.model.entity.read.WalletMemberRead;
+import com.bni.orange.wallet.model.entity.read.WalletRead;
 import com.bni.orange.wallet.model.enums.WalletMemberRole;
 import com.bni.orange.wallet.model.enums.WalletMemberStatus;
 import com.bni.orange.wallet.repository.UserReceivePrefsRepository;
-import com.bni.orange.wallet.repository.read.*;
+import com.bni.orange.wallet.repository.read.UserWalletReadRepository;
+import com.bni.orange.wallet.repository.read.WalletMemberReadRepository;
+import com.bni.orange.wallet.repository.read.WalletReadRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.bni.orange.wallet.domain.DomainEvents;
+
 import java.time.OffsetDateTime;
 import java.util.UUID;
 

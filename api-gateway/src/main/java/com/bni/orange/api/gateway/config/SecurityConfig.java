@@ -55,7 +55,6 @@ public class SecurityConfig {
             })
             .authorizeExchange(exchange -> exchange
                 .pathMatchers("/api/v1/auth/**", "/oauth2/jwks", "/actuator/**", "/api/security/**", "/fallback/**").permitAll()
-                // External payment gateway endpoints - authenticated via API key at route level
                 .pathMatchers("/api/v1/topup/inquiry/**", "/api/v1/topup/callback/**").permitAll()
                 .anyExchange().authenticated()
             )

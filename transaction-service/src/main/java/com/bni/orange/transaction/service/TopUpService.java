@@ -19,6 +19,7 @@ import com.bni.orange.transaction.model.enums.WalletRole;
 import com.bni.orange.transaction.model.enums.WalletStatus;
 import com.bni.orange.transaction.model.request.TopUpCallbackRequest;
 import com.bni.orange.transaction.model.request.TopUpInitiateRequest;
+import com.bni.orange.transaction.model.request.internal.BalanceUpdateRequest;
 import com.bni.orange.transaction.model.request.internal.RoleValidateRequest;
 import com.bni.orange.transaction.model.response.PaymentMethodResponse;
 import com.bni.orange.transaction.model.response.TopUpInitiateResponse;
@@ -113,7 +114,6 @@ public class TopUpService {
 
         var userProfileFuture = supplyAsyncWithContext(() -> userServiceClient
             .findById(userId, accessToken)
-            .map(UserProfileResponse::name)
             .block()
         );
 
@@ -122,7 +122,7 @@ public class TopUpService {
 
             var validation = validationFuture.join();
             var config = configFuture.join();
-            var accountName = userProfileFuture.join();
+            var userProfile = userProfileFuture.join();
 
             if (!config.isAmountValid(request.amount())) {
                 throw new BusinessException(ErrorCode.INVALID_AMOUNT, String.format("Amount must be between %s and %s", config.getMinAmount(), config.getMaxAmount()));
@@ -133,7 +133,7 @@ public class TopUpService {
 
             var transactionRef = refGenerator.generate();
 
-            return createTopUpTransaction(request, userId, config, validation, transactionRef, fee, totalAmount, accountName);
+            return createTopUpTransaction(request, userId, config, validation, transactionRef, fee, totalAmount, userProfile);
 
         } catch (CompletionException e) {
             if (e.getCause() instanceof BusinessException be) {
@@ -152,7 +152,7 @@ public class TopUpService {
         String transactionRef,
         BigDecimal fee,
         BigDecimal totalAmount,
-        String accountName
+        UserProfileResponse userProfile
     ) {
 
         var transaction = transactionRepository.save(
@@ -166,6 +166,8 @@ public class TopUpService {
                 .totalAmount(totalAmount)
                 .currency("IDR")
                 .userId(userId)
+                .userName(userProfile.name())
+                .userPhone(userProfile.phoneNumber())
                 .walletId(request.walletId())
                 .counterpartyUserId(null)
                 .counterpartyWalletId(null)
@@ -181,20 +183,21 @@ public class TopUpService {
 
         var virtualAccount = virtualAccountRepository.save(
             VirtualAccount.builder()
-            .vaNumber(vaNumber)
-                .accountName(accountName)
-            .transactionId(transaction.getId())
-            .userId(userId)
-            .walletId(request.walletId())
-            .provider(request.provider())
-            .status(VirtualAccountStatus.ACTIVE)
-            .amount(request.amount())
-            .expiresAt(expiryTime)
-            .metadata(Map.of(
-                "provider", request.provider().name(),
-                "transactionRef", transactionRef
-            ))
-            .build());
+                .vaNumber(vaNumber)
+                .transactionId(transaction.getId())
+                .accountName(userProfile.name())
+                .userId(userId)
+                .walletId(request.walletId())
+                .provider(request.provider())
+                .status(VirtualAccountStatus.ACTIVE)
+                .amount(request.amount())
+                .expiresAt(expiryTime)
+                .metadata(Map.of(
+                    "provider", request.provider().name(),
+                    "transactionRef", transactionRef)
+                )
+                .build()
+        );
         log.info("Created virtual account: {}", vaNumber);
 
         // eventPublisher.publishTopUpInitiated(transaction, virtualAccount);
@@ -204,7 +207,7 @@ public class TopUpService {
                 var vaRequest = new BniVaClient.VaRegistrationRequest(
                     vaNumber,
                     request.amount(),
-                    accountName,
+                    userProfile.name(),
                     expiryTime.format(EXPIRY_FORMATTER)
                 );
 
@@ -303,11 +306,12 @@ public class TopUpService {
 
     private void processWalletCredit(Transaction transaction, VirtualAccount virtualAccount, PaymentProvider provider) {
         try {
-            var balanceUpdateRequest = com.bni.orange.transaction.model.request.internal.BalanceUpdateRequest.builder()
+            var balanceUpdateRequest = BalanceUpdateRequest.builder()
                 .walletId(virtualAccount.getWalletId())
                 .delta(virtualAccount.getAmount())
                 .referenceId(transaction.getTransactionRef())
                 .reason("Top-up via " + provider.getDisplayName())
+                .actorUserId(transaction.getUserId())
                 .build();
 
             var balanceUpdateResult = walletServiceClient.updateBalance(balanceUpdateRequest).block();
@@ -397,8 +401,8 @@ public class TopUpService {
         );
 
         var transactionFuture = CompletableFuture.supplyAsync(() ->
-            transactionRepository.findById(transactionId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.TRANSACTION_NOT_FOUND, "Transaction not found")),
+                transactionRepository.findById(transactionId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.TRANSACTION_NOT_FOUND, "Transaction not found")),
             virtualThreadTaskExecutor
         );
 

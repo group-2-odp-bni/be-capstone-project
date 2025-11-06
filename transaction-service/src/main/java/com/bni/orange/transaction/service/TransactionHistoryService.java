@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.Objects;
 import java.util.UUID;
 
 @Slf4j
@@ -62,7 +63,7 @@ public class TransactionHistoryService {
 
         var walletIds = walletServiceClient.getUserWalletIds(userId).block();
 
-        if (walletIds == null || walletIds.isEmpty()) {
+        if (Objects.isNull(walletIds) || walletIds.isEmpty()) {
             log.warn("User {} has no accessible wallets", userId);
             return Page.empty(pageable);
         }

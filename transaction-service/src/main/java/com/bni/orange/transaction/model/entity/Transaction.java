@@ -72,6 +72,12 @@ public class Transaction {
     @Column(name = "wallet_id", nullable = false)
     private UUID walletId;
 
+    @Column(name = "user_name", length = 255)
+    private String userName;
+
+    @Column(name = "user_phone", length = 50)
+    private String userPhone;
+
     @Column(name = "counterparty_user_id")
     private UUID counterpartyUserId;
 
