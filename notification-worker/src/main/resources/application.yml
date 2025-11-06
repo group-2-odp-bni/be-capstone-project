@@ -60,6 +60,10 @@ orange:
       initial-backoff: 2s
       max-backoff: 10s
       multiplier: 2.0
+    health-monitor:
+      enabled: true
+      interval: 300000  # 5 minutes
+      initial-delay: 60000  # 1 minute after startup
   webhook:
     hmac-secret: ${WAHA_WEBHOOK_HMAC_SECRET:64eb6963dd30bbe9786cb9193f9eabee6ddac7e9aeb0deb6fc72a1bd065abb52}
   email:
@@ -71,24 +75,32 @@ orange:
       max-backoff: 5s
       multiplier: 2.0
 
-resilience:
+resilience4j:
   retry:
-    max-attempts: 3
-    initial-backoff: 2s
-    multiplier: 2.0
-    max-backoff: 10s
-    fail-after-max-attempts: true
-    retryable-exceptions:
-      - com.bni.orange.notification.client.WahaApiClient$WahaClientException
-      - com.bni.orange.notification.client.WahaApiClient$WahaServiceException
-      - java.util.concurrent.TimeoutException
-  circuit-breaker:
-    sliding-window-size: 100
-    minimum-number-of-calls: 10
-    failure-rate-threshold: 50
-    wait-duration-in-open-state: 60s
-    permitted-number-of-calls-in-half-open-state: 10
-    automatic-transition-from-open-to-half-open-enabled: true
+    instances:
+      waha-session:
+        maxAttempts: 3
+        waitDuration: 2s
+        exponentialBackoffMultiplier: 2.0
+        enableExponentialBackoff: true
+        retryExceptions:
+          - com.bni.orange.notification.client.WahaApiClient$WahaClientException
+          - com.bni.orange.notification.client.WahaApiClient$WahaServiceException
+          - java.util.concurrent.TimeoutException
+          - org.springframework.web.reactive.function.client.WebClientRequestException
+  circuitbreaker:
+    instances:
+      waha-session:
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        recordExceptions:
+          - com.bni.orange.notification.client.WahaApiClient$WahaClientException
+          - com.bni.orange.notification.client.WahaApiClient$WahaServiceException
+          - java.util.concurrent.TimeoutException
 
 server:
   port: 8085
