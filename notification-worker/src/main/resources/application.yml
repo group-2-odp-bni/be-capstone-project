@@ -75,6 +75,7 @@ orange:
       max-backoff: 5s
       multiplier: 2.0
 
+# Resilience4j for annotation-based resilience (WahaSessionService)
 resilience4j:
   retry:
     instances:
@@ -101,6 +102,26 @@ resilience4j:
           - com.bni.orange.notification.client.WahaApiClient$WahaClientException
           - com.bni.orange.notification.client.WahaApiClient$WahaServiceException
           - java.util.concurrent.TimeoutException
+
+# Custom resilience config for programmatic beans (WahaApiClient)
+resilience:
+  retry:
+    max-attempts: 3
+    initial-backoff: 2s
+    multiplier: 2.0
+    max-backoff: 10s
+    fail-after-max-attempts: true
+    retryable-exceptions:
+      - com.bni.orange.notification.client.WahaApiClient$WahaClientException
+      - com.bni.orange.notification.client.WahaApiClient$WahaServiceException
+      - java.util.concurrent.TimeoutException
+  circuit-breaker:
+    sliding-window-size: 10
+    minimum-number-of-calls: 5
+    failure-rate-threshold: 50
+    wait-duration-in-open-state: 30s
+    permitted-number-of-calls-in-half-open-state: 3
+    automatic-transition-from-open-to-half-open-enabled: true
 
 server:
   port: 8085
