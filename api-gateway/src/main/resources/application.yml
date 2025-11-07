@@ -10,8 +10,8 @@ spring:
       server:
         webflux:
           httpclient:
-            connect-timeout: 5000
-            response-timeout: 30s
+            connect-timeout: 10000
+            response-timeout: 60s
 
   http:
     codecs:
@@ -62,14 +62,14 @@ resilience4j.circuitbreaker:
 resilience4j.timelimiter:
   instances:
     authentication-service:
-      timeout-duration: 5s
+      timeout-duration: 15s
       cancel-running-future: true
     user-service:
-      timeout-duration: 5s
+      timeout-duration: 10s
       cancel-running-future: true
     wallet-service:
-      timeout-duration: 5s
+      timeout-duration: 10s
       cancel-running-future: true
     transaction-service:
-      timeout-duration: 10s
+      timeout-duration: 20s
       cancel-running-future: true

@@ -77,6 +77,12 @@ public class WalletCommandServiceImpl implements WalletCommandService {
 
   @Override
   public WalletDetailResponse createWallet(WalletCreateRequest req, String idempotencyKey) {
+    final UUID uid = guard.currentUserOrThrow();
+    return createWalletForUser(uid, req, idempotencyKey);
+  }
+
+  @Override
+  public WalletDetailResponse createWalletForUser(UUID userId, WalletCreateRequest req, String idempotencyKey) {
     final String scope = "wallet:create";
     if (idempotencyKey != null && !idempotencyKey.isBlank()) {
       final var payload = canonicalJson(req);
@@ -87,7 +93,7 @@ public class WalletCommandServiceImpl implements WalletCommandService {
         catch (Exception ignored) {}
       }
       try {
-        var dto = doCreate(req);
+        var dto = doCreateWalletInternal(userId, req);
         idem.complete(scope, idempotencyKey, HttpStatus.CREATED.value(), toJson(dto));
         return dto;
       } catch (RuntimeException ex) {
@@ -95,28 +101,28 @@ public class WalletCommandServiceImpl implements WalletCommandService {
         throw ex;
       }
     }
-    return doCreate(req);
+    return doCreateWalletInternal(userId, req);
   }
-  private WalletDetailResponse doCreate(WalletCreateRequest req) {
-    final UUID uid = guard.currentUserOrThrow();
-    Wallet w = mapper.toEntity(req, uid);
+
+  private WalletDetailResponse doCreateWalletInternal(UUID userId, WalletCreateRequest req) {
+    var w = mapper.toEntity(req, userId);
     w.setId(null);
-    if (w.getUserId() == null) w.setUserId(uid);
+    if (w.getUserId() == null) w.setUserId(userId);
     if (w.getName() == null && w.getType() != null) {
         w.setName(w.getType().name().toLowerCase() + " wallet");
     }
     final Wallet saved = walletRepo.save(w);
-    upsertOwnerMembership(saved.getId(), uid);
+    upsertOwnerMembership(saved.getId(), userId);
     boolean wantDefault = Boolean.TRUE.equals(req.getSetAsDefaultReceive());
-    boolean hasDefault = prefsRepo.findById(uid).map(UserReceivePrefs::getDefaultWalletId).isPresent();
+    boolean hasDefault = prefsRepo.findById(userId).map(UserReceivePrefs::getDefaultWalletId).isPresent();
     boolean isNowDefault = wantDefault || !hasDefault;
 
     if (isNowDefault) {
-        markAsDefaultReceivePrefsOnly(uid, saved.getId());
+        markAsDefaultReceivePrefsOnly(userId, saved.getId());
     }
     appEvents.publishEvent(DomainEvents.WalletCreated.builder()
                     .walletId(saved.getId())
-                    .userId(uid)
+                    .userId(userId)
                     .type(saved.getType())
                     .status(saved.getStatus())
                     .currency(saved.getCurrency())
@@ -127,9 +133,9 @@ public class WalletCommandServiceImpl implements WalletCommandService {
                     .updatedAt(saved.getUpdatedAt())
                     .build());
       var filtered = MetadataFilter.filter(saved.getMetadata());
-      var dto = mapper.toDetailResponseFromWalletEntity(saved, filtered,isNowDefault);
-      return dto;
+      return mapper.toDetailResponseFromWalletEntity(saved, filtered,isNowDefault);
   }
+
   @Override
   public WalletDetailResponse updateWallet(UUID walletId, WalletUpdateRequest req) {
       final UUID uid = guard.currentUserOrThrow();
@@ -159,6 +165,7 @@ public class WalletCommandServiceImpl implements WalletCommandService {
       var dto = mapper.toDetailResponseFromWalletEntity(saved, filtered, isDefault);
       return dto;
     }
+
   private String canonicalJson(Object o) {
     try { return om.writer().withDefaultPrettyPrinter().writeValueAsString(o); }
     catch (Exception e) { throw new RuntimeException(e); }
@@ -168,6 +175,7 @@ public class WalletCommandServiceImpl implements WalletCommandService {
     try { return om.writeValueAsString(o); }
     catch (Exception e) { throw new RuntimeException(e); }
   }
+
   @Transactional
   private void markAsDefaultReceivePrefsOnly(UUID userId, UUID newDefaultWalletId) {
       var prefs = prefsRepo.findById(userId)
@@ -177,6 +185,7 @@ public class WalletCommandServiceImpl implements WalletCommandService {
       prefs.setUpdatedAt(OffsetDateTime.now());
       prefsRepo.save(prefs);
   }
+
   @Transactional
   private void markAsDefaultReceive(UUID userId, UUID newDefaultWalletId) {
     userWalletReadRepo.findByUserIdAndWalletId(userId, newDefaultWalletId)
@@ -202,6 +211,7 @@ public class WalletCommandServiceImpl implements WalletCommandService {
     newWr.setDefaultForUser(true);
     walletReadRepo.save(newWr);
   }
+
   private void upsertOwnerMembership(UUID walletId, UUID userId) {
     var owner = walletMemberRepo.findByWalletIdAndUserId(walletId, userId)
             .orElseGet(() -> WalletMember.builder()

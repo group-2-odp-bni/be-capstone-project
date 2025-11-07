@@ -4,7 +4,7 @@ plugins {
     id("org.sonarqube") version "6.3.1.5724"
     id("org.springframework.boot") version "3.5.6"
     id("io.spring.dependency-management") version "1.1.7"
-    id("com.google.protobuf") version "0.9.4"
+    id("com.google.protobuf") version "0.9.5"
 }
 
 group = property("group") as String
@@ -38,9 +38,10 @@ dependencies {
     annotationProcessor("org.mapstruct:mapstruct-processor:1.6.3")
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
     implementation("org.springframework.kafka:spring-kafka")
+    implementation("org.xerial.snappy:snappy-java:1.1.10.5")
 
-    implementation("com.google.protobuf:protobuf-java:3.25.3")
-    implementation("com.google.protobuf:protobuf-java-util:3.25.3")
+    implementation("com.google.protobuf:protobuf-java:4.31.1")
+    implementation("com.google.protobuf:protobuf-java-util:4.31.1")
     annotationProcessor ("org.mapstruct:mapstruct-processor:1.6.3")    
     annotationProcessor ("org.projectlombok:lombok-mapstruct-binding:0.2.0")
     runtimeOnly("io.micrometer:micrometer-registry-prometheus")
@@ -56,7 +57,7 @@ dependencies {
 }
 protobuf {
     protoc {
-        artifact = "com.google.protobuf:protoc:3.25.3"
+        artifact = "com.google.protobuf:protoc:4.31.1"
     }
 
     generateProtoTasks {

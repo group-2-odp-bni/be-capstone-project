@@ -8,5 +8,6 @@ import java.util.UUID;
 
 public interface WalletCommandService {
   WalletDetailResponse createWallet(WalletCreateRequest req, String idempotencyKey);
+  WalletDetailResponse createWalletForUser(UUID userId, WalletCreateRequest req, String idempotencyKey);
   WalletDetailResponse updateWallet(UUID walletId, WalletUpdateRequest req);
 }

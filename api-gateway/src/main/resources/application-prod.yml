@@ -108,6 +108,10 @@ orange:
       - "https://orangebybni.my.id"
       - "https://api.orangebybni.my.id"
       - "https://api-dev.orangebybni.my.id"
+      - "http://localhost:3000"
+      - "http://localhost:5173"
+      - "http://localhost:8080"
+      - "http://localhost:65468"
 
   security:
     ip-blocking-enabled: true
@@ -120,7 +124,7 @@ orange:
 
   payment:
     bni:
-      api-key: ${BNI_API_KEY:}
+      api-key: ${BNI_API_KEY:bni-api-key-dev}
 
 logging:
   level:
