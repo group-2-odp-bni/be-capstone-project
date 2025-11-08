@@ -1,7 +1,12 @@
 package com.bni.orange.wallet.model.response;
 
-import com.bni.orange.wallet.model.enums.*;
-import lombok.*;
+import com.bni.orange.wallet.model.enums.WalletStatus;
+import com.bni.orange.wallet.model.enums.WalletType;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;

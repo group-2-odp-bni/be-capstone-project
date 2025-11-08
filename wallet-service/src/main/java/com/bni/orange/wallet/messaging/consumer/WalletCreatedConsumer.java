@@ -5,7 +5,7 @@ import com.bni.orange.wallet.model.enums.WalletStatus;
 import com.bni.orange.wallet.model.enums.WalletType;
 import com.bni.orange.wallet.proto.EventEnvelope;
 import com.bni.orange.wallet.proto.WalletCreatedEvent;
-import com.bni.orange.wallet.service.command.projector.WalletReadModelProjector; 
+import com.bni.orange.wallet.service.command.projector.WalletReadModelProjector;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;

@@ -8,7 +8,12 @@ import com.bni.orange.wallet.model.response.WalletDetailResponse;
 import com.bni.orange.wallet.model.response.WalletListItemResponse;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.mapstruct.*;
+import org.mapstruct.BeanMapping;
+import org.mapstruct.InjectionStrategy;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
+import org.mapstruct.MappingTarget;
+import org.mapstruct.NullValuePropertyMappingStrategy;
 
 import java.time.OffsetDateTime;
 import java.util.Map;

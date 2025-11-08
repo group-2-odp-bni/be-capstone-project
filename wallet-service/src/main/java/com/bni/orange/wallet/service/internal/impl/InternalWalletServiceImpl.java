@@ -1,38 +1,32 @@
 package com.bni.orange.wallet.service.internal.impl;
 
 import com.bni.orange.wallet.model.enums.InternalAction;
+import com.bni.orange.wallet.model.enums.PeriodType;
 import com.bni.orange.wallet.model.enums.TransferType;
 import com.bni.orange.wallet.model.enums.WalletMemberStatus;
 import com.bni.orange.wallet.model.enums.WalletStatus;
 import com.bni.orange.wallet.model.request.internal.BalanceUpdateRequest;
 import com.bni.orange.wallet.model.request.internal.BalanceValidateRequest;
 import com.bni.orange.wallet.model.request.internal.RoleValidateRequest;
+import com.bni.orange.wallet.model.request.internal.ValidateWalletOwnershipRequest;
 import com.bni.orange.wallet.model.response.internal.BalanceUpdateResponse;
 import com.bni.orange.wallet.model.response.internal.DefaultWalletResponse;
 import com.bni.orange.wallet.model.response.internal.RoleValidateResponse;
 import com.bni.orange.wallet.model.response.internal.UserWalletsResponse;
+import com.bni.orange.wallet.model.response.internal.ValidateWalletOwnershipResponse;
 import com.bni.orange.wallet.model.response.internal.ValidationResultResponse;
 import com.bni.orange.wallet.repository.UserReceivePrefsRepository;
 import com.bni.orange.wallet.repository.WalletInternalRepository;
 import com.bni.orange.wallet.repository.WalletMemberInternalRepository;
 import com.bni.orange.wallet.repository.WalletMemberRepository;
 import com.bni.orange.wallet.repository.WalletPolicyInternalRepository;
-
-
 import com.bni.orange.wallet.repository.read.UserLimitsReadRepository;
-import com.bni.orange.wallet.service.command.LimitCounterService;
-import com.bni.orange.wallet.model.enums.PeriodType;
-import com.bni.orange.wallet.utils.limits.LimitBuckets; 
-
-
-
 import com.bni.orange.wallet.repository.read.WalletReadRepository;
+import com.bni.orange.wallet.service.command.LimitCounterService;
 import com.bni.orange.wallet.service.internal.InternalWalletService;
-import com.bni.orange.wallet.model.request.internal.ValidateWalletOwnershipRequest;
-import com.bni.orange.wallet.model.response.internal.ValidateWalletOwnershipResponse;
+import com.bni.orange.wallet.utils.limits.LimitBuckets;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;

@@ -8,7 +8,8 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.*;
+import java.util.Optional;
+import java.util.UUID;
 
 @Repository
 public class WalletInternalRepository {

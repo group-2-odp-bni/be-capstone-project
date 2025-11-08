@@ -1,7 +1,7 @@
 package com.bni.orange.notification.consumer;
 
-import com.bni.orange.users.proto.OtpEmailNotificationEvent;
 import com.bni.orange.notification.service.EmailService;
+import com.bni.orange.users.proto.OtpEmailNotificationEvent;
 import com.google.protobuf.InvalidProtocolBufferException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

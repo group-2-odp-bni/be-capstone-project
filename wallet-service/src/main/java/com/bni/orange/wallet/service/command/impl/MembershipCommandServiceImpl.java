@@ -21,15 +21,15 @@ import com.bni.orange.wallet.repository.read.WalletMemberReadRepository;
 import com.bni.orange.wallet.service.command.MembershipCommandService;
 import com.bni.orange.wallet.service.query.impl.WalletPolicyQueryServiceImpl;
 import com.bni.orange.wallet.utils.security.CurrentUser;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.context.ApplicationEventPublisher;           
-import com.bni.orange.wallet.model.entity.Wallet;
+
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.List;
 
 @Service
 @Transactional

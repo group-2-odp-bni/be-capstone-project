@@ -22,6 +22,7 @@ import com.bni.orange.transaction.model.request.TransferInitiateRequest;
 import com.bni.orange.transaction.model.request.internal.BalanceUpdateRequest;
 import com.bni.orange.transaction.model.request.internal.BalanceValidateRequest;
 import com.bni.orange.transaction.model.request.internal.RoleValidateRequest;
+import com.bni.orange.transaction.model.request.internal.ValidateWalletOwnershipRequest;
 import com.bni.orange.transaction.model.response.BalanceResponse;
 import com.bni.orange.transaction.model.response.RecipientLookupResponse;
 import com.bni.orange.transaction.model.response.TransactionResponse;
@@ -38,7 +39,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.bni.orange.transaction.model.request.internal.ValidateWalletOwnershipRequest;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;

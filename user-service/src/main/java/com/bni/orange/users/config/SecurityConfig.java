@@ -10,8 +10,6 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 
-import static org.springframework.security.oauth2.jwt.JwtTypeValidator.jwt;
-
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity

@@ -1,6 +1,7 @@
 package com.bni.orange.wallet.model.entity;
 
 import com.bni.orange.wallet.model.enums.PeriodType;
+
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.Objects;

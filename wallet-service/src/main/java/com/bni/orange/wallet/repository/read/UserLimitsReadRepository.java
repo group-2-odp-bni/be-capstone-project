@@ -1,8 +1,11 @@
 package com.bni.orange.wallet.repository.read;
 
 import com.bni.orange.wallet.model.entity.read.UserLimitsRead;
-import org.springframework.data.jpa.repository.*;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.util.Optional;
 import java.util.UUID;
 

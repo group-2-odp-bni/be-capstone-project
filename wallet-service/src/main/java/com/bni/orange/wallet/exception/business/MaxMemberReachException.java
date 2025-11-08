@@ -1,9 +1,8 @@
 package com.bni.orange.wallet.exception.business;
 
-import org.springframework.http.HttpStatus;
 import com.bni.orange.wallet.exception.ApiException;
-
 import com.bni.orange.wallet.exception.ErrorCode;
+import org.springframework.http.HttpStatus;
 
 public class MaxMemberReachException extends ApiException {
   public MaxMemberReachException(String msg) {

@@ -12,7 +12,7 @@ import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 
-import static reactor.util.retry.Retry.*;
+import static reactor.util.retry.Retry.backoff;
 
 @Slf4j
 @Service

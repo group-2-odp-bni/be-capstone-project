@@ -1,18 +1,17 @@
 package com.bni.orange.wallet.messaging.aftercommit;
 
-import com.bni.orange.wallet.messaging.WalletEventPublisher;
-
-import com.bni.orange.wallet.domain.DomainEvents.WalletUpdated;
 import com.bni.orange.wallet.domain.DomainEvents.WalletCreated;
 import com.bni.orange.wallet.domain.DomainEvents.WalletMemberInvited;
+import com.bni.orange.wallet.domain.DomainEvents.WalletUpdated;
+import com.bni.orange.wallet.messaging.WalletEventPublisher;
 import com.bni.orange.wallet.proto.WalletCreatedEvent;
-import com.bni.orange.wallet.proto.WalletUpdatedEvent;
 import com.bni.orange.wallet.proto.WalletMemberInvitedEvent;
+import com.bni.orange.wallet.proto.WalletUpdatedEvent;
 import com.bni.orange.wallet.service.command.projector.WalletReadModelProjector;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 @Component
 @RequiredArgsConstructor

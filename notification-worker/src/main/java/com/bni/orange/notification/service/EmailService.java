@@ -1,9 +1,8 @@
 package com.bni.orange.notification.service;
 
-import com.bni.orange.users.proto.OtpEmailNotificationEvent;
 import com.bni.orange.notification.config.properties.EmailConfigProperties;
+import com.bni.orange.users.proto.OtpEmailNotificationEvent;
 import jakarta.mail.MessagingException;
-import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.mail.javamail.JavaMailSender;

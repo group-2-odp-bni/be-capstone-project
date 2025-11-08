@@ -3,7 +3,9 @@ package com.bni.orange.wallet.repository;
 import com.bni.orange.wallet.model.entity.UserLimitCounter;
 import com.bni.orange.wallet.model.entity.UserLimitCounterId;
 import com.bni.orange.wallet.model.enums.PeriodType;
-import org.springframework.data.jpa.repository.*;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.OffsetDateTime;

@@ -2,19 +2,30 @@ package com.bni.orange.wallet.model.entity;
 
 import com.bni.orange.wallet.model.enums.WalletStatus;
 import com.bni.orange.wallet.model.enums.WalletType;
-import lombok.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.annotations.DynamicUpdate;
 import org.hibernate.annotations.JdbcType;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.dialect.PostgreSQLEnumJdbcType;
 import org.hibernate.type.SqlTypes;
 
-import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
-import java.util.Map; 
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 @Entity @DynamicUpdate
 @Table(schema = "wallet_oltp", name = "wallets")
