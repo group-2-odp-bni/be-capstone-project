@@ -2,6 +2,7 @@ package com.bni.orange.transaction.service;
 
 import com.bni.orange.transaction.model.entity.Transaction;
 import com.bni.orange.transaction.model.response.TransactionResponse;
+import com.bni.orange.transaction.model.response.TransactionSummaryResponse;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -38,5 +39,57 @@ public class TransactionMapper {
             .createdAt(transaction.getCreatedAt())
             .updatedAt(transaction.getUpdatedAt())
             .build();
+    }
+
+    /**
+     * Maps Transaction entity to lightweight summary response for list views.
+     * This significantly reduces payload size for transaction history endpoints.
+     */
+    public TransactionSummaryResponse toSummaryResponse(Transaction transaction) {
+        if (transaction == null) {
+            return null;
+        }
+
+        return TransactionSummaryResponse.builder()
+            .id(transaction.getId())
+            .transactionRef(transaction.getTransactionRef())
+            .type(transaction.getType())
+            .status(transaction.getStatus())
+            .amount(transaction.getAmount())
+            .currency(transaction.getCurrency())
+            .displayName(resolveDisplayName(transaction))
+            .displaySubtitle(resolveDisplaySubtitle(transaction))
+            .createdAt(transaction.getCreatedAt())
+            .build();
+    }
+
+    private String resolveDisplayName(Transaction transaction) {
+        return switch (transaction.getType()) {
+            case TRANSFER_OUT, TRANSFER_IN, INTERNAL_TRANSFER_OUT, INTERNAL_TRANSFER_IN, PAYMENT ->
+                transaction.getCounterpartyName() != null ? transaction.getCounterpartyName() : "Unknown";
+            case TOP_UP ->
+                transaction.getCounterpartyName() != null ? transaction.getCounterpartyName() : "Top Up";
+            case REFUND ->
+                "Refund";
+            case WITHDRAWAL ->
+                "Withdrawal";
+        };
+    }
+
+    private String resolveDisplaySubtitle(Transaction transaction) {
+        return switch (transaction.getType()) {
+            case TRANSFER_OUT, TRANSFER_IN ->
+                transaction.getCounterpartyPhone() != null ? transaction.getCounterpartyPhone() : "Transfer";
+            case INTERNAL_TRANSFER_OUT, INTERNAL_TRANSFER_IN ->
+                transaction.getNotes() != null ? transaction.getNotes() : "Internal Transfer";
+            case TOP_UP ->
+                "Top Up";
+            case PAYMENT ->
+                transaction.getDescription() != null ? transaction.getDescription() : "Payment";
+            case REFUND ->
+                transaction.getDescription() != null ? transaction.getDescription() : "Refund";
+            case WITHDRAWAL ->
+                transaction.getDescription() != null ? transaction.getDescription() : "Withdrawal";
+        };
     }
 }

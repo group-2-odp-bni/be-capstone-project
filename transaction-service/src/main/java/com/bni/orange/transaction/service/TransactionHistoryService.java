@@ -5,6 +5,7 @@ import com.bni.orange.transaction.error.BusinessException;
 import com.bni.orange.transaction.error.ErrorCode;
 import com.bni.orange.transaction.model.enums.TransactionStatus;
 import com.bni.orange.transaction.model.response.TransactionResponse;
+import com.bni.orange.transaction.model.response.TransactionSummaryResponse;
 import com.bni.orange.transaction.repository.TransactionRepository;
 import com.bni.orange.transaction.repository.specification.TransactionSpecification;
 import lombok.RequiredArgsConstructor;
@@ -27,8 +28,12 @@ public class TransactionHistoryService {
     private final TransactionMapper transactionMapper;
     private final WalletServiceClient walletServiceClient;
 
+    /**
+     * Get transaction history for a specific wallet or user.
+     * Returns lightweight summary response optimized for list views.
+     */
     @Transactional(readOnly = true)
-    public Page<TransactionResponse> getUserTransactions(
+    public Page<TransactionSummaryResponse> getUserTransactions(
         UUID userId,
         UUID walletId,
         TransactionStatus status,
@@ -48,11 +53,15 @@ public class TransactionHistoryService {
 
         return transactionRepository
             .findAll(TransactionSpecification.buildSpecification(userId, walletId, status, startDate, endDate), pageable)
-            .map(transactionMapper::toResponse);
+            .map(transactionMapper::toSummaryResponse);
     }
 
+    /**
+     * Get transaction history across all user's wallets.
+     * Returns lightweight summary response optimized for list views.
+     */
     @Transactional(readOnly = true)
-    public Page<TransactionResponse> getAllWalletTransactions(
+    public Page<TransactionSummaryResponse> getAllWalletTransactions(
         UUID userId,
         TransactionStatus status,
         OffsetDateTime startDate,
@@ -73,7 +82,7 @@ public class TransactionHistoryService {
         return transactionRepository.findAll(
             TransactionSpecification.buildSpecificationForUserWallets(walletIds, status, startDate, endDate),
             pageable
-        ).map(transactionMapper::toResponse);
+        ).map(transactionMapper::toSummaryResponse);
     }
 
     @Transactional(readOnly = true)
