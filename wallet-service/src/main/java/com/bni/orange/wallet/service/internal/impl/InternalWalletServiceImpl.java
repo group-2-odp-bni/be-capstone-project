@@ -1,6 +1,7 @@
 package com.bni.orange.wallet.service.internal.impl;
 
 import com.bni.orange.wallet.model.enums.InternalAction;
+import com.bni.orange.wallet.model.enums.TransferType;
 import com.bni.orange.wallet.model.enums.WalletMemberStatus;
 import com.bni.orange.wallet.model.enums.WalletStatus;
 import com.bni.orange.wallet.model.request.internal.BalanceUpdateRequest;
@@ -27,6 +28,8 @@ import com.bni.orange.wallet.utils.limits.LimitBuckets;
 
 import com.bni.orange.wallet.repository.read.WalletReadRepository;
 import com.bni.orange.wallet.service.internal.InternalWalletService;
+import com.bni.orange.wallet.model.request.internal.ValidateWalletOwnershipRequest;
+import com.bni.orange.wallet.model.response.internal.ValidateWalletOwnershipResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -217,30 +220,47 @@ public class InternalWalletServiceImpl implements InternalWalletService {
     String message = "Valid";
     String currency = null;
 
-    if (req.action() == InternalAction.DEBIT) {
-        var res = policyRepo.isDebitRoleAllowed(req.walletId(), mv.role());
-        allowed = res.allowed();
-        currency = res.currency();
-        if (!allowed) { code = "ROLE_NOT_ALLOWED"; message = "Role tidak diizinkan melakukan DEBIT"; }
-    } else if (req.action() == InternalAction.CREDIT) {
-        var res = policyRepo.isCreditAllowed(req.walletId());
-        allowed = res.allowed();
-        currency = res.currency();
-        if (!allowed) { code = "CREDIT_DISABLED"; message = "Wallet type tidak mengizinkan kredit eksternal"; }
-    } else if (req.action() == InternalAction.ADMIN) {
-        allowed = "OWNER".equals(mv.role()) || "ADMIN".equals(mv.role());
-        if (!allowed) { code = "ROLE_NOT_ALLOWED"; message = "Hanya OWNER/ADMIN untuk action ADMIN"; }
-    } else {
-        allowed = true;
-    }
+  if (req.action() == InternalAction.DEBIT) {
+      var res = policyRepo.isDebitRoleAllowed(req.walletId(), mv.role());
+      allowed = res.allowed();
+      currency = res.currency();
+      if (!allowed) {
+          code = "ROLE_NOT_ALLOWED";
+          message = "Role tidak diizinkan melakukan DEBIT";
+      }
+  } else if (req.action() == InternalAction.CREDIT) {
+      if (req.transferType() == TransferType.INTERNAL) {
+          allowed = true; // Always allow internal transfers to credit any wallet type
+          var res = policyRepo.isCreditAllowed(req.walletId());
+          currency = res.currency();
+      } else {
+          var res = policyRepo.isCreditAllowed(req.walletId());
+          allowed = res.allowed();
+          currency = res.currency();
+          if (!allowed) {
+              code = "CREDIT_DISABLED";
+              message = "Wallet type does not allow external credits";
+          }
+      }
+  } else if (req.action() == InternalAction.ADMIN) {
+      allowed = "OWNER".equals(mv.role()) || "ADMIN".equals(mv.role());
+      if (!allowed) {
+          code = "ROLE_NOT_ALLOWED";
+          message = "Hanya OWNER/ADMIN untuk action ADMIN";
+      }
+  } else {
+      allowed = true;
+  }
 
     if (allowed && req.action() == InternalAction.DEBIT && req.amount() != null) {
       long perTx = memberRepo.findPerTxLimit(req.walletId(), req.userId());
       if (perTx > 0) {
-        long rupiah = req.amount().setScale(0, java.math.RoundingMode.DOWN).longValue();
-        if (rupiah > perTx) {
-          allowed = false; code = "LIMIT_EXCEEDED"; message = "Nominal melebihi per_tx_limit_rp member";
-        }
+          long rupiah = req.amount().setScale(0, java.math.RoundingMode.DOWN).longValue();
+          if (rupiah > perTx) {
+              allowed = false;
+              code = "LIMIT_EXCEEDED";
+              message = "Nominal melebihi per_tx_limit_rp member";
+          }
       }
     }
 
@@ -281,5 +301,32 @@ public class InternalWalletServiceImpl implements InternalWalletService {
       return UserWalletsResponse.builder().walletIds(ids).build();
     }
     throw new UnsupportedOperationException("Full wallet details not supported via this internal method");
+  }
+
+  @Override
+  public ValidateWalletOwnershipResponse validateWalletOwnership(ValidateWalletOwnershipRequest req) {
+    if (req.walletIds() == null || req.walletIds().isEmpty()) {
+      return ValidateWalletOwnershipResponse.owner(Map.of());
+    }
+    var ownedCount = walletMemberRepo.countByUserIdAndWalletIdInAndStatus(
+        req.userId(),
+        req.walletIds(),
+        WalletMemberStatus.ACTIVE
+    );
+    var isOwner = ownedCount == req.walletIds().size();
+
+    if (!isOwner) {
+      return ValidateWalletOwnershipResponse.notOwner();
+    }
+
+    // Fetch wallet names for all requested wallets
+    var walletNames = new java.util.HashMap<UUID, String>();
+    for (UUID walletId : req.walletIds()) {
+      walletRepo.findNameById(walletId).ifPresent(name ->
+        walletNames.put(walletId, name)
+      );
+    }
+
+    return ValidateWalletOwnershipResponse.owner(walletNames);
   }
 }

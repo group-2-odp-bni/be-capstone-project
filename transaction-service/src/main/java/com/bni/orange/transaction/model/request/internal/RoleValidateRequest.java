@@ -1,6 +1,7 @@
 package com.bni.orange.transaction.model.request.internal;
 
 import com.bni.orange.transaction.model.enums.InternalAction;
+import com.bni.orange.transaction.model.enums.TransferType;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotNull;
 import lombok.Builder;
@@ -20,5 +21,7 @@ public record RoleValidateRequest(
     InternalAction action,
 
     @Digits(integer = 20, fraction = 2)
-    BigDecimal amount
+    BigDecimal amount,
+
+    TransferType transferType
 ) {}

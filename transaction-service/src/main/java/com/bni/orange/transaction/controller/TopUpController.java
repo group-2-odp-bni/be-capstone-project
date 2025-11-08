@@ -47,11 +47,6 @@ public class TopUpController {
         return ResponseEntity.ok(ApiResponse.success(methods));
     }
 
-    /**
-     * Inquiry endpoint for external payment gateway (BNI).
-     * Protected by API key validation at API Gateway level.
-     * No JWT required.
-     */
     @GetMapping("/inquiry/{vaNumber}")
     public ResponseEntity<ApiResponse<VirtualAccountResponse>> inquiryVirtualAccount(
         @PathVariable String vaNumber

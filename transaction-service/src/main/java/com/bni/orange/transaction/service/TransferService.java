@@ -14,6 +14,8 @@ import com.bni.orange.transaction.model.entity.TransactionLedger;
 import com.bni.orange.transaction.model.enums.InternalAction;
 import com.bni.orange.transaction.model.enums.TransactionStatus;
 import com.bni.orange.transaction.model.enums.TransactionType;
+import com.bni.orange.transaction.model.enums.TransferType;
+import com.bni.orange.transaction.model.request.InternalTransferRequest;
 import com.bni.orange.transaction.model.request.RecipientLookupRequest;
 import com.bni.orange.transaction.model.request.TransferConfirmRequest;
 import com.bni.orange.transaction.model.request.TransferInitiateRequest;
@@ -36,7 +38,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.bni.orange.transaction.model.request.internal.ValidateWalletOwnershipRequest;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -175,7 +179,7 @@ public class TransferService {
         var totalAmount = request.amount().add(transferFee);
 
         var walletAccessValidationFuture = runAsyncWithContext(() ->
-            validateSenderWalletAccess(senderUserId, request.senderWalletId(), request.amount())
+            validateSenderWalletAccess(senderUserId, request.senderWalletId(), request.amount(), TransferType.EXTERNAL)
         );
 
         var balanceValidationFuture = supplyAsyncWithContext(() -> {
@@ -239,7 +243,7 @@ public class TransferService {
         }
     }
 
-    private void validateSenderWalletAccess(UUID userId, UUID walletId, BigDecimal amount) {
+    private void validateSenderWalletAccess(UUID userId, UUID walletId, BigDecimal amount, TransferType transferType) {
         log.debug("Validating wallet access for user {} on wallet {}", userId, walletId);
 
         var totalAmount = amount.add(transferFee);
@@ -249,6 +253,7 @@ public class TransferService {
             .userId(userId)
             .action(InternalAction.DEBIT)
             .amount(totalAmount)
+            .transferType(transferType)
             .build();
 
         var roleValidation = Optional.ofNullable(walletServiceClient.validateRole(roleValidationRequest).block())
@@ -345,13 +350,58 @@ public class TransferService {
         }
     }
 
+    private TransactionResponse executeInternalTransferSaga(Transaction transaction) {
+        log.info("Executing internal transfer saga: {}", transaction.getTransactionRef());
+        BalanceResponse senderBalance;
+        BalanceResponse receiverBalance;
+        var senderDebited = false;
+        var receiverCredited = false;
+
+        try {
+            senderBalance = debitSender(transaction);
+            senderDebited = true;
+            log.info("Step 1/3: Sender debited successfully for internal transfer: {}", transaction.getTransactionRef());
+
+            receiverBalance = creditReceiver(transaction);
+            receiverCredited = true;
+            log.info("Step 2/3: Receiver credited successfully for internal transfer: {}", transaction.getTransactionRef());
+
+            var result = finalizeSuccessfulInternalTransfer(transaction, senderBalance, receiverBalance);
+            log.info("Step 3/3: Internal transfer finalized successfully: {}", transaction.getTransactionRef());
+            return result;
+
+        } catch (Exception e) {
+            log.error("Internal transfer saga failed at some step, initiating rollback: {}", transaction.getTransactionRef(), e);
+
+            if (receiverCredited) {
+                log.warn("Rolling back receiver credit for transaction: {}", transaction.getTransactionRef());
+                reverseReceiverCredit(transaction);
+            }
+
+            if (senderDebited) {
+                log.warn("Rolling back sender debit for transaction: {}", transaction.getTransactionRef());
+                reverseSenderDebit(transaction);
+            }
+
+            handleTransferFailure(transaction, e);
+            throw e;
+        }
+    }
+
     private BalanceResponse debitSender(Transaction transaction) {
+        var transferType = transaction.getType().isTransfer() &&
+            (transaction.getType() == TransactionType.INTERNAL_TRANSFER_OUT ||
+             transaction.getType() == TransactionType.INTERNAL_TRANSFER_IN)
+            ? TransferType.INTERNAL
+            : TransferType.EXTERNAL;
+
         var balanceUpdateRequest = BalanceUpdateRequest.builder()
             .walletId(transaction.getWalletId())
             .delta(transaction.getTotalAmount().negate())
             .referenceId(transaction.getIdempotencyKey() + "-sender")
             .reason("Transfer to " + transaction.getCounterpartyName())
             .actorUserId(transaction.getUserId())
+            .transferType(transferType)
             .build();
 
         var balanceUpdateResult = Optional.ofNullable(walletServiceClient.updateBalance(balanceUpdateRequest).block())
@@ -372,12 +422,19 @@ public class TransferService {
     }
 
     private BalanceResponse creditReceiver(Transaction transaction) {
+        var transferType = transaction.getType().isTransfer() &&
+            (transaction.getType() == TransactionType.INTERNAL_TRANSFER_OUT ||
+             transaction.getType() == TransactionType.INTERNAL_TRANSFER_IN)
+            ? TransferType.INTERNAL
+            : TransferType.EXTERNAL;
+
         var balanceUpdateRequest = BalanceUpdateRequest.builder()
             .walletId(transaction.getCounterpartyWalletId())
             .delta(transaction.getAmount())
             .referenceId(transaction.getIdempotencyKey() + "-receiver")
             .reason("Transfer from sender")
             .actorUserId(transaction.getUserId())
+            .transferType(transferType)
             .build();
 
         var balanceUpdateResult = Optional.ofNullable(walletServiceClient.updateBalance(balanceUpdateRequest).block())
@@ -400,11 +457,19 @@ public class TransferService {
     private void reverseSenderDebit(Transaction transaction) {
         log.warn("Reversing sender debit for transaction: {}", transaction.getTransactionRef());
 
+        var transferType = transaction.getType().isTransfer() &&
+            (transaction.getType() == TransactionType.INTERNAL_TRANSFER_OUT ||
+             transaction.getType() == TransactionType.INTERNAL_TRANSFER_IN)
+            ? TransferType.INTERNAL
+            : TransferType.EXTERNAL;
+
         var balanceUpdateRequest = BalanceUpdateRequest.builder()
             .walletId(transaction.getWalletId())
             .delta(transaction.getTotalAmount())
             .referenceId(transaction.getIdempotencyKey() + "-sender-reversal")
             .reason("Reversal for failed transfer: " + transaction.getTransactionRef())
+            .actorUserId(transaction.getUserId())
+            .transferType(transferType)
             .build();
 
         try {
@@ -419,6 +484,36 @@ public class TransferService {
         }
     }
 
+    private void reverseReceiverCredit(Transaction transaction) {
+        log.warn("Reversing receiver credit for transaction: {}", transaction.getTransactionRef());
+
+        var transferType = transaction.getType().isTransfer() &&
+            (transaction.getType() == TransactionType.INTERNAL_TRANSFER_OUT ||
+             transaction.getType() == TransactionType.INTERNAL_TRANSFER_IN)
+            ? TransferType.INTERNAL
+            : TransferType.EXTERNAL;
+
+        var balanceUpdateRequest = BalanceUpdateRequest.builder()
+            .walletId(transaction.getCounterpartyWalletId())
+            .delta(transaction.getAmount().negate())
+            .referenceId(transaction.getIdempotencyKey() + "-receiver-reversal")
+            .reason("Reversal for failed transfer: " + transaction.getTransactionRef())
+            .actorUserId(transaction.getUserId())
+            .transferType(transferType)
+            .build();
+
+        try {
+            var result = walletServiceClient.updateBalance(balanceUpdateRequest).block();
+            if (result != null && "OK".equals(result.code())) {
+                log.info("Receiver credit reversed successfully. New balance: {}", result.newBalance());
+            } else {
+                log.error("CRITICAL: Receiver reversal returned non-OK status: {}", result != null ? result.message() : "null");
+            }
+        } catch (Exception e) {
+            log.error("CRITICAL: Failed to reverse receiver credit. Manual intervention required.", e);
+        }
+    }
+
     private TransactionResponse finalizeSuccessfulTransfer(
         Transaction senderTransaction,
         BalanceResponse senderBalance,
@@ -427,7 +522,7 @@ public class TransferService {
         senderTransaction.markAsSuccess();
         var savedSenderTxn = transactionRepository.save(senderTransaction);
 
-        var receiverTransaction = createReceiverTransaction(senderTransaction);
+        var receiverTransaction = createReceiverTransaction(senderTransaction, TransactionType.TRANSFER_IN);
         receiverTransaction.markAsSuccess();
         var savedReceiverTxn = transactionRepository.save(receiverTransaction);
 
@@ -451,11 +546,36 @@ public class TransferService {
         return transactionMapper.toResponse(savedSenderTxn);
     }
 
-    private Transaction createReceiverTransaction(Transaction senderTransaction) {
+    private TransactionResponse finalizeSuccessfulInternalTransfer(
+        Transaction senderTransaction,
+        BalanceResponse senderBalance,
+        BalanceResponse receiverBalance
+    ) {
+        senderTransaction.markAsSuccess();
+        var savedSenderTxn = transactionRepository.save(senderTransaction);
+
+        var receiverTransaction = createReceiverTransaction(senderTransaction, TransactionType.INTERNAL_TRANSFER_IN);
+        receiverTransaction.markAsSuccess();
+        var savedReceiverTxn = transactionRepository.save(receiverTransaction);
+
+        createLedgerEntries(savedSenderTxn, savedReceiverTxn, senderBalance, receiverBalance, savedSenderTxn.getUserId());
+
+        var senderEvent = TransactionEventFactory.createTransactionCompletedEvent(savedSenderTxn);
+        var receiverEvent = TransactionEventFactory.createTransactionCompletedEvent(savedReceiverTxn);
+        var topic = topicProperties.definitions().get("transaction-completed").name();
+        eventPublisher.publish(topic, savedSenderTxn.getId().toString(), senderEvent);
+        eventPublisher.publish(topic, savedReceiverTxn.getId().toString(), receiverEvent);
+
+        log.info("Internal transfer completed successfully: ref={} (sender_id: {}, receiver_id: {})",
+            savedSenderTxn.getTransactionRef(), savedSenderTxn.getId(), savedReceiverTxn.getId());
+        return transactionMapper.toResponse(savedSenderTxn);
+    }
+
+    private Transaction createReceiverTransaction(Transaction senderTransaction, TransactionType type) {
         return Transaction.builder()
             .transactionRef(senderTransaction.getTransactionRef())
             .idempotencyKey(senderTransaction.getIdempotencyKey() + "-receiver")
-            .type(TransactionType.TRANSFER_IN)
+            .type(type)
             .status(TransactionStatus.PROCESSING)
             .amount(senderTransaction.getAmount())
             .fee(BigDecimal.ZERO)
@@ -576,5 +696,138 @@ public class TransferService {
         log.info("Pending sender transaction created: {}", savedSender.getTransactionRef());
 
         return transactionMapper.toResponse(savedSender);
+    }
+
+    private Transaction createAndSavePendingInternalTransaction(
+        InternalTransferRequest request,
+        UUID userId,
+        String idempotencyKey,
+        String sourceWalletName,
+        String destinationWalletName
+    ) {
+        var transactionRef = refGenerator.generate();
+
+        var transaction = Transaction.builder()
+            .transactionRef(transactionRef)
+            .idempotencyKey(idempotencyKey)
+            .type(TransactionType.INTERNAL_TRANSFER_OUT)
+            .status(TransactionStatus.PENDING)
+            .amount(request.amount())
+            .fee(BigDecimal.ZERO)
+            .currency("IDR")
+            .userId(userId)
+            .userName(sourceWalletName)
+            .userPhone(null)
+            .walletId(request.sourceWalletId())
+            .counterpartyUserId(userId)
+            .counterpartyWalletId(request.destinationWalletId())
+            .counterpartyName(destinationWalletName)
+            .counterpartyPhone(null)
+            .notes("Internal Transfer")
+            .description("Transfer from " + sourceWalletName + " to " + destinationWalletName)
+            .build();
+
+        transaction.calculateTotalAmount();
+
+        var savedTransaction = transactionRepository.save(transaction);
+        log.info("Pending internal transaction created: {} (from {} to {})",
+            savedTransaction.getTransactionRef(), sourceWalletName, destinationWalletName);
+
+        return savedTransaction;
+    }
+
+    @Transactional
+    public TransactionResponse initiateInternalTransfer(
+        InternalTransferRequest request,
+        UUID userId,
+        String idempotencyKey,
+        String accessToken
+    ) {
+        log.info("Initiating internal transfer from user {}, from wallet {} to wallet {}, amount: {}",
+            userId, request.sourceWalletId(), request.destinationWalletId(), request.amount());
+
+        if (transactionRepository.existsByIdempotencyKey(idempotencyKey)) {
+            var existing = transactionRepository
+                .findByIdempotencyKey(idempotencyKey)
+                .orElseThrow(() -> new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR));
+            log.warn("Duplicate internal transfer detected, returning existing: {}", existing.getTransactionRef());
+            return transactionMapper.toResponse(existing);
+        }
+
+        if (request.sourceWalletId().equals(request.destinationWalletId())) {
+            throw new BusinessException(ErrorCode.SELF_TRANSFER_NOT_ALLOWED, "Source and destination wallets cannot be the same");
+        }
+
+        var ownershipValidationFuture = supplyAsyncWithContext(() -> {
+            var req = ValidateWalletOwnershipRequest.of(userId, List.of(request.sourceWalletId(), request.destinationWalletId()));
+            var res = walletServiceClient.validateWalletOwnership(req).block();
+            if (res == null || !res.isOwner()) {
+                throw new BusinessException(ErrorCode.WALLET_ACCESS_DENIED, "User does not own one or both wallets");
+            }
+            return res; // Return the full response to get wallet names
+        });
+
+        var totalAmount = request.amount();
+
+        var walletAccessValidationFuture = runAsyncWithContext(() ->
+            validateSenderWalletAccess(userId, request.sourceWalletId(), request.amount(), TransferType.INTERNAL)
+        );
+
+        var balanceValidationFuture = supplyAsyncWithContext(() -> {
+            var balanceValidationRequest = BalanceValidateRequest.builder()
+                .walletId(request.sourceWalletId())
+                .amount(totalAmount)
+                .action(InternalAction.DEBIT)
+                .actorUserId(userId)
+                .build();
+
+            return Optional
+                .ofNullable(walletServiceClient.validateBalance(balanceValidationRequest).block())
+                .orElseThrow(() -> new BusinessException(ErrorCode.WALLET_SERVICE_ERROR, "Failed to validate balance"));
+        });
+
+        try {
+            CompletableFuture.allOf(ownershipValidationFuture, walletAccessValidationFuture, balanceValidationFuture).join();
+
+            var balanceValidation = balanceValidationFuture.join();
+
+            if (!balanceValidation.allowed()) {
+                log.warn("Balance validation failed: walletId={}, code={}, message={}",
+                    request.sourceWalletId(), balanceValidation.code(), balanceValidation.message());
+
+                if ("INSUFFICIENT_BALANCE".equals(balanceValidation.code())) {
+                    var availableBalance = balanceValidation.extras().get("balance");
+                    throw new BusinessException(
+                        ErrorCode.INSUFFICIENT_BALANCE,
+                        String.format("Insufficient balance. Required: %s, Available: %s", totalAmount, availableBalance)
+                    );
+                } else {
+                    throw new BusinessException(ErrorCode.WALLET_SERVICE_ERROR, balanceValidation.message());
+                }
+            }
+
+            var ownershipValidation = ownershipValidationFuture.join();
+            var sourceWalletName = ownershipValidation.walletNames().getOrDefault(request.sourceWalletId(), "Unknown Wallet");
+            var destinationWalletName = ownershipValidation.walletNames().getOrDefault(request.destinationWalletId(), "Unknown Wallet");
+
+            var pendingTransaction = createAndSavePendingInternalTransaction(
+                request,
+                userId,
+                idempotencyKey,
+                sourceWalletName,
+                destinationWalletName
+            );
+
+            pendingTransaction.markAsProcessing();
+            var processingTransaction = transactionRepository.save(pendingTransaction);
+
+            return executeInternalTransferSaga(processingTransaction);
+        } catch (CompletionException e) {
+            if (e.getCause() instanceof BusinessException be) {
+                throw be;
+            }
+            log.error("Error during parallel internal transfer validation", e);
+            throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR, e.getMessage());
+        }
     }
 }

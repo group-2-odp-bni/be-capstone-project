@@ -3,6 +3,7 @@ package com.bni.orange.wallet.controller;
 import com.bni.orange.wallet.model.request.internal.BalanceUpdateRequest;
 import com.bni.orange.wallet.model.request.internal.BalanceValidateRequest;
 import com.bni.orange.wallet.model.request.internal.RoleValidateRequest;
+import com.bni.orange.wallet.model.request.internal.ValidateWalletOwnershipRequest;
 import com.bni.orange.wallet.model.request.wallet.WalletCreateRequest;
 import com.bni.orange.wallet.model.response.ApiResponse;
 import com.bni.orange.wallet.model.response.WalletDetailResponse;
@@ -10,6 +11,7 @@ import com.bni.orange.wallet.model.response.internal.BalanceUpdateResponse;
 import com.bni.orange.wallet.model.response.internal.DefaultWalletResponse;
 import com.bni.orange.wallet.model.response.internal.RoleValidateResponse;
 import com.bni.orange.wallet.model.response.internal.UserWalletsResponse;
+import com.bni.orange.wallet.model.response.internal.ValidateWalletOwnershipResponse;
 import com.bni.orange.wallet.model.response.internal.ValidationResultResponse;
 import com.bni.orange.wallet.service.command.WalletCommandService;
 import com.bni.orange.wallet.service.internal.InternalWalletService;
@@ -91,4 +93,11 @@ public class InternalWalletController {
         .body(ApiResponse.ok("Wallet created", dto));
   }
 
+  @PostMapping("/wallets/ownership:validate")
+  public ResponseEntity<ApiResponse<ValidateWalletOwnershipResponse>> validateWalletOwnership(
+      @RequestBody @Valid ValidateWalletOwnershipRequest req
+  ) {
+    var res = service.validateWalletOwnership(req);
+    return ResponseEntity.ok(ApiResponse.ok("OK", res));
+  }
 }

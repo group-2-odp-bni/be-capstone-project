@@ -78,4 +78,22 @@ public class WalletInternalRepository {
     var res = jdbc.query(sql, p, (rs, i) -> rs.getBigDecimal("balance_snapshot"));
     return res.isEmpty() ? Optional.empty() : Optional.of(res.getFirst());
   }
+
+  public Optional<String> findNameById(UUID walletId) {
+    var sql = """
+      SELECT name
+      FROM wallet_oltp.wallets
+      WHERE id = :wid
+      """;
+    try {
+      return Optional.ofNullable(
+          jdbc.query(sql, new MapSqlParameterSource("wid", walletId), rs -> {
+            if (!rs.next()) return null;
+            return rs.getString("name");
+          })
+      );
+    } catch (EmptyResultDataAccessException e) {
+      return Optional.empty();
+    }
+  }
 }
