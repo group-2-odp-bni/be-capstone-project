@@ -102,7 +102,7 @@ public class MembershipCommandServiceImpl implements MembershipCommandService {
     entity = memberRepo.save(entity);
     upsertRead(entity);              
     appEvents.publishEvent(DomainEvents.WalletMemberInvited.builder()
-                    .walletId(walletId)
+    .walletId(walletId)
                     .inviterUserId(actor.getUserId())
                     .invitedUserId(entity.getUserId())
                     .role(entity.getRole())

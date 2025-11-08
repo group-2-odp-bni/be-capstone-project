@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.UUID;
 
 public interface MembershipQueryService {
-  List<WalletMemberListItemResponse> listMembers(UUID walletId, int page, int size);
   MyRoleResponse getMyRole(UUID walletId);
+  List<WalletMemberListItemResponse> listMembers(UUID walletId, int page, int size, boolean includePending);
+
 }

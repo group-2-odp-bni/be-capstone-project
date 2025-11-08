@@ -86,7 +86,7 @@ public class WahaSessionService {
         return getSessionStatus()
             .flatMap(session -> {
                 if ("WORKING".equalsIgnoreCase(session.status())) {
-                    log.info("Session is ready!");
+                    log.info("Session is ready!",session);
                     return Mono.just(session);
                 }
                 if ("FAILED".equalsIgnoreCase(session.status())) {
