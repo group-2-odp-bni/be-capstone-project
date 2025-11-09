@@ -7,4 +7,5 @@ public class GeneratedInvite {
   private String phoneMasked;
   private String link;
   private String code;
+
 }

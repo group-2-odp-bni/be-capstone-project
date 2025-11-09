@@ -28,6 +28,11 @@ public class WalletEventPublisher {
   @Value("${orange.kafka.topics.wallet-member-invited:wallet.events.member-invited}")
   private String topicMemberInvited;
 
+  @Value("${orange.kafka.topics.wallet-invite-generated:wallet.events.invite-link-generated}")
+  private String topicInviteLinkGenerated;
+
+  @Value("${orange.kafka.topics.wallet-invite-accepted:wallet.events.invite-accepted}")
+  private String topicInviteAccepted;
   public void publish(String topic, String key, com.google.protobuf.Message payload,
                       String eventType, int version) {
 
@@ -57,6 +62,14 @@ public class WalletEventPublisher {
       publish(topicWalletUpdated, walletId, walletUpdatedPayload, "WalletUpdated", 1);
   }
   public void publishWalletMemberInvited(String key, com.google.protobuf.Message payload) {
-      publish(topicMemberInvited, key, payload, "WalletMemberInvited", 1);
+    publish(topicMemberInvited, key, payload, "WalletMemberInvited", 1);
   }
+  public void publishWalletInviteLinkGenerated(String key, com.google.protobuf.Message payload) {
+    publish(topicInviteLinkGenerated, key, payload, "WalletInviteLinkGenerated", 1);
+  }
+
+  public void publishWalletInviteAccepted(String key, com.google.protobuf.Message payload) {
+    publish(topicInviteAccepted, key, payload, "WalletInviteAccepted", 1);
+  }
+
 }
