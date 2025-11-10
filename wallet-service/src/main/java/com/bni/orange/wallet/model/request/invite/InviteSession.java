@@ -13,13 +13,13 @@ import java.util.UUID;
 @NoArgsConstructor @AllArgsConstructor
 public class InviteSession {
   private UUID walletId;
-  private UUID userId;      // BISA null di flow phone-only
-  private String phone;     // E.164 (+62...)
-  private String role;      // enum name
-  private String codeHash;  // HMAC(code)
+  private UUID userId;      
+  private String phone;     
+  private String role;      
+  private String codeHash;  
   private String nonce;
   private int attempts;
   private int maxAttempts;
-  private String status;    // "INVITED"
+  private String status;    
   private OffsetDateTime createdAt;
 }

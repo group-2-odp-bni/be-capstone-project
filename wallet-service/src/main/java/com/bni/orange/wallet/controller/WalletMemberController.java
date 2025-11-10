@@ -2,9 +2,11 @@ package com.bni.orange.wallet.controller;
 
 import com.bni.orange.wallet.model.enums.WalletMemberRole;
 import com.bni.orange.wallet.model.request.invite.GeneratedInvite;
+import com.bni.orange.wallet.model.request.invite.VerifyInviteCodeRequest;
 import com.bni.orange.wallet.model.request.member.WalletMemberInviteRequest;
 import com.bni.orange.wallet.model.request.member.WalletMemberUpdateRequest;
 import com.bni.orange.wallet.model.response.ApiResponse;
+import com.bni.orange.wallet.model.response.invite.VerifyInviteCodeResponse;
 import com.bni.orange.wallet.model.response.member.MemberActionResultResponse;
 import com.bni.orange.wallet.model.response.member.MyRoleResponse;
 import com.bni.orange.wallet.model.response.member.WalletMemberDetailResponse;
@@ -72,18 +74,27 @@ public class WalletMemberController {
     var dto = inviteService.generateInviteLink(walletId, null, normalized, role);
     return ResponseEntity.ok(ApiResponse.ok("Invite link generated", dto));
   }
+  @PostMapping("/invites/verify")
+  @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
+  public ResponseEntity<ApiResponse<VerifyInviteCodeResponse>> verifyInviteCode(
+      @PathVariable UUID walletId,
+      @Valid @RequestBody VerifyInviteCodeRequest req
+  ) {
+    var res = inviteService.verifyCode(req.getToken(), req.getCode());
+    return ResponseEntity.ok(ApiResponse.ok("Invite code verified", res));
+  }
 
   @GetMapping("/members")
   @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
   public ResponseEntity<ApiResponse<List<WalletMemberListItemResponse>>> listMembers(
       @PathVariable UUID walletId,
       @RequestParam(defaultValue = "0") @Min(0) int page,
-      @RequestParam(defaultValue = "20") @Min(1) int size
+      @RequestParam(defaultValue = "20") @Min(1) int size,
+      @RequestParam(name = "includePending", defaultValue = "false") boolean includePending
   ) {
-    var list = query.listMembers(walletId, page, size);
-    return ResponseEntity.ok(ApiResponse.ok("OK", list));
+      var list = query.listMembers(walletId, page, size, includePending);
+      return ResponseEntity.ok(ApiResponse.ok("OK", list));
   }
-
   @PatchMapping("/members/{userId}")
   @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
   public ResponseEntity<ApiResponse<WalletMemberDetailResponse>> updateMember(

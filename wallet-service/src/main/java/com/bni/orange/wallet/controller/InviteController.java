@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/v1/invites")
+@RequestMapping("/api/v1/wallets/{walletId}/invites")
 public class InviteController {
 
   private final InviteService invite;

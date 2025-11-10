@@ -24,4 +24,7 @@ public class WalletMemberListItemResponse {
   private OffsetDateTime updatedAt;
 
   private MemberLimitsResponse limits;
+  private String phoneMasked;
+  private OffsetDateTime expiresAt;
+
 }

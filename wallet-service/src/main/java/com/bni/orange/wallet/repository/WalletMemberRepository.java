@@ -26,7 +26,6 @@ public interface WalletMemberRepository extends JpaRepository<WalletMember, UUID
 
   Page<WalletMember> findByWalletId(UUID walletId, Pageable pageable);
 
-  // long countByWalletIdAndStatus(UUID walletId, WalletMemberStatus status);
   long countByWalletIdAndStatusIn(UUID walletId, List<WalletMemberStatus> statuses);
 
   long countByUserIdAndWalletIdInAndStatus(UUID userId, List<UUID> walletIds, WalletMemberStatus status);

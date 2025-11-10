@@ -45,7 +45,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
                     "/actuator/health", "/actuator/info",
-                    "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/api/v1/invites/inspect"
+                    "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/api/v1/wallets/*/invites/inspect"
                 ).permitAll()
                 // Internal service-to-service endpoints - no JWT required (protected at network level)
                 .requestMatchers("/internal/**").permitAll()
