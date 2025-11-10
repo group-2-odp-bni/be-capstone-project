@@ -3,21 +3,19 @@ package com.bni.orange.users.service;
 import com.bni.orange.users.config.properties.GcsProperties;
 import com.bni.orange.users.error.BusinessException;
 import com.bni.orange.users.error.ErrorCode;
-import com.google.cloud.storage.Blob;
+import com.google.auth.oauth2.GoogleCredentials;
+import com.google.auth.oauth2.ImpersonatedCredentials;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.HttpMethod;
 import com.google.cloud.storage.Storage;
-import com.google.auth.oauth2.ImpersonatedCredentials;
-import com.google.auth.oauth2.GoogleCredentials;
-import java.util.Collections;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.net.URL;
+import java.util.Collections;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -130,13 +128,14 @@ public class FileStorageService {
             return url.toString();
 
         } catch (Exception e) {
-            log.error("Failed to generate signed URL for GCS path: {}. " +
-                "Error: {}. " +
-                "Troubleshooting steps:\n" +
-                "1) Run: gcloud auth application-default login\n" +
-                "2) Grant impersonation permission:\n" +
-                "   gcloud iam service-accounts add-iam-policy-binding {} --member=\"user:YOUR_EMAIL\" --role=\"roles/iam.serviceAccountTokenCreator\"\n" +
-                "3) Verify service account exists and has Storage Object Admin role",
+            log.error("""
+                    Failed to generate signed URL for GCS path: {}. \
+                    Error: {}. \
+                    Troubleshooting steps:
+                    1) Run: gcloud auth application-default login
+                    2) Grant impersonation permission:
+                       gcloud iam service-accounts add-iam-policy-binding {} --member="user:YOUR_EMAIL" --role="roles/iam.serviceAccountTokenCreator"
+                    3) Verify service account exists and has Storage Object Admin role""",
                 gcsPath, e.getMessage(), gcsProperties.serviceAccountEmail(), e);
 
             throw new BusinessException(

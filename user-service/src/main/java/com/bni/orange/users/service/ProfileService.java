@@ -12,12 +12,12 @@ import com.bni.orange.users.model.request.UpdateProfileRequest;
 import com.bni.orange.users.model.response.ProfileImageUploadResponse;
 import com.bni.orange.users.model.response.ProfileUpdateResponse;
 import com.bni.orange.users.model.response.VerificationResponse;
-import org.springframework.web.multipart.MultipartFile;
 import com.bni.orange.users.repository.UserProfileRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -287,22 +287,18 @@ public class ProfileService {
         var profile = profileRepository.findById(userId)
             .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        // Delete old image if exists
         if (profile.getProfileImageUrl() != null) {
             log.debug("Deleting old profile image for user: {}", userId);
             fileStorageService.deleteProfileImage(profile.getProfileImageUrl());
         }
 
-        // Upload new image - returns GCS path (e.g., "profiles/userId.jpg")
         var gcsPath = fileStorageService.uploadProfileImage(file, userId);
 
-        // Store GCS path (not signed URL) in database
         profile.setProfileImageUrl(gcsPath);
         profileRepository.save(profile);
 
         log.info("Profile image uploaded successfully for user: {}. GCS path: {}", userId, gcsPath);
 
-        // Generate signed URL for immediate response (valid for 60 minutes)
         var signedUrl = fileStorageService.generateSignedUrl(gcsPath);
 
         return ProfileImageUploadResponse.success(
