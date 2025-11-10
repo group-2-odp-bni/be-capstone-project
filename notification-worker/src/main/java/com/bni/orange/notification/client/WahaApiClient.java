@@ -31,7 +31,7 @@ public class WahaApiClient {
     private static final String API_SESSIONS_STOP_TEMPLATE = "/api/sessions/{session}/stop";
     private static final String API_AUTH_QR_TEMPLATE = "/api/{session}/auth/qr";
 
-    private final WebClient webClient;
+    private final WebClient wahaWebClient;
     private final WahaConfigProperties config;
     private final Retry retry;
     private final CircuitBreaker circuitBreaker;
@@ -51,7 +51,7 @@ public class WahaApiClient {
 
         log.info("Sending WhatsApp message to {} via WAHA", phoneNumber);
 
-        return webClient.post()
+        return wahaWebClient.post()
             .uri(API_SEND_TEXT)
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(requestBody)
@@ -73,7 +73,7 @@ public class WahaApiClient {
     }
 
     public Mono<WahaSessionResponse> getSessionStatus() {
-        return webClient.get()
+        return wahaWebClient.get()
             .uri(API_SESSIONS_TEMPLATE, config.sessionName())
             .retrieve()
             .bodyToMono(WahaSessionResponse.class)
@@ -84,7 +84,7 @@ public class WahaApiClient {
 
     public Mono<Void> startSession() {
         var context = "start session";
-        return webClient.post()
+        return wahaWebClient.post()
             .uri(API_SESSIONS_START_TEMPLATE, config.sessionName())
             .retrieve()
             .onStatus(HttpStatusCode::is4xxClientError, handleClientError(context))
@@ -101,7 +101,7 @@ public class WahaApiClient {
 
     public Mono<Void> stopSession(boolean logout) {
         var context = "stop session (logout=" + logout + ")";
-        return webClient.post()
+        return wahaWebClient.post()
             .uri(uriBuilder -> uriBuilder
                 .path(API_SESSIONS_STOP_TEMPLATE)
                 .queryParam("logout", logout)
@@ -120,7 +120,7 @@ public class WahaApiClient {
     }
 
     public Mono<WahaQRCodeResponse> getQRCode() {
-        return webClient.get()
+        return wahaWebClient.get()
             .uri(API_AUTH_QR_TEMPLATE, config.sessionName())
             .accept(MediaType.APPLICATION_JSON)
             .retrieve()
@@ -131,7 +131,7 @@ public class WahaApiClient {
     }
 
     public Mono<byte[]> getQRCodeImage() {
-        return webClient.get()
+        return wahaWebClient.get()
             .uri(API_AUTH_QR_TEMPLATE, config.sessionName())
             .accept(MediaType.IMAGE_PNG)
             .retrieve()

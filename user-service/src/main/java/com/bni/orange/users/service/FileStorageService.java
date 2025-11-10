@@ -63,7 +63,6 @@ public class FileStorageService {
 
             log.info("Successfully uploaded profile image for user: {} to GCS path: {}", userId, fileName);
 
-            // Return GCS path (not signed URL) to be stored in database
             return fileName;
         } catch (IOException e) {
             log.error("Failed to upload profile image for user: {}", userId, e);
@@ -108,15 +107,13 @@ public class FileStorageService {
         try {
             var blobInfo = BlobInfo.newBuilder(gcsProperties.bucketName(), gcsPath).build();
 
-            // Create impersonated credentials using ADC to impersonate the service account
-            // This allows signing without service account key file
             var sourceCredentials = GoogleCredentials.getApplicationDefault();
             var impersonatedCredentials = ImpersonatedCredentials.create(
                 sourceCredentials,
                 gcsProperties.serviceAccountEmail(),
-                null, // delegates
+                null,
                 Collections.singletonList("https://www.googleapis.com/auth/cloud-platform"),
-                300 // lifetime in seconds
+                300
             );
 
             var url = storage.signUrl(
@@ -177,7 +174,7 @@ public class FileStorageService {
 
     private String getFileExtension(String filename) {
         if (filename == null || !filename.contains(".")) {
-            return "jpg"; // default extension
+            return "jpg";
         }
         return filename.substring(filename.lastIndexOf(".") + 1).toLowerCase();
     }

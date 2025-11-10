@@ -294,7 +294,7 @@ public class ProfileService {
         }
 
         // Upload new image - returns GCS path (e.g., "profiles/userId.jpg")
-        String gcsPath = fileStorageService.uploadProfileImage(file, userId);
+        var gcsPath = fileStorageService.uploadProfileImage(file, userId);
 
         // Store GCS path (not signed URL) in database
         profile.setProfileImageUrl(gcsPath);
@@ -303,7 +303,7 @@ public class ProfileService {
         log.info("Profile image uploaded successfully for user: {}. GCS path: {}", userId, gcsPath);
 
         // Generate signed URL for immediate response (valid for 60 minutes)
-        String signedUrl = fileStorageService.generateSignedUrl(gcsPath);
+        var signedUrl = fileStorageService.generateSignedUrl(gcsPath);
 
         return ProfileImageUploadResponse.success(
             signedUrl,

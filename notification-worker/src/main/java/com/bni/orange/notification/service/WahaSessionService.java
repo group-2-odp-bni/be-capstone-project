@@ -52,6 +52,7 @@ public class WahaSessionService {
             .then();
     }
 
+    @SuppressWarnings("unused")
     private Mono<Void> startSessionFallback(Exception e) {
         log.error("❌ All retry attempts failed to start WAHA session. Health monitor will retry later.", e);
         return Mono.empty();
@@ -96,7 +97,7 @@ public class WahaSessionService {
         return getSessionStatus()
             .flatMap(session -> {
                 if ("WORKING".equalsIgnoreCase(session.status())) {
-                    log.info("Session is ready!",session);
+                    log.info("Session is ready! {}",session);
                     return Mono.just(session);
                 }
                 if ("FAILED".equalsIgnoreCase(session.status())) {
