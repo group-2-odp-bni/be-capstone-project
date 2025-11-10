@@ -58,7 +58,19 @@ spring:
     listener:
       ack-mode: manual
 
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 2MB
+      max-request-size: 2MB
+
 orange:
+  gcp:
+    storage:
+      bucket-name: ${GCS_BUCKET_NAME:orange-wallet-users-profiles}
+      project-id: ${GCP_PROJECT_ID:orange-wallet-project}
+      signed-url-duration-minutes: ${GCS_SIGNED_URL_DURATION:60}
+      service-account-email: ${GCS_SERVICE_ACCOUNT_EMAIL:orange-wallet-storage@orange-wallet-project.iam.gserviceaccount.com}
   redis:
     prefix:
       otp-email: "otp:email:"

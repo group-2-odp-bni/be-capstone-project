@@ -39,6 +39,7 @@ dependencies {
 	implementation("org.springframework.kafka:spring-kafka")
 	implementation("org.xerial.snappy:snappy-java:1.1.10.5")
 	implementation("com.google.protobuf:protobuf-java:4.29.2")
+	implementation("com.google.cloud:spring-cloud-gcp-starter-storage:6.5.0")
 	implementation("org.flywaydb:flyway-core")
 	implementation("org.flywaydb:flyway-database-postgresql")
 	compileOnly("org.projectlombok:lombok")

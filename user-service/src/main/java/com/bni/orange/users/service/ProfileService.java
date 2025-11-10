@@ -1,5 +1,6 @@
 package com.bni.orange.users.service;
 
+import com.bni.orange.users.config.properties.GcsProperties;
 import com.bni.orange.users.config.properties.KafkaTopicProperties;
 import com.bni.orange.users.error.BusinessException;
 import com.bni.orange.users.error.ErrorCode;
@@ -8,8 +9,10 @@ import com.bni.orange.users.event.ProfileEventFactory;
 import com.bni.orange.users.model.entity.UserProfile;
 import com.bni.orange.users.model.enums.TokenType;
 import com.bni.orange.users.model.request.UpdateProfileRequest;
+import com.bni.orange.users.model.response.ProfileImageUploadResponse;
 import com.bni.orange.users.model.response.ProfileUpdateResponse;
 import com.bni.orange.users.model.response.VerificationResponse;
+import org.springframework.web.multipart.MultipartFile;
 import com.bni.orange.users.repository.UserProfileRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +33,8 @@ public class ProfileService {
     private final VerificationService verificationService;
     private final EventPublisher eventPublisher;
     private final KafkaTopicProperties topicProperties;
+    private final FileStorageService fileStorageService;
+    private final GcsProperties gcsProperties;
 
     @Transactional
     public ProfileUpdateResponse updateProfile(UUID userId, UpdateProfileRequest request) {
@@ -273,5 +278,36 @@ public class ProfileService {
         } catch (Exception e) {
             log.error("Failed to publish name updated event for user: {}", profile.getId(), e);
         }
+    }
+
+    @Transactional
+    public ProfileImageUploadResponse uploadProfileImage(UUID userId, MultipartFile file) {
+        log.info("Uploading profile image for user: {}", userId);
+
+        var profile = profileRepository.findById(userId)
+            .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        // Delete old image if exists
+        if (profile.getProfileImageUrl() != null) {
+            log.debug("Deleting old profile image for user: {}", userId);
+            fileStorageService.deleteProfileImage(profile.getProfileImageUrl());
+        }
+
+        // Upload new image - returns GCS path (e.g., "profiles/userId.jpg")
+        String gcsPath = fileStorageService.uploadProfileImage(file, userId);
+
+        // Store GCS path (not signed URL) in database
+        profile.setProfileImageUrl(gcsPath);
+        profileRepository.save(profile);
+
+        log.info("Profile image uploaded successfully for user: {}. GCS path: {}", userId, gcsPath);
+
+        // Generate signed URL for immediate response (valid for 60 minutes)
+        String signedUrl = fileStorageService.generateSignedUrl(gcsPath);
+
+        return ProfileImageUploadResponse.success(
+            signedUrl,
+            gcsProperties.signedUrlDurationMinutes().longValue()
+        );
     }
 }

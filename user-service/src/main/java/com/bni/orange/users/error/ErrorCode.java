@@ -31,6 +31,13 @@ public enum ErrorCode {
     SAME_VALUE_UPDATE(HttpStatus.BAD_REQUEST, "USER-3004", "New value is the same as current value"),
     VERIFICATION_MISMATCH(HttpStatus.BAD_REQUEST, "USER-3005", "Verification token does not match pending value"),
 
+    INVALID_FILE(HttpStatus.BAD_REQUEST, "USER-4001", "Invalid or empty file"),
+    FILE_TOO_LARGE(HttpStatus.BAD_REQUEST, "USER-4002", "File size exceeds maximum allowed size"),
+    INVALID_FILE_TYPE(HttpStatus.BAD_REQUEST, "USER-4003", "Invalid file type"),
+    FILE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "USER-4004", "Failed to upload file"),
+    FILE_NOT_FOUND(HttpStatus.NOT_FOUND, "USER-4005", "File not found in storage"),
+    FILE_URL_GENERATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "USER-4006", "Failed to generate file URL"),
+
     GENERAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "USER-9999", "An unexpected error occurred");
 
     private final HttpStatus status;
