@@ -27,7 +27,8 @@ public class UserClient {
                 .uri(uriBuilder -> uriBuilder
                         .path("/internal/v1/user/by-phone")
                         .queryParam("phone", phoneE164)
-                        .build())
+                        .build()
+                )
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<ApiResponse<UserProfileResponse>>() {})
                 .map(ApiResponse::getData);
