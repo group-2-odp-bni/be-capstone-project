@@ -157,157 +157,11 @@ jobs:
     with:
       service-name: ${{ matrix.name }}
       service-path: ${{ matrix.path }}
-      environment: production  # Main branch = production, also enables 'latest' tag
-      image-tag: ${{ github.sha }}  # This is the tag we'll deploy
+      environment: production
+      image-tag: ${{ github.sha }}
     secrets:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-
-  # =============================================================================
-  # GITOPS MIGRATION: Direct deployment replaced with GitOps pattern
-  # =============================================================================
-  # The deploy-to-k3s job has been replaced with update-gitops job.
-  # ArgoCD now handles the actual deployment by monitoring the GitOps repository.
-  #
-  # Old flow: CI/CD → Docker Push → Helm Deploy (Direct)
-  # New flow: CI/CD → Docker Push → Update GitOps Repo → ArgoCD Syncs
-  # =============================================================================
-
-  # deploy-to-k3s:  # DISABLED - ArgoCD handles deployment now
-  #   name: Deploy to K3s
-  #   needs: [discover-services, build-test, docker-build-push]
-  #   if: needs.discover-services.outputs.has-changes == 'true'
-  #   runs-on: ubuntu-latest
-  #   strategy:
-  #     fail-fast: false
-  #     matrix: ${{ fromJson(needs.discover-services.outputs.matrix) }}
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@v4
-  #
-  #     - name: Install kubectl
-  #       uses: azure/setup-kubectl@v3
-  #       with:
-  #         version: 'v1.28.0'
-  #
-  #     - name: Configure kubectl
-  #       run: |
-  #         mkdir -p ~/.kube
-  #         echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config
-  #         chmod 600 ~/.kube/config
-  #
-  #     - name: Verify cluster connection
-  #       run: |
-  #         kubectl cluster-info
-  #         kubectl get nodes
-  #
-  #     - name: Create namespace if not exists
-  #       run: |
-  #         kubectl create namespace ${{ env.NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
-  #
-  #     - name: Create/Update application secrets
-  #       run: |
-  #         # Consolidated app secrets - includes all application needs
-  #         kubectl create secret generic app-secrets \
-  #           --from-literal=DB_USERNAME="${{ secrets.DB_USERNAME }}" \
-  #           --from-literal=DB_PASSWORD="${{ secrets.DB_PASSWORD }}" \
-  #           --from-literal=DB_NAME="${{ secrets.DB_NAME }}" \
-  #           --from-literal=JWT_SECRET_KEY="${{ secrets.JWT_SECRET_KEY }}" \
-  #           --from-literal=WAHA_API_KEY="${{ secrets.WAHA_API_KEY }}" \
-  #           --from-literal=WAHA_WEBHOOK_HMAC_SECRET="${{ secrets.WAHA_WEBHOOK_HMAC_SECRET }}" \
-  #           --namespace=${{ env.NAMESPACE }} \
-  #           --dry-run=client -o yaml | kubectl apply -f -
-  #
-  #         # Docker registry secret for image pulls
-  #         kubectl create secret docker-registry dockerhub-secret \
-  #           --docker-server=${{ env.REGISTRY }} \
-  #           --docker-username=${{ secrets.DOCKERHUB_USERNAME }} \
-  #           --docker-password=${{ secrets.DOCKERHUB_TOKEN }} \
-  #           --namespace=${{ env.NAMESPACE }} \
-  #           --dry-run=client -o yaml | kubectl apply -f -
-  #
-  #         # JWT RSA keys secret (for authentication-service)
-  #         echo "${{ secrets.JWT_PRIVATE_KEY }}" > /tmp/private.pem
-  #         echo "${{ secrets.JWT_PUBLIC_KEY }}" > /tmp/public.pem
-  #         kubectl create secret generic jwt-keys \
-  #           --from-file=private.pem=/tmp/private.pem \
-  #           --from-file=public.pem=/tmp/public.pem \
-  #           --namespace=${{ env.NAMESPACE }} \
-  #           --dry-run=client -o yaml | kubectl apply -f -
-  #         rm -f /tmp/private.pem /tmp/public.pem
-  #
-  #     - name: Apply ConfigMap
-  #       run: |
-  #         kubectl apply -f .k8s/manifests/base/configmap.yaml -n ${{ env.NAMESPACE }}
-  #         echo "✓ ConfigMap applied successfully"
-  #
-  #     - name: Deploy ${{ matrix.name }} to K3s
-  #       run: |
-  #         echo "=========================================="
-  #         echo "Deploying ${{ matrix.name }} to K3s"
-  #         echo "=========================================="
-  #         echo ""
-  #
-  #         # Use commit SHA as image tag for traceability
-  #         IMAGE_TAG="${{ github.sha }}"
-  #
-  #         echo "Service: ${{ matrix.name }}"
-  #         echo "Image: ${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ matrix.name }}:$IMAGE_TAG"
-  #         echo "Commit: ${{ github.sha }}"
-  #         echo ""
-  #
-  #         helm upgrade --install ${{ matrix.name }} .k8s/charts/applications/orange-service \
-  #           --namespace ${{ env.NAMESPACE }} \
-  #           --values .k8s/values/${{ matrix.name }}-values.yaml \
-  #           --set image.registry=docker.io \
-  #           --set image.repository=${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ matrix.name }} \
-  #           --set image.tag=$IMAGE_TAG \
-  #           --set image.pullSecrets[0].name=dockerhub-secret \
-  #           --wait \
-  #           --timeout 5m
-  #
-  #         echo ""
-  #         echo "✅ ${{ matrix.name }} deployed successfully with tag: $IMAGE_TAG"
-  #
-  #     - name: Verify deployment
-  #       run: |
-  #         echo "Waiting for ${{ matrix.name }} to be ready..."
-  #         kubectl wait --for=condition=ready pod -l app=${{ matrix.name }} \
-  #           -n ${{ env.NAMESPACE }} \
-  #           --timeout=300s || true
-  #
-  #         echo ""
-  #         echo "=== Pod Status ==="
-  #         kubectl get pods -n ${{ env.NAMESPACE }} -l app=${{ matrix.name }}
-  #
-  #         echo ""
-  #         echo "=== Service Status ==="
-  #         kubectl get svc -n ${{ env.NAMESPACE }} -l app=${{ matrix.name }}
-  #
-  #     - name: Health check
-  #       continue-on-error: true
-  #       run: |
-  #         echo "Running health check for ${{ matrix.name }}..."
-  #
-  #         # Get service ClusterIP and port
-  #         SERVICE_IP=$(kubectl get svc ${{ matrix.name }} -n ${{ env.NAMESPACE }} -o jsonpath='{.spec.clusterIP}')
-  #         SERVICE_PORT=$(kubectl get svc ${{ matrix.name }} -n ${{ env.NAMESPACE }} -o jsonpath='{.spec.ports[0].port}')
-  #
-  #         if [[ -n "$SERVICE_IP" ]] && [[ -n "$SERVICE_PORT" ]]; then
-  #           echo "Service endpoint: $SERVICE_IP:$SERVICE_PORT"
-  #           # Try to reach actuator health endpoint
-  #           kubectl run health-check-${{ matrix.name }}-${{ github.run_number }} \
-  #             --image=curlimages/curl:latest \
-  #             --rm -i --restart=Never \
-  #             --namespace=${{ env.NAMESPACE }} \
-  #             -- curl -f http://$SERVICE_IP:$SERVICE_PORT/actuator/health || echo "Health check failed (may not be ready yet)"
-  #         else
-  #           echo "⚠️ Could not get service endpoint"
-  #         fi
-
-  # =============================================================================
-  # NEW GITOPS WORKFLOW: Update GitOps repository instead of direct deployment
-  # =============================================================================
 
   update-gitops:
     name: Update GitOps Repository
@@ -325,62 +179,40 @@ jobs:
       GITOPS_REPO: ${{ secrets.GITOPS_REPO }}
       GITOPS_TOKEN: ${{ secrets.GITOPS_TOKEN }}
 
-  # apply-ingress:  # DISABLED - Managed by ArgoCD now
-  #   name: Apply Ingress Configuration
-  #   needs: [deploy-to-k3s]  # Wait for ALL deploy-to-k3s matrix jobs to complete
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@v4
-  #
-  #     - name: Install kubectl
-  #       uses: azure/setup-kubectl@v3
-  #       with:
-  #         version: 'v1.28.0'
-  #
-  #     - name: Configure kubectl
-  #       run: |
-  #         mkdir -p ~/.kube
-  #         echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config
-  #         chmod 600 ~/.kube/config
-  #
-  #     - name: Apply Ingress
-  #       run: |
-  #         kubectl apply -f .k8s/manifests/base/ingress.yaml -n ${{ env.NAMESPACE }}
-  #
-  #         echo ""
-  #         echo "=== Ingress Status ==="
-  #         kubectl get ingress -n ${{ env.NAMESPACE }}
-
   deployment-summary:
     name: Deployment Summary
-    needs: [discover-services, deploy-to-k3s, apply-ingress]
+    needs: [discover-services, update-gitops]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Summary
         run: |
           echo "=========================================="
-          echo "K3s Deployment Summary"
+          echo "GitOps Deployment Summary"
           echo "=========================================="
           echo ""
-          echo "Namespace: ${{ env.NAMESPACE }}"
+          echo "Repository: group-2-odp-bni/orange-wallet-gitops"
           echo "Trigger: ${{ github.event_name }}"
           echo "Branch: ${{ github.ref_name }}"
           echo "Commit: ${{ github.sha }}"
           echo ""
-          echo "Services deployed:"
+          echo "Services updated in GitOps repository:"
           echo '${{ needs.discover-services.outputs.matrix }}' | jq -r '.include[].name' | while read service; do
             echo "  ✓ $service"
           done
           echo ""
-          echo "Deployment Status: ${{ needs.deploy-to-k3s.result }}"
-          echo "Ingress Status: ${{ needs.apply-ingress.result }}"
+          echo "GitOps Update Status: ${{ needs.update-gitops.result }}"
           echo ""
 
-          if [[ "${{ needs.deploy-to-k3s.result }}" == "failure" ]]; then
-            echo "❌ Deployment FAILED"
+          if [[ "${{ needs.update-gitops.result }}" == "failure" ]]; then
+            echo "❌ GitOps update FAILED"
             exit 1
           else
-            echo "✅ Deployment SUCCESSFUL"
+            echo "✅ GitOps repository updated successfully"
+            echo ""
+            echo "🔄 ArgoCD will sync automatically within 3 minutes"
+            echo ""
+            echo "Monitor deployment:"
+            echo "  - ArgoCD UI: https://argocd.orange-wallet.com"
+            echo "  - CLI: kubectl get pods -n orange-wallet"
           fi
