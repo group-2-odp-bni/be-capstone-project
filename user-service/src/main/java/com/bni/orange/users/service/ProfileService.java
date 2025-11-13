@@ -92,12 +92,17 @@ public class ProfileService {
         profile.setPendingEmail(newEmail);
         verificationService.generateEmailOtp(userId, newEmail);
 
+        var remainingAttempts = verificationService.getRemainingOtpGenerationAttempts(userId, TokenType.EMAIL);
+        var rateLimitReset = verificationService.getRateLimitResetInSeconds(userId, TokenType.EMAIL);
+
         pendingVerifications.put("email", ProfileUpdateResponse.PendingVerification.builder()
             .field("email")
             .value(newEmail)
             .otpSent(true)
             .expiresInSeconds(300L)
             .verifyEndpoint("/api/v1/users/profile/verify-email")
+            .remainingGenerationAttempts(remainingAttempts)
+            .rateLimitResetInSeconds(rateLimitReset)
             .build());
 
         log.info("Email update initiated for user: {}. OTP sent to: {}", userId, newEmail);
@@ -124,20 +129,26 @@ public class ProfileService {
         profile.setPendingPhone(newPhone);
         verificationService.generatePhoneOtp(userId, newPhone);
 
+        var remainingAttempts = verificationService.getRemainingOtpGenerationAttempts(userId, TokenType.PHONE);
+        var rateLimitReset = verificationService.getRateLimitResetInSeconds(userId, TokenType.PHONE);
+
         pendingVerifications.put("phone", ProfileUpdateResponse.PendingVerification.builder()
             .field("phoneNumber")
             .value(newPhone)
             .otpSent(true)
             .expiresInSeconds(300L)
             .verifyEndpoint("/api/v1/users/profile/verify-phone")
+            .remainingGenerationAttempts(remainingAttempts)
+            .rateLimitResetInSeconds(rateLimitReset)
             .build());
 
         log.info("Phone update initiated for user: {}. OTP sent to: {}", userId, newPhone);
     }
 
     @Transactional
-       public VerificationResponse verifyEmail(UUID userId, String otpCode) {
+    public VerificationResponse verifyEmail(UUID userId, String otpCode) {
         log.info("Verifying email OTP for user: {}", userId);
+
         var profile = profileRepository.findById(userId)
             .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
@@ -150,8 +161,20 @@ public class ProfileService {
             throw new BusinessException(ErrorCode.VERIFICATION_MISMATCH, "Verification token does not match pending email");
         }
 
-        profile.applyVerifiedEmail(verifiedEmail);
-        profileRepository.save(profile);
+        // Use conditional update to prevent race condition
+        int rowsUpdated = profileRepository.applyVerifiedEmailConditionally(userId, verifiedEmail);
+
+        if (rowsUpdated == 0) {
+            log.warn("Race condition detected during email verification for user: {}. Pending email was modified concurrently.", userId);
+            throw new BusinessException(
+                ErrorCode.VERIFICATION_MISMATCH,
+                "Email verification failed. The pending email has been changed. Please verify the new email instead."
+            );
+        }
+
+        // Reload profile to get updated data for event publishing
+        profile = profileRepository.findById(userId)
+            .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         publishEmailVerifiedEvent(profile);
         log.info("Email verified and updated for user: {}. New email: {}", userId, verifiedEmail);
@@ -164,6 +187,7 @@ public class ProfileService {
 
         var profile = profileRepository.findById(userId)
             .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
         if (profile.getPendingPhone() == null) {
             throw new BusinessException(ErrorCode.NO_PENDING_VERIFICATION, "No pending phone verification found");
         }
@@ -172,15 +196,28 @@ public class ProfileService {
         if (!verifiedPhone.equals(profile.getPendingPhone())) {
             throw new BusinessException(ErrorCode.VERIFICATION_MISMATCH, "Verification token does not match pending phone");
         }
-        profile.applyVerifiedPhone(verifiedPhone);
-        profileRepository.save(profile);
+
+        // Use conditional update to prevent race condition
+        int rowsUpdated = profileRepository.applyVerifiedPhoneConditionally(userId, verifiedPhone);
+
+        if (rowsUpdated == 0) {
+            log.warn("Race condition detected during phone verification for user: {}. Pending phone was modified concurrently.", userId);
+            throw new BusinessException(
+                ErrorCode.VERIFICATION_MISMATCH,
+                "Phone verification failed. The pending phone has been changed. Please verify the new phone instead."
+            );
+        }
+
+        // Reload profile to get updated data for event publishing
+        profile = profileRepository.findById(userId)
+            .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         publishPhoneVerifiedEvent(profile);
         log.info("Phone verified and updated for user: {}. New phone: {}", userId, verifiedPhone);
         return VerificationResponse.success("phoneNumber", verifiedPhone);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public ProfileUpdateResponse.PendingVerification resendEmailOtp(UUID userId) {
         log.info("Resending email OTP for user: {}", userId);
 
@@ -193,6 +230,9 @@ public class ProfileService {
 
         verificationService.generateEmailOtp(userId, profile.getPendingEmail());
 
+        var remainingAttempts = verificationService.getRemainingOtpGenerationAttempts(userId, TokenType.EMAIL);
+        var rateLimitReset = verificationService.getRateLimitResetInSeconds(userId, TokenType.EMAIL);
+
         log.info("Email OTP resent successfully for user: {}. OTP sent to: {}", userId, profile.getPendingEmail());
 
         return ProfileUpdateResponse.PendingVerification.builder()
@@ -201,10 +241,12 @@ public class ProfileService {
             .otpSent(true)
             .expiresInSeconds(300L)
             .verifyEndpoint("/api/v1/users/profile/verify-email")
+            .remainingGenerationAttempts(remainingAttempts)
+            .rateLimitResetInSeconds(rateLimitReset)
             .build();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public ProfileUpdateResponse.PendingVerification resendPhoneOtp(UUID userId) {
         log.info("Resending phone OTP for user: {}", userId);
 
@@ -217,6 +259,9 @@ public class ProfileService {
 
         verificationService.generatePhoneOtp(userId, profile.getPendingPhone());
 
+        var remainingAttempts = verificationService.getRemainingOtpGenerationAttempts(userId, TokenType.PHONE);
+        var rateLimitReset = verificationService.getRateLimitResetInSeconds(userId, TokenType.PHONE);
+
         log.info("Phone OTP resent successfully for user: {}. OTP sent to: {}", userId, profile.getPendingPhone());
 
         return ProfileUpdateResponse.PendingVerification.builder()
@@ -225,7 +270,47 @@ public class ProfileService {
             .otpSent(true)
             .expiresInSeconds(300L)
             .verifyEndpoint("/api/v1/users/profile/verify-phone")
+            .remainingGenerationAttempts(remainingAttempts)
+            .rateLimitResetInSeconds(rateLimitReset)
             .build();
+    }
+
+    @Transactional
+    public void cancelPendingEmail(UUID userId) {
+        log.info("Canceling pending email verification for user: {}", userId);
+
+        var profile = profileRepository.findById(userId)
+            .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        if (profile.getPendingEmail() == null) {
+            throw new BusinessException(ErrorCode.NO_PENDING_VERIFICATION, "No pending email verification to cancel");
+        }
+
+        profile.setPendingEmail(null);
+        profileRepository.save(profile);
+
+        verificationService.clearOtpData(userId, TokenType.EMAIL);
+
+        log.info("Pending email verification canceled successfully for user: {}", userId);
+    }
+
+    @Transactional
+    public void cancelPendingPhone(UUID userId) {
+        log.info("Canceling pending phone verification for user: {}", userId);
+
+        var profile = profileRepository.findById(userId)
+            .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        if (profile.getPendingPhone() == null) {
+            throw new BusinessException(ErrorCode.NO_PENDING_VERIFICATION, "No pending phone verification to cancel");
+        }
+
+        profile.setPendingPhone(null);
+        profileRepository.save(profile);
+
+        verificationService.clearOtpData(userId, TokenType.PHONE);
+
+        log.info("Pending phone verification canceled successfully for user: {}", userId);
     }
 
     private String buildResponseMessage(

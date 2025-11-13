@@ -99,6 +99,15 @@ public class WalletMemberController {
     var res = inviteService.verifyCode(req.getToken(), req.getCode());
     return ResponseEntity.ok(ApiResponse.ok("Invite code verified", res));
   }
+  @PostMapping("/invites/accept")
+  @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
+    public ResponseEntity<ApiResponse<MemberActionResultResponse>> acceptInvite(
+        @PathVariable UUID walletId,
+        @RequestParam("token") String token
+    ) {
+        var res = inviteService.acceptToken(token);
+        return ResponseEntity.ok(ApiResponse.ok("Invite accepted", res));
+    }
 
   @GetMapping("/members")
   @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")

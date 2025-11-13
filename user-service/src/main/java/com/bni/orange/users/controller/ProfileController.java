@@ -71,4 +71,40 @@ public class ProfileController {
         var response = profileService.uploadProfileImage(UUID.fromString(jwt.getSubject()), file);
         return ResponseEntity.ok(ApiResponse.success(response, response.getMessage()));
     }
+
+    @PostMapping("/resend-email-otp")
+    @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
+    public ResponseEntity<ApiResponse<ProfileUpdateResponse.PendingVerification>> resendEmailOtp(
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        var response = profileService.resendEmailOtp(UUID.fromString(jwt.getSubject()));
+        return ResponseEntity.ok(ApiResponse.success(response, "Email OTP resent successfully"));
+    }
+
+    @PostMapping("/resend-phone-otp")
+    @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
+    public ResponseEntity<ApiResponse<ProfileUpdateResponse.PendingVerification>> resendPhoneOtp(
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        var response = profileService.resendPhoneOtp(UUID.fromString(jwt.getSubject()));
+        return ResponseEntity.ok(ApiResponse.success(response, "Phone OTP resent successfully"));
+    }
+
+    @PostMapping("/cancel-pending-email")
+    @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
+    public ResponseEntity<ApiResponse<Void>> cancelPendingEmail(
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        profileService.cancelPendingEmail(UUID.fromString(jwt.getSubject()));
+        return ResponseEntity.ok(ApiResponse.success(null, "Pending email verification canceled successfully"));
+    }
+
+    @PostMapping("/cancel-pending-phone")
+    @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
+    public ResponseEntity<ApiResponse<Void>> cancelPendingPhone(
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        profileService.cancelPendingPhone(UUID.fromString(jwt.getSubject()));
+        return ResponseEntity.ok(ApiResponse.success(null, "Pending phone verification canceled successfully"));
+    }
 }

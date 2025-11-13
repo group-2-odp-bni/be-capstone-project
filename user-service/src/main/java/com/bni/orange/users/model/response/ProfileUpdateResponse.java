@@ -25,6 +25,8 @@ public class ProfileUpdateResponse {
         private Boolean otpSent;
         private Long expiresInSeconds;
         private String verifyEndpoint;
+        private Integer remainingGenerationAttempts;
+        private Long rateLimitResetInSeconds;
     }
 
     public boolean hasPendingVerifications() {

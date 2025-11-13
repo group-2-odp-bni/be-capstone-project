@@ -201,6 +201,11 @@ public class InviteServiceImpl implements InviteService {
       var nonce    = (String) claims.get("n");
 
       var session = getSessionFlexible(walletId, uidStr, nonce);
+      String walletName = "Shared Wallet";
+      var walletOpt = walletReadRepo.findById(walletId);
+      if (walletOpt.isPresent()) {
+            walletName = walletOpt.get().getName();
+      }
       if (session == null) {
         return InviteInspectResponse.builder()
             .status("EXPIRED")
@@ -213,6 +218,7 @@ public class InviteServiceImpl implements InviteService {
       return InviteInspectResponse.builder()
           .status(isVerified ? "VERIFIED" : "VALID")          
           .walletId(walletId)
+          .walletName(walletName)
           .role(session.getRole())
           .phoneMasked(mask(session.getPhone()))
           .expiresAt(claims.getExpiration().toInstant().atOffset(ZoneOffset.UTC))
