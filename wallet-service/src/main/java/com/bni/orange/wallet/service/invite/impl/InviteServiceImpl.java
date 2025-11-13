@@ -78,10 +78,13 @@ public class InviteServiceImpl implements InviteService {
   @Transactional
   public GeneratedInvite generateInviteLink(UUID walletId, UUID userId, String phoneE164, WalletMemberRole role) {
     requireAdminOrOwner(walletId);
-
-    if (userId != null) throw new ValidationFailedException("Phone-only invite: userId must be null");
-    if (!StringUtils.hasText(phoneE164)) {
-      throw new ValidationFailedException("Phone E.164 is required");
+    if (userId == null) {
+        if (!StringUtils.hasText(phoneE164)) {
+            throw new ValidationFailedException("userId or phoneE164 is required");
+        }
+    } 
+    if (userId != null && !StringUtils.hasText(phoneE164)) {
+        throw new ValidationFailedException("phoneE164 is required when userId is specified for this flow");
     }
     if (role == null) {
       throw new ValidationFailedException("Role is required");
@@ -98,53 +101,63 @@ public class InviteServiceImpl implements InviteService {
       throw new MaxMemberReachException("MAX_MEMBERS_REACHED");
     }
     walletRepo.findById(walletId).orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
-    String normalizedPhone = phoneE164;
-    String indexKey = String.format(INDEX_KEY_FMT, walletId, normalizedPhone);
-    String nonce = UUID.randomUUID().toString().replace("-", "");
-    Boolean locked = redis.opsForValue().setIfAbsent(indexKey, nonce, Duration.ofSeconds(ttlSeconds));
-    if (Boolean.FALSE.equals(locked)) {
-      String existingNonce = redis.opsForValue().get(indexKey);
-      String existingJson  = (existingNonce != null)
-          ? redis.opsForValue().get(String.format(KEY_FMT, walletId, "-", existingNonce))
-          : null;
-
-      if (existingJson != null) {
-        try {
-          InviteSession exist = om.readValue(existingJson, InviteSession.class);
-          long remain = remainingTtlSeconds(exist.getCreatedAt());
-          OffsetDateTime expiresAt = exist.getCreatedAt().plusSeconds(ttlSeconds);
-          throw new ConflictException("PHONE_ALREADY_INVITED (expires at: " + expiresAt + ")");
-        } catch (Exception ignore) {
-          throw new ConflictException("PHONE_ALREADY_INVITED");
-        }
-      }
-      throw new ConflictException("PHONE_ALREADY_INVITED");
+    String conflictIndexKey;
+    String keyForConflictValue; // Nilai yang digunakan untuk format KEY_FMT
+    
+    if (userId != null) {
+        keyForConflictValue = userId.toString();
+        conflictIndexKey = String.format("wallet:invite:index:user:%s:%s", walletId, userId); 
+    } else {
+        keyForConflictValue = phoneE164;
+        conflictIndexKey = String.format(INDEX_KEY_FMT, walletId, phoneE164);
     }
+    String nonce = UUID.randomUUID().toString().replace("-", "");
+    Boolean locked = redis.opsForValue().setIfAbsent(conflictIndexKey, nonce, Duration.ofSeconds(ttlSeconds));      
+    if (Boolean.FALSE.equals(locked)) {
+        String existingNonce = redis.opsForValue().get(conflictIndexKey);        
+        String existingJson = (existingNonce != null)
+              ? redis.opsForValue().get(String.format(KEY_FMT, walletId, 
+                  (userId != null ? userId.toString() : "-"), 
+                  existingNonce))
+              : null;
+
+        if (existingJson != null) {
+            try {
+                InviteSession exist = om.readValue(existingJson, InviteSession.class);
+                OffsetDateTime expiresAt = exist.getCreatedAt().plusSeconds(ttlSeconds);
+                throw new ConflictException("USER_ALREADY_INVITED (expires at: " + expiresAt + ")");
+            } catch (Exception ignore) {
+                throw new ConflictException("USER_ALREADY_INVITED");
+            }
+        }
+        throw new ConflictException("USER_ALREADY_INVITED");
+    }
+
     String code  = genCode6();
     String codeHash = hmacSha256Hex(code, inviteSecret);
     var createdAt = OffsetDateTime.now();
 
     var session = InviteSession.builder()
         .walletId(walletId)
-        .userId(null)
+        .userId(userId)
         .phone(phoneE164)
         .role(role.name())
         .codeHash(codeHash)
         .nonce(nonce)
         .attempts(0)
         .maxAttempts(5)
-        .status("INVITED")
+        .status(userId != null ? "BOUND" : "INVITED")
         .createdAt(createdAt)
         .build();
 
-    var key = key(walletId, null, nonce);
+    var key = key(walletId, userId, nonce);
     try {
-      redis.opsForValue().set(key, om.writeValueAsString(session), Duration.ofSeconds(ttlSeconds));
+        redis.opsForValue().set(key, om.writeValueAsString(session), Duration.ofSeconds(ttlSeconds));
     } catch (Exception e) {
-      redis.delete(indexKey);
-      throw new RuntimeException("Failed to persist invite session", e);
+        redis.delete(conflictIndexKey);
+        throw new RuntimeException("Failed to persist invite session", e);
     }
-    String token = signToken(walletId, null, nonce);
+    String token = signToken(walletId, userId, nonce);
     String link = baseUrl + "?token=" + java.net.URLEncoder.encode(token, StandardCharsets.UTF_8);
     var inviter = CurrentUser.userId();
     var expiresAt = createdAt.plusSeconds(ttlSeconds);
@@ -196,9 +209,9 @@ public class InviteServiceImpl implements InviteService {
             .requiresAccount(true)
             .build();
       }
-
+      boolean isVerified = "VERIFIED".equalsIgnoreCase(session.getStatus()) || "BOUND".equalsIgnoreCase(session.getStatus());
       return InviteInspectResponse.builder()
-          .status("VALID")
+          .status(isVerified ? "VERIFIED" : "VALID")          
           .walletId(walletId)
           .role(session.getRole())
           .phoneMasked(mask(session.getPhone()))
@@ -215,10 +228,13 @@ public class InviteServiceImpl implements InviteService {
     if (!StringUtils.hasText(token) || !StringUtils.hasText(code)) {
       throw new ValidationFailedException("Token and code are required");
     }
-    var claims   = parseAndValidate(token);
-    var wid      = UUID.fromString((String) claims.get("wid"));
-    var nonce    = (String) claims.get("n");
-    var expires  = claims.getExpiration().toInstant().atOffset(ZoneOffset.UTC);
+    var initialClaims = parseAndValidate(token);
+    if (initialClaims.containsKey("uid")) {
+        throw new ForbiddenOperationException("Invite already verified or bound to a user, please proceed to accept token.");
+    }
+    var wid      = UUID.fromString((String) initialClaims.get("wid"));
+    var nonce    = (String) initialClaims.get("n");
+    var expires  = initialClaims.getExpiration().toInstant().atOffset(ZoneOffset.UTC);
     var anonKey = String.format(KEY_FMT, wid, "-", nonce);
     var json = redis.opsForValue().get(anonKey);
     if (json == null) {
@@ -309,8 +325,7 @@ public class InviteServiceImpl implements InviteService {
     } else {
       session = getSessionFlexible(walletId, currentUserId.toString(), nonce);
     }    
-    
-  if (session == null || !"VERIFIED".equalsIgnoreCase(session.getStatus())) {
+  if (session == null || (!"VERIFIED".equalsIgnoreCase(session.getStatus()) && !"BOUND".equalsIgnoreCase(session.getStatus()))) {
        var existing = memberRepo.findByWalletIdAndUserId(walletId, currentUserId);
     if (existing.isPresent() && existing.get().getStatus() == WalletMemberStatus.ACTIVE) {
       return MemberActionResultResponse.builder()
