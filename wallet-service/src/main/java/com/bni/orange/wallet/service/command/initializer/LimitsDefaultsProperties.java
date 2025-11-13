@@ -2,8 +2,8 @@ package com.bni.orange.wallet.service.command.initializer;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import lombok.Data;
 
-@ConfigurationProperties(prefix = "orange.limits.default")
 @Data
+@ConfigurationProperties(prefix = "orange.limits.default")
 public class LimitsDefaultsProperties {
     private long perTxMinRp;
     private long perTxMaxRp;
