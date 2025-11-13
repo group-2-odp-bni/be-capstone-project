@@ -6,6 +6,8 @@ import com.bni.orange.wallet.model.enums.WalletMemberRole;
 import com.bni.orange.wallet.model.enums.WalletMemberStatus;
 import com.bni.orange.wallet.repository.UserReceivePrefsRepository;
 import com.bni.orange.wallet.repository.read.*;
+import com.bni.orange.wallet.service.command.initializer.UserLimitsInitializer;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -22,21 +24,24 @@ public class WalletReadModelProjector {
     private final WalletMemberReadRepository walletMemberReadRepo;
     private final UserWalletReadRepository userWalletReadRepo;
     private final UserReceivePrefsRepository prefsRepo;
+    private final UserLimitsInitializer limitsInitializer;
 
     public void projectNewWallet(DomainEvents.WalletCreated event) {
+        limitsInitializer.ensureDefaultsForUser(event.getUserId());
+
         WalletRead wr = WalletRead.builder()
-                .id(event.getWalletId())
-                .userId(event.getUserId())
-                .currency(event.getCurrency())
-                .status(event.getStatus())
-                .balanceSnapshot(event.getBalanceSnapshot())
-                .type(event.getType())
-                .name(event.getName())
-                .membersActive(1)
-                .isDefaultForUser(false) 
-                .createdAt(event.getCreatedAt())
-                .updatedAt(event.getUpdatedAt())
-                .build();
+            .id(event.getWalletId())
+            .userId(event.getUserId())
+            .currency(event.getCurrency())
+            .status(event.getStatus())
+            .balanceSnapshot(event.getBalanceSnapshot())
+            .type(event.getType())
+            .name(event.getName())
+            .membersActive(1)
+            .isDefaultForUser(false) 
+            .createdAt(event.getCreatedAt())
+            .updatedAt(event.getUpdatedAt())
+            .build();
         walletReadRepo.save(wr);
         upsertWalletMemberRead(event.getWalletId(), event.getUserId(), WalletMemberRole.OWNER, WalletMemberStatus.ACTIVE);
         UserWalletRead idx = UserWalletRead.builder()
