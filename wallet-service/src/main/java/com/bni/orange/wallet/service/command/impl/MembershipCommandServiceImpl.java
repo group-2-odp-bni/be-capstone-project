@@ -17,7 +17,9 @@ import com.bni.orange.wallet.model.response.member.MemberLimitsResponse;
 import com.bni.orange.wallet.model.response.member.WalletMemberDetailResponse;
 import com.bni.orange.wallet.repository.WalletMemberRepository;
 import com.bni.orange.wallet.repository.WalletRepository;
+import com.bni.orange.wallet.repository.read.UserWalletReadRepository;
 import com.bni.orange.wallet.repository.read.WalletMemberReadRepository;
+import com.bni.orange.wallet.repository.read.WalletReadRepository;
 import com.bni.orange.wallet.service.command.MembershipCommandService;
 import com.bni.orange.wallet.service.query.impl.WalletPolicyQueryServiceImpl;
 import com.bni.orange.wallet.utils.security.CurrentUser;
@@ -39,17 +41,23 @@ public class MembershipCommandServiceImpl implements MembershipCommandService {
   private final WalletMemberRepository memberRepo;               // OLTP
   private final WalletMemberReadRepository memberReadRepo;       // Read
   private final WalletPolicyQueryServiceImpl walletPolicyService;
+  private final UserWalletReadRepository userWalletReadRepo;
+  private final WalletReadRepository walletReadRepo;
   public MembershipCommandServiceImpl(WalletRepository walletRepo,
                                       WalletMemberRepository memberRepo,
                                       WalletMemberReadRepository memberReadRepo,
                                       WalletPolicyQueryServiceImpl walletPolicyService,
+                                      UserWalletReadRepository userWalletReadRepository,
+                                      WalletReadRepository walletReadRepo,
                                       ApplicationEventPublisher appEvents ) {
                                         
     this.walletRepo = walletRepo;
     this.memberRepo = memberRepo;
     this.memberReadRepo = memberReadRepo;
     this.walletPolicyService = walletPolicyService;
-    this.appEvents = appEvents; 
+    this.walletReadRepo= walletReadRepo;
+    this.userWalletReadRepo = userWalletReadRepository;
+    this.appEvents = appEvents;
   }
 
   @Override
@@ -160,7 +168,8 @@ public class MembershipCommandServiceImpl implements MembershipCommandService {
 
     memberRepo.delete(member);               
     deleteRead(walletId, userId);            
-
+    deleteUserWalletRead(walletId, userId);
+    recountMembersActive(member);
     return MemberActionResultResponse.builder()
         .walletId(walletId)
         .userId(userId)
@@ -183,7 +192,8 @@ public class MembershipCommandServiceImpl implements MembershipCommandService {
 
     memberRepo.delete(member);               
     deleteRead(walletId, uid);               
-
+    deleteUserWalletRead(walletId, uid);
+    recountMembersActive(member);
     return MemberActionResultResponse.builder()
         .walletId(walletId)
         .userId(uid)
@@ -192,7 +202,17 @@ public class MembershipCommandServiceImpl implements MembershipCommandService {
         .message("Left wallet")
         .build();
   }
-
+  private void recountMembersActive(WalletMember m) {
+    long active = memberReadRepo.countByWalletIdAndStatusIn(
+        m.getWalletId(),
+        java.util.List.of(WalletMemberStatus.ACTIVE)
+    );
+    walletReadRepo.findById(m.getWalletId()).ifPresent(wr -> {
+      wr.setMembersActive((int) active);
+      wr.setUpdatedAt(OffsetDateTime.now());
+      walletReadRepo.save(wr);
+    });
+  }
   private WalletMember requireAdminOrOwner(UUID walletId) {
     var uid = CurrentUser.userId();
     var me = memberRepo.findByWalletIdAndUserId(walletId, uid)
@@ -224,7 +244,11 @@ public class MembershipCommandServiceImpl implements MembershipCommandService {
   private void deleteRead(UUID walletId, UUID userId) {
     memberReadRepo.deleteByWalletIdAndUserId(walletId, userId);
   }
-
+  private void deleteUserWalletRead(UUID walletId, UUID userId) {
+      userWalletReadRepo.findByUserIdAndWalletId(walletId, userId).ifPresent(uw -> {
+          userWalletReadRepo.delete(uw);
+      });
+  }
   private WalletMemberDetailResponse toDetailDTO(WalletMember m) {
     return WalletMemberDetailResponse.builder()
         .walletId(m.getWalletId())
@@ -245,4 +269,5 @@ public class MembershipCommandServiceImpl implements MembershipCommandService {
         .metadata(null)
         .build();
   }
+
 }
