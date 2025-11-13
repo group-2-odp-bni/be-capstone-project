@@ -21,9 +21,9 @@ auth:
 
 persistence:
   enabled: true
-  storageClass: "local-path"
+  storageClass: "gcp-pd-ssd"
   accessMode: ReadWriteOnce
-  size: 10Gi
+  size: 20Gi  # Increased for production workloads
   mountPath: /var/lib/postgresql/data
 
 resources:

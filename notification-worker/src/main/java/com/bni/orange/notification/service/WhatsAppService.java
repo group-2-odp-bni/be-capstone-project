@@ -27,11 +27,14 @@ public class WhatsAppService {
         return wahaSessionService.waitForSessionReady(5, 3)
             .doOnSuccess(session -> log.info("WhatsApp session ready for user {}", event.getUserId()))
             .flatMap(session -> wahaApiClient.sendTextMessage(event.getPhoneNumber(), message))
-            .doOnSuccess(response -> log.info("OTP successfully sent to user {}. Message ID: {}, Timestamp: {}",
-                event.getUserId(),
-                response.id(),
-                Instant.ofEpochSecond(response.timestamp())
-            ))
+            .doOnSuccess(response -> {
+                Object timestamp = response.timestamp() != null ? Instant.ofEpochSecond(response.timestamp()) : "N/A";
+                log.info("OTP successfully sent to user {}. Message ID: {}, Timestamp: {}",
+                    event.getUserId(),
+                    response.id(),
+                    timestamp
+                );
+            })
             .doOnError(error -> log.error("Failed to send OTP to user {}: {}",
                 event.getUserId(),
                 error.getMessage()
@@ -41,14 +44,14 @@ public class WhatsAppService {
 
     private String formatOtpMessage(String otpCode) {
         return """
-            BNI Orange E-Wallet
+            🔸 *BNI Orange E-Wallet* 🔸
 
-            Your One-Time Password (OTP) is: %s
+            Hey there! 👋 Your OTP is: *%s*
 
-            This code will expire in 5 minutes.
-            Please do not share this code with anyone.
+            ⏰ It’s valid for *5 minutes*.
+            🚫 Don’t share this code with anyone, not even us.
 
-            If you did not request this code, please ignore this message.
+            Stay safe and keep your wallet secure 💪
             """.formatted(otpCode);
     }
 

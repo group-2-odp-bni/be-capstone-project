@@ -25,8 +25,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -72,11 +70,6 @@ public class KafkaConfig {
         return new KafkaTemplate<>(producerFactory());
     }
 
-    @Bean(name = "kafkaVirtualThreadExecutor")
-    public Executor kafkaVirtualThreadExecutor() {
-        return Executors.newVirtualThreadPerTaskExecutor();
-    }
-
     @Bean
     public List<NewTopic> kafkaTopics() {
         if (Objects.isNull(topicProps.definitions())) {
@@ -100,10 +93,6 @@ public class KafkaConfig {
             })
             .collect(Collectors.toList());
     }
-
-    // ========================================
-    // Consumer Configuration
-    // ========================================
 
     @Bean
     public Map<String, Object> consumerConfigs() {

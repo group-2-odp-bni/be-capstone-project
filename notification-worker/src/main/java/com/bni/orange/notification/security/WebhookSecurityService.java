@@ -27,16 +27,22 @@ public class WebhookSecurityService {
 
         try {
             var expectedSignature = calculateHmacSha512(payload);
+
+            var normalizedSignature = signature.startsWith("sha512=") ? signature : "sha512=" + signature;
+
             var isValid = MessageDigest.isEqual(
                 expectedSignature.getBytes(StandardCharsets.UTF_8),
-                signature.getBytes(StandardCharsets.UTF_8)
+                normalizedSignature.getBytes(StandardCharsets.UTF_8)
             );
 
             if (!isValid) {
-                log.warn("Invalid webhook signature. Expected: {}, Received: {}",
+                log.warn("Invalid webhook signature. Expected: {}, Received: {} (normalized: {})",
                     maskSignature(expectedSignature),
-                    maskSignature(signature)
+                    maskSignature(signature),
+                    maskSignature(normalizedSignature)
                 );
+            } else {
+                log.debug("Webhook signature verified successfully");
             }
 
             return isValid;

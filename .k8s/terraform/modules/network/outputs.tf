@@ -35,16 +35,6 @@ output "subnet_cidr" {
   value       = google_compute_subnetwork.subnet.ip_cidr_range
 }
 
-output "metallb_ip_range_start" {
-  description = "MetalLB IP range start"
-  value       = "${split(".", var.subnet_cidr)[0]}.${split(".", var.subnet_cidr)[1]}.${split(".", var.subnet_cidr)[2]}.${var.metallb_ip_range_start}"
-}
-
-output "metallb_ip_range_end" {
-  description = "MetalLB IP range end"
-  value       = "${split(".", var.subnet_cidr)[0]}.${split(".", var.subnet_cidr)[1]}.${split(".", var.subnet_cidr)[2]}.${var.metallb_ip_range_end}"
-}
-
 output "router_name" {
   description = "Name of the Cloud Router"
   value       = google_compute_router.router.name

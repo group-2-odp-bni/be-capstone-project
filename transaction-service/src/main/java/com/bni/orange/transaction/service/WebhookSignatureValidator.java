@@ -38,6 +38,7 @@ public class WebhookSignatureValidator {
 
 
     private void validateBniSignature(TopUpCallbackRequest request, String providedSignature) {
+        log.info("TEMPORARY DEBUG: Using BNI VA Client Secret: {}", bniVaProperties.clientSecret()); // TODO: REMOVE THIS LINE
         try {
             validateTimestamp(request.paymentTimestamp());
 

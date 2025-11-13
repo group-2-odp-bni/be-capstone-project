@@ -38,23 +38,22 @@ public class QuickTransferController {
     @GetMapping
     @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
     public ResponseEntity<ApiResponse<List<QuickTransferResponse>>> getQuickTransfers(
-        @RequestParam UUID walletId,
         @RequestParam(defaultValue = "usage") String orderBy,
+        @RequestParam(required = false) String search,
         @AuthenticationPrincipal Jwt jwt
     ) {
-        return ResponseEntity.ok(ApiResponse.success(
-            quickTransferService.getWalletQuickTransfers(getUserIdFromJwt(jwt), walletId, orderBy)));
+        return ResponseEntity.ok(
+            ApiResponse.success(quickTransferService.getQuickTransfers(getUserIdFromJwt(jwt), orderBy, search)));
     }
 
     @GetMapping("/top")
     @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
     public ResponseEntity<ApiResponse<List<QuickTransferResponse>>> getTopQuickTransfers(
-        @RequestParam UUID walletId,
         @RequestParam(defaultValue = "8") int limit,
         @AuthenticationPrincipal Jwt jwt
     ) {
         return ResponseEntity.ok(ApiResponse.success(
-            quickTransferService.getTopWalletQuickTransfers(getUserIdFromJwt(jwt), walletId, limit)));
+            quickTransferService.getTopQuickTransfers(getUserIdFromJwt(jwt), limit)));
     }
 
     @PostMapping

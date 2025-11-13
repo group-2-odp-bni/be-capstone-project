@@ -1,0 +1,54 @@
+syntax = "proto3";
+option java_package = "com.bni.orange.wallet.proto";
+option java_multiple_files = true;
+package com.bni.orange.wallet.proto;
+
+message WalletCreatedEvent {
+  string wallet_id = 1;
+  string user_id = 2;
+  string currency = 3;
+  string status = 4;   
+  string type = 5;     
+  string name = 6;
+  string balance_snapshot = 7; 
+  bool is_default_for_user = 8; 
+  string created_at = 9;  
+  string updated_at = 10; 
+}
+message WalletUpdatedEvent {
+  string wallet_id = 1;
+  string user_id = 2;
+  string currency = 3;
+  string status = 4;
+  string type = 5;
+  string name = 6;
+  string balance_snapshot = 7;
+  string updated_at = 8;
+}
+message WalletMemberInvitedEvent {
+  string wallet_id = 1;
+  string inviter_user_id = 2;
+  string invited_user_id = 3;
+  string role = 4;
+  string wallet_name = 5;
+}
+message WalletInviteLinkGeneratedEvent {
+  string wallet_id = 1;
+  string inviter_user_id = 2;
+  string phone_e164 = 3;
+  string role = 4;
+
+  string link = 5;         
+  string code_masked = 6;
+  string code_plain = 7;    
+
+  string expires_at = 8;
+  string nonce = 9;     
+}
+
+message WalletInviteAcceptedEvent {
+  string wallet_id = 1;
+  string user_id = 2;
+  string role = 3;
+  string occurred_at = 4;
+}

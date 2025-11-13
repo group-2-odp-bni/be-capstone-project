@@ -13,37 +13,32 @@ project_name = "orange-wallet"
 vpc_cidr    = "10.0.0.0/16"
 subnet_cidr = "10.0.1.0/24"
 
-# Master Node Configuration
-master_machine_type = "e2-medium"     # 2 vCPU, 4 GB RAM
-master_disk_size    = 50              # GB
-master_disk_type    = "pd-balanced"   # pd-standard, pd-ssd, or pd-balanced
+# Master Node Configuration (Cost-Optimized Defaults)
+master_machine_type = "e2-small"      # 2 vCPU, 2 GB RAM
+master_disk_size    = 30              # GB
+master_disk_type    = "pd-standard"   # pd-standard, pd-ssd, or pd-balanced
 
-# Worker Node Configuration
+# Worker Node Configuration (Cost-Optimized Defaults)
 worker_machine_type = "e2-medium"     # 2 vCPU, 4 GB RAM
 worker_disk_size    = 50              # GB
-worker_disk_type    = "pd-balanced"
+worker_disk_type    = "pd-standard"
 
 # K3s Configuration
 k3s_version = ""                      # Leave empty for latest, or specify like "v1.28.5+k3s1"
 k3s_token   = ""                      # Leave empty for auto-generation (recommended)
 
-# MetalLB IP Range (within subnet)
-# These will be appended to subnet base (e.g., 10.0.1.200-10.0.1.250)
-metallb_ip_range_start = 200
-metallb_ip_range_end   = 250
-
 # SSH Configuration
 ssh_public_key_path = "~/.ssh/id_rsa.pub"
 ssh_user            = "ubuntu"
 
-# Feature Flags
-enable_preemptible_vms = false        # true = cheaper but can be terminated
-enable_monitoring      = true         # Enable GCP monitoring/logging
+# Feature Flags (Cost-Optimized Defaults)
+enable_preemptible_vms = true         # true = cheaper but can be terminated
+enable_monitoring      = false        # Enable GCP monitoring/logging
 enable_external_ip     = true         # Assign external IPs to VMs
 
 # Additional Labels
 labels = {
   managed_by = "terraform"
   project    = "orange-wallet"
-  team       = "devops"
+  team       = "capstone"
 }

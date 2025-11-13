@@ -3,26 +3,23 @@ package com.bni.orange.transaction.client.base;
 import com.bni.orange.transaction.error.BusinessException;
 import com.bni.orange.transaction.error.ErrorCode;
 import com.bni.orange.transaction.model.response.ApiResponse;
+import com.bni.orange.transaction.model.response.internal.InternalApiResponse;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.reactor.circuitbreaker.operator.CircuitBreakerOperator;
 import io.github.resilience4j.reactor.retry.RetryOperator;
 import io.github.resilience4j.retry.Retry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Mono;
 
 import java.util.function.Function;
 
-/**
- * Base abstract class for all service clients.
- * Provides common functionality for:
- * - WebClient operations with resilience patterns
- * - Error handling and mapping
- * - Response unwrapping
- * - Circuit breaker and retry patterns
- */
 @Slf4j
 public abstract class BaseServiceClient {
 
@@ -43,29 +40,28 @@ public abstract class BaseServiceClient {
         this.serviceName = serviceName;
     }
 
-    /**
-     * Execute a GET request and unwrap the ApiResponse.
-     * Applies retry and circuit breaker patterns automatically.
-     *
-     * @param uriFunction Function to build the URI and headers
-     * @param responseType Response type reference
-     * @param errorMapper Custom error mapper for specific error codes
-     * @param <T> Response data type
-     * @return Mono of unwrapped data
-     */
-    protected <T> Mono<T> executeGet(
-        Function<WebClient.RequestHeadersUriSpec<?>, WebClient.RequestHeadersSpec<?>> uriFunction,
-        ParameterizedTypeReference<ApiResponse<T>> responseType,
+    private <T, R> Mono<T> executeRequest(
+        HttpMethod method,
+        Function<WebClient, WebClient.RequestHeadersSpec<?>> requestSpecFunction,
+        ParameterizedTypeReference<R> responseWrapperType,
+        Function<R, T> dataExtractor,
         Function<WebClientResponseException, Throwable> errorMapper
     ) {
-        log.debug("Executing GET request to {}", serviceName);
+        log.debug("Executing {} request to {}", method, serviceName);
 
-        return Mono.defer(() -> {
-                WebClient.RequestHeadersSpec<?> requestSpec = uriFunction.apply(webClient.get());
-                return requestSpec.retrieve()
-                    .bodyToMono(responseType)
-                    .map(ApiResponse::data);
-            })
+        var requestSpec = requestSpecFunction.apply(webClient);
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth instanceof JwtAuthenticationToken jwtAuth) {
+            log.debug("Attaching Bearer token from SecurityContextHolder.");
+            requestSpec.headers(headers -> headers.setBearerAuth(jwtAuth.getToken().getTokenValue()));
+        } else {
+            log.warn("No JWT authentication found in SecurityContextHolder. Type is: {}", auth != null ? auth.getClass().getName() : "null");
+        }
+
+        return requestSpec.retrieve()
+            .bodyToMono(responseWrapperType)
+            .map(dataExtractor)
             .transformDeferred(RetryOperator.of(retry))
             .transformDeferred(CircuitBreakerOperator.of(circuitBreaker))
             .onErrorResume(WebClientResponseException.class, ex -> {
@@ -79,9 +75,20 @@ public abstract class BaseServiceClient {
             });
     }
 
-    /**
-     * Simplified GET request without custom error mapping.
-     */
+    protected <T> Mono<T> executeGet(
+        Function<WebClient.RequestHeadersUriSpec<?>, WebClient.RequestHeadersSpec<?>> uriFunction,
+        ParameterizedTypeReference<ApiResponse<T>> responseType,
+        Function<WebClientResponseException, Throwable> errorMapper
+    ) {
+        return executeRequest(
+            HttpMethod.GET,
+            client -> uriFunction.apply(client.get()),
+            responseType,
+            ApiResponse::getData,
+            errorMapper
+        );
+    }
+
     protected <T> Mono<T> executeGet(
         Function<WebClient.RequestHeadersUriSpec<?>, WebClient.RequestHeadersSpec<?>> uriFunction,
         ParameterizedTypeReference<ApiResponse<T>> responseType
@@ -89,45 +96,20 @@ public abstract class BaseServiceClient {
         return executeGet(uriFunction, responseType, null);
     }
 
-    /**
-     * Execute a POST request and unwrap the ApiResponse.
-     * Applies retry and circuit breaker patterns automatically.
-     *
-     * @param uriFunction Function to build the URI, headers and body
-     * @param responseType Response type reference
-     * @param errorMapper Custom error mapper
-     * @param <T> Response data type
-     * @return Mono of unwrapped data
-     */
     protected <T> Mono<T> executePost(
         Function<WebClient.RequestBodyUriSpec, WebClient.RequestHeadersSpec<?>> uriFunction,
         ParameterizedTypeReference<ApiResponse<T>> responseType,
         Function<WebClientResponseException, Throwable> errorMapper
     ) {
-        log.debug("Executing POST request to {}", serviceName);
-
-        return Mono.defer(() -> {
-                WebClient.RequestHeadersSpec<?> requestSpec = uriFunction.apply(webClient.post());
-                return requestSpec.retrieve()
-                    .bodyToMono(responseType)
-                    .map(ApiResponse::data);
-            })
-            .transformDeferred(RetryOperator.of(retry))
-            .transformDeferred(CircuitBreakerOperator.of(circuitBreaker))
-            .onErrorResume(WebClientResponseException.class, ex -> {
-                if (errorMapper != null) {
-                    var mappedError = errorMapper.apply(ex);
-                    if (mappedError != null) {
-                        return Mono.error(mappedError);
-                    }
-                }
-                return Mono.error(mapWebClientException(ex));
-            });
+        return executeRequest(
+            HttpMethod.POST,
+            client -> uriFunction.apply(client.post()),
+            responseType,
+            ApiResponse::getData,
+            errorMapper
+        );
     }
 
-    /**
-     * Simplified POST request without custom error mapping.
-     */
     protected <T> Mono<T> executePost(
         Function<WebClient.RequestBodyUriSpec, WebClient.RequestHeadersSpec<?>> uriFunction,
         ParameterizedTypeReference<ApiResponse<T>> responseType
@@ -135,27 +117,58 @@ public abstract class BaseServiceClient {
         return executePost(uriFunction, responseType, null);
     }
 
-    /**
-     * Default WebClient exception mapper.
-     * Subclasses can override to provide service-specific error codes.
-     */
+    protected <T> Mono<T> executeGetInternal(
+        Function<WebClient.RequestHeadersUriSpec<?>, WebClient.RequestHeadersSpec<?>> uriFunction,
+        ParameterizedTypeReference<InternalApiResponse<T>> responseType,
+        Function<WebClientResponseException, Throwable> errorMapper
+    ) {
+        return executeRequest(
+            HttpMethod.GET,
+            client -> uriFunction.apply(client.get()),
+            responseType,
+            InternalApiResponse::getData,
+            errorMapper
+        );
+    }
+
+    protected <T> Mono<T> executeGetInternal(
+        Function<WebClient.RequestHeadersUriSpec<?>, WebClient.RequestHeadersSpec<?>> uriFunction,
+        ParameterizedTypeReference<InternalApiResponse<T>> responseType
+    ) {
+        return executeGetInternal(uriFunction, responseType, null);
+    }
+
+    protected <T> Mono<T> executePostInternal(
+        Function<WebClient.RequestBodyUriSpec, WebClient.RequestHeadersSpec<?>> uriFunction,
+        ParameterizedTypeReference<InternalApiResponse<T>> responseType,
+        Function<WebClientResponseException, Throwable> errorMapper
+    ) {
+        return executeRequest(
+            HttpMethod.POST,
+            client -> uriFunction.apply(client.post()),
+            responseType,
+            InternalApiResponse::getData,
+            errorMapper
+        );
+    }
+
+    protected <T> Mono<T> executePostInternal(
+        Function<WebClient.RequestBodyUriSpec, WebClient.RequestHeadersSpec<?>> uriFunction,
+        ParameterizedTypeReference<InternalApiResponse<T>> responseType
+    ) {
+        return executePostInternal(uriFunction, responseType, null);
+    }
+
     protected Throwable mapWebClientException(WebClientResponseException ex) {
         log.error("{} error: {} - {}", serviceName, ex.getStatusCode(), ex.getResponseBodyAsString());
         return new BusinessException(
             getServiceErrorCode(),
-            String.format("Error communicating with %s", serviceName)
+            "Error communicating with %s".formatted(serviceName)
         );
     }
 
-    /**
-     * Get the error code to use for this service.
-     * Override this method to return service-specific error codes.
-     */
     protected abstract ErrorCode getServiceErrorCode();
 
-    /**
-     * Helper to create NOT_FOUND error mapper.
-     */
     protected Function<WebClientResponseException, Throwable> notFoundMapper(ErrorCode errorCode, String message) {
         return ex -> {
             if (ex instanceof WebClientResponseException.NotFound) {
@@ -166,9 +179,6 @@ public abstract class BaseServiceClient {
         };
     }
 
-    /**
-     * Helper to create UNAUTHORIZED error mapper.
-     */
     protected Function<WebClientResponseException, Throwable> unauthorizedMapper(ErrorCode errorCode, String message) {
         return ex -> {
             if (ex instanceof WebClientResponseException.Unauthorized) {
@@ -179,32 +189,11 @@ public abstract class BaseServiceClient {
         };
     }
 
-    /**
-     * Helper to create CONFLICT error mapper.
-     */
     protected Function<WebClientResponseException, Throwable> conflictMapper(ErrorCode errorCode, String message) {
         return ex -> {
             if (ex instanceof WebClientResponseException.Conflict) {
                 log.error("{}: {}", serviceName, message);
                 return new BusinessException(errorCode, message);
-            }
-            return null;
-        };
-    }
-
-    /**
-     * Combine multiple error mappers.
-     */
-    @SafeVarargs
-    protected final Function<WebClientResponseException, Throwable> combineMappers(
-        Function<WebClientResponseException, Throwable>... mappers
-    ) {
-        return ex -> {
-            for (var mapper : mappers) {
-                var result = mapper.apply(ex);
-                if (result != null) {
-                    return result;
-                }
             }
             return null;
         };

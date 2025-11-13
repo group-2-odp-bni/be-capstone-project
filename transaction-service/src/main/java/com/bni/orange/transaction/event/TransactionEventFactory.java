@@ -13,7 +13,7 @@ public final class TransactionEventFactory {
     }
 
     public static TransactionCompletedEvent createTransactionCompletedEvent(Transaction transaction) {
-        return TransactionCompletedEvent.newBuilder()
+        var builder = TransactionCompletedEvent.newBuilder()
             .setEventId(UUID.randomUUID().toString())
             .setTransactionId(transaction.getId().toString())
             .setTransactionRef(transaction.getTransactionRef())
@@ -21,20 +21,30 @@ public final class TransactionEventFactory {
             .setStatus(transaction.getStatus().name())
             .setAmount(transaction.getAmount().toString())
             .setCurrency(transaction.getCurrency())
-            .setSenderUserId(transaction.getSenderUserId().toString())
-            .setSenderWalletId(transaction.getSenderWalletId().toString())
-            .setReceiverUserId(transaction.getReceiverUserId().toString())
-            .setReceiverWalletId(transaction.getReceiverWalletId().toString())
-            .setReceiverName(transaction.getReceiverName())
-            .setReceiverPhone(transaction.getReceiverPhone())
-            .setDescription(transaction.getDescription())
-            .setNotes(transaction.getNotes())
-            .setTimestamp(getTimestamp(transaction))
-            .build();
+            .setUserId(transaction.getUserId().toString())
+            .setWalletId(transaction.getWalletId().toString())
+            .setDescription(transaction.getDescription() != null ? transaction.getDescription() : "")
+            .setNotes(transaction.getNotes() != null ? transaction.getNotes() : "")
+            .setTimestamp(getTimestamp(transaction));
+
+        if (transaction.getCounterpartyUserId() != null) {
+            builder.setCounterpartyUserId(transaction.getCounterpartyUserId().toString());
+        }
+        if (transaction.getCounterpartyWalletId() != null) {
+            builder.setCounterpartyWalletId(transaction.getCounterpartyWalletId().toString());
+        }
+        if (transaction.getCounterpartyName() != null) {
+            builder.setCounterpartyName(transaction.getCounterpartyName());
+        }
+        if (transaction.getCounterpartyPhone() != null) {
+            builder.setCounterpartyPhone(transaction.getCounterpartyPhone());
+        }
+
+        return builder.build();
     }
 
     public static TransactionFailedEvent createTransactionFailedEvent(Transaction transaction) {
-        return TransactionFailedEvent.newBuilder()
+        var builder = TransactionFailedEvent.newBuilder()
             .setEventId(UUID.randomUUID().toString())
             .setTransactionId(transaction.getId().toString())
             .setTransactionRef(transaction.getTransactionRef())
@@ -42,17 +52,27 @@ public final class TransactionEventFactory {
             .setStatus(transaction.getStatus().name())
             .setAmount(transaction.getAmount().toString())
             .setCurrency(transaction.getCurrency())
-            .setSenderUserId(transaction.getSenderUserId().toString())
-            .setSenderWalletId(transaction.getSenderWalletId().toString())
-            .setReceiverUserId(transaction.getReceiverUserId().toString())
-            .setReceiverWalletId(transaction.getReceiverWalletId().toString())
-            .setReceiverName(transaction.getReceiverName())
-            .setReceiverPhone(transaction.getReceiverPhone())
-            .setDescription(transaction.getDescription())
-            .setNotes(transaction.getNotes())
+            .setUserId(transaction.getUserId().toString())
+            .setWalletId(transaction.getWalletId().toString())
+            .setDescription(transaction.getDescription() != null ? transaction.getDescription() : "")
+            .setNotes(transaction.getNotes() != null ? transaction.getNotes() : "")
             .setTimestamp(getTimestamp(transaction))
-            .setFailureReason(transaction.getFailureReason())
-            .build();
+            .setFailureReason(transaction.getFailureReason() != null ? transaction.getFailureReason() : "");
+
+        if (transaction.getCounterpartyUserId() != null) {
+            builder.setCounterpartyUserId(transaction.getCounterpartyUserId().toString());
+        }
+        if (transaction.getCounterpartyWalletId() != null) {
+            builder.setCounterpartyWalletId(transaction.getCounterpartyWalletId().toString());
+        }
+        if (transaction.getCounterpartyName() != null) {
+            builder.setCounterpartyName(transaction.getCounterpartyName());
+        }
+        if (transaction.getCounterpartyPhone() != null) {
+            builder.setCounterpartyPhone(transaction.getCounterpartyPhone());
+        }
+
+        return builder.build();
     }
 
     private static long getTimestamp(Transaction transaction) {
