@@ -1,0 +1,42 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/orange_db
+    username: mikasa
+    password: mikasa
+    hikari:
+      maximum-pool-size: 15
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      validation-timeout: 5000
+      leak-detection-threshold: 60000
+  security:
+    oauth2:
+      resource-server:
+        jwt:
+          jwk-set-uri: http://localhost:8081/oauth2/jwks
+  kafka:
+    producer:
+      bootstrap-servers: localhost:9092
+orange:
+  services:
+    user-service:
+      url: http://localhost:8082
+      timeout: 5000
+    wallet-service:
+      url: http://localhost:8083
+      timeout: 5000
+    authentication-service:
+      url: http://localhost:8081
+      timeout: 5000
+  integration:
+    bni-va:
+      base-url: https://api-sandbox.bni.co.id
+      client-id: "dummy-client-id"
+      client-secret: "secret-key-for-dev"
+      timeout: 30s
+      mock-enabled: true
+  kafka:
+    producer:
+      bootstrap-servers: localhost:9092

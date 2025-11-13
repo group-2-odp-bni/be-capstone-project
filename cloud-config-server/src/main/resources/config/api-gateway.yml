@@ -1,0 +1,69 @@
+spring:
+  cloud:
+    gateway:
+      server:
+        webflux:
+          httpclient:
+            connect-timeout: 10000
+            response-timeout: 60s
+
+  http:
+    codecs:
+      max-in-memory-size: 2MB
+
+
+server:
+  port: ${SERVER_PORT:8080}
+  http2:
+    enabled: true
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+
+resilience4j.circuitbreaker:
+  configs:
+    default:
+      failureRateThreshold: 50
+      minimumNumberOfCalls: 10
+      slidingWindowType: COUNT_BASED
+      slidingWindowSize: 10
+      waitDurationInOpenState: 10s
+      permittedNumberOfCallsInHalfOpenState: 3
+      registerHealthIndicator: true
+  instances:
+    authentication-service:
+      base-config: default
+    user-service:
+      base-config: default
+    wallet-service:
+      base-config: default
+    transaction-service:
+      base-config: default
+
+resilience4j.timelimiter:
+  instances:
+    authentication-service:
+      timeout-duration: 15s
+      cancel-running-future: true
+    user-service:
+      timeout-duration: 10s
+      cancel-running-future: true
+    wallet-service:
+      timeout-duration: 10s
+      cancel-running-future: true
+    transaction-service:
+      timeout-duration: 20s
+      cancel-running-future: true

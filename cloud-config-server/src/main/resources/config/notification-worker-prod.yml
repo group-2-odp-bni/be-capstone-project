@@ -1,0 +1,18 @@
+spring:
+  mail:
+    host: ${MAIL_HOST}
+    port: ${MAIL_PORT}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    producer:
+      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+orange:
+  user-service:
+    base-url: http://authentication-service:8081
+    timeout: 5s
+  waha-client:
+    base-url: ${WAHA_BASE_URL}
+    api-key: ${WAHA_API_KEY}
+    session-name: ${WAHA_SESSION_NAME}
