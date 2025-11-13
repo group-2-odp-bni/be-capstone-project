@@ -8,4 +8,5 @@ import java.util.UUID;
 
 public interface UserLimitsRepository extends JpaRepository<UserLimits, UUID> {
   Optional<UserLimits> findByUserId(UUID userId);
+  boolean existsByUserId(UUID userId); 
 }

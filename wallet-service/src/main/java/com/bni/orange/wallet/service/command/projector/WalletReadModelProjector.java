@@ -12,6 +12,7 @@ import com.bni.orange.wallet.repository.UserReceivePrefsRepository;
 import com.bni.orange.wallet.repository.read.UserWalletReadRepository;
 import com.bni.orange.wallet.repository.read.WalletMemberReadRepository;
 import com.bni.orange.wallet.repository.read.WalletReadRepository;
+import com.bni.orange.wallet.service.command.initializer.UserLimitsInitializer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
@@ -30,34 +31,27 @@ public class WalletReadModelProjector {
     private final WalletMemberReadRepository walletMemberReadRepo;
     private final UserWalletReadRepository userWalletReadRepo;
     private final UserReceivePrefsRepository prefsRepo;
+    private final UserLimitsInitializer limitsInitializer;
 
     public void projectNewWallet(DomainEvents.WalletCreated event) {
-        log.info("Starting read model projection for wallet: {}, user: {}", event.getWalletId(), event.getUserId());
+        limitsInitializer.ensureDefaultsForUser(event.getUserId());
 
-        try {
-            log.debug("Creating WalletRead for wallet: {}", event.getWalletId());
-            var wr = WalletRead.builder()
-                .id(event.getWalletId())
-                .userId(event.getUserId())
-                .currency(event.getCurrency())
-                .status(event.getStatus())
-                .balanceSnapshot(event.getBalanceSnapshot())
-                .type(event.getType())
-                .name(event.getName())
-                .membersActive(1)
-                .isDefaultForUser(event.isDefaultForUser())
-                .createdAt(event.getCreatedAt())
-                .updatedAt(event.getUpdatedAt())
-                .build();
-            walletReadRepo.save(wr);
-            log.debug("WalletRead saved successfully");
-
-            log.debug("Creating WalletMemberRead for wallet: {}, user: {}", event.getWalletId(), event.getUserId());
-            upsertWalletMemberRead(event.getWalletId(), event.getUserId(), WalletMemberRole.OWNER, WalletMemberStatus.ACTIVE);
-            log.debug("WalletMemberRead saved successfully");
-
-            log.debug("Creating UserWalletRead for user: {}, wallet: {}", event.getUserId(), event.getWalletId());
-            UserWalletRead idx = UserWalletRead.builder()
+        WalletRead wr = WalletRead.builder()
+            .id(event.getWalletId())
+            .userId(event.getUserId())
+            .currency(event.getCurrency())
+            .status(event.getStatus())
+            .balanceSnapshot(event.getBalanceSnapshot())
+            .type(event.getType())
+            .name(event.getName())
+            .membersActive(1)
+            .isDefaultForUser(false)
+            .createdAt(event.getCreatedAt())
+            .updatedAt(event.getUpdatedAt())
+            .build();
+        walletReadRepo.save(wr);
+        upsertWalletMemberRead(event.getWalletId(), event.getUserId(), WalletMemberRole.OWNER, WalletMemberStatus.ACTIVE);
+        UserWalletRead idx = UserWalletRead.builder()
                 .userId(event.getUserId())
                 .walletId(event.getWalletId())
                 .isOwner(true)
@@ -65,24 +59,9 @@ public class WalletReadModelProjector {
                 .walletStatus(event.getStatus())
                 .walletName(event.getName())
                 .build();
-            userWalletReadRepo.save(idx);
-            log.debug("UserWalletRead saved successfully");
-
-            if (event.isDefaultForUser()) {
-                log.debug("Setting default wallet for user: {}", event.getUserId());
-                var prefs = prefsRepo.findById(event.getUserId())
-                    .orElse(UserReceivePrefs.builder().userId(event.getUserId()).build());
-                prefs.setDefaultWalletId(event.getWalletId());
-                prefs.setUpdatedAt(OffsetDateTime.now());
-                prefsRepo.save(prefs);
-                log.debug("User prefs saved successfully");
-            }
-
-            log.info("Read model projection completed successfully for wallet: {}", event.getWalletId());
-
-        } catch (Exception ex) {
-            log.error("CRITICAL: Failed to project wallet {} to read model: {}", event.getWalletId(), ex.getMessage(), ex);
-            throw ex;
+        userWalletReadRepo.save(idx);
+        if (event.isDefaultForUser()) {
+            markAsDefaultReceive(event.getUserId(), event.getWalletId());
         }
     }
 
