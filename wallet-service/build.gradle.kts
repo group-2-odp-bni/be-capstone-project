@@ -21,7 +21,11 @@ repositories {
     mavenCentral()
 }
 
+extra["springCloudVersion"] = "2025.0.0"
+
 dependencies {
+    implementation("org.springframework.cloud:spring-cloud-starter-bootstrap")
+    implementation("org.springframework.cloud:spring-cloud-starter-config")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-validation")
@@ -55,6 +59,19 @@ dependencies {
     testImplementation("org.springframework.kafka:spring-kafka-test")
 
 }
+
+dependencyManagement {
+    imports {
+        mavenBom("org.springframework.cloud:spring-cloud-dependencies:${property("springCloudVersion")}")
+    }
+}
+
+dependencyManagement {
+    imports {
+        mavenBom("org.springframework.cloud:spring-cloud-dependencies:2025.0.0")
+    }
+}
+
 protobuf {
     protoc {
         artifact = "com.google.protobuf:protoc:4.31.1"
