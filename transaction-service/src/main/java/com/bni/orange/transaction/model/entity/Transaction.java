@@ -46,12 +46,10 @@ public class Transaction {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false, columnDefinition = "domain.tx_type")
-    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private TransactionType type;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, columnDefinition = "domain.tx_status")
-    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private TransactionStatus status;
 
     @Column(name = "amount", nullable = false, precision = 20, scale = 2)
@@ -66,23 +64,23 @@ public class Transaction {
     @Column(name = "currency", nullable = false, length = 3)
     private String currency;
 
-    @Column(name = "user_id", nullable = false)
-    private UUID userId;
+    @Column(name = "sender_user_id", nullable = false)
+    private UUID senderUserId;
 
-    @Column(name = "wallet_id", nullable = false)
-    private UUID walletId;
+    @Column(name = "sender_wallet_id", nullable = false)
+    private UUID senderWalletId;
 
-    @Column(name = "counterparty_user_id")
-    private UUID counterpartyUserId;
+    @Column(name = "receiver_user_id", nullable = false)
+    private UUID receiverUserId;
 
-    @Column(name = "counterparty_wallet_id")
-    private UUID counterpartyWalletId;
+    @Column(name = "receiver_wallet_id", nullable = false)
+    private UUID receiverWalletId;
 
-    @Column(name = "counterparty_name", length = 255)
-    private String counterpartyName;
+    @Column(name = "receiver_name", length = 255)
+    private String receiverName;
 
-    @Column(name = "counterparty_phone", length = 50)
-    private String counterpartyPhone;
+    @Column(name = "receiver_phone", length = 50)
+    private String receiverPhone;
 
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
@@ -150,20 +148,17 @@ public class Transaction {
         this.completedAt = null;
     }
 
-    public boolean belongsToUser(UUID targetUserId) {
-        return userId.equals(targetUserId);
+    public boolean belongsToUser(UUID userId) {
+        return senderUserId.equals(userId) || receiverUserId.equals(userId);
     }
 
-    public boolean isTransfer() {
-        return type != null && type.isTransfer();
-    }
-
-    public boolean isDebit() {
-        return type != null && type.isDebit();
-    }
-
-    public boolean isCredit() {
-        return type != null && type.isCredit();
+    public TransactionType getDirectionForUser(UUID userId) {
+        if (senderUserId.equals(userId)) {
+            return TransactionType.TRANSFER_OUT;
+        } else if (receiverUserId.equals(userId)) {
+            return TransactionType.TRANSFER_IN;
+        }
+        throw new IllegalArgumentException("User is not part of this transaction");
     }
 
     public void calculateTotalAmount() {

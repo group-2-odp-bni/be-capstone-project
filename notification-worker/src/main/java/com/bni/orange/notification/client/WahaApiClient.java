@@ -83,40 +83,26 @@ public class WahaApiClient {
     }
 
     public Mono<Void> startSession() {
-        var context = "start session";
         return webClient.post()
             .uri(API_SESSIONS_START_TEMPLATE, config.sessionName())
             .retrieve()
-            .onStatus(HttpStatusCode::is4xxClientError, handleClientError(context))
-            .onStatus(HttpStatusCode::is5xxServerError, handleServerError(context))
             .bodyToMono(Void.class)
-            .timeout(Duration.ofSeconds(45))
-            .doOnSuccess(v -> log.info("Session start request acknowledged."))
-            .doOnError(err -> {
-                if (!(err instanceof WahaClientException || err instanceof WahaServiceException)) {
-                    log.error("Failed to start session: {}", err.getMessage());
-                }
-            });
+            .timeout(Duration.ofSeconds(10))
+            .doOnSuccess(v -> log.info("Session started successfully"))
+            .doOnError(err -> log.error("Failed to start session", err));
     }
 
     public Mono<Void> stopSession(boolean logout) {
-        var context = "stop session (logout=" + logout + ")";
         return webClient.post()
             .uri(uriBuilder -> uriBuilder
                 .path(API_SESSIONS_STOP_TEMPLATE)
                 .queryParam("logout", logout)
                 .build(config.sessionName()))
             .retrieve()
-            .onStatus(HttpStatusCode::is4xxClientError, handleClientError(context))
-            .onStatus(HttpStatusCode::is5xxServerError, handleServerError(context))
             .bodyToMono(Void.class)
-            .timeout(Duration.ofSeconds(30))
+            .timeout(Duration.ofSeconds(10))
             .doOnSuccess(v -> log.info("Session stopped (logout={})", logout))
-            .doOnError(err -> {
-                if (!(err instanceof WahaClientException || err instanceof WahaServiceException)) {
-                    log.error("Failed to stop session: {}", err.getMessage());
-                }
-            });
+            .doOnError(err -> log.error("Failed to stop session", err));
     }
 
     public Mono<WahaQRCodeResponse> getQRCode() {
@@ -125,7 +111,7 @@ public class WahaApiClient {
             .accept(MediaType.APPLICATION_JSON)
             .retrieve()
             .bodyToMono(WahaQRCodeResponse.class)
-            .timeout(Duration.ofSeconds(30))
+            .timeout(Duration.ofSeconds(10))
             .doOnSuccess(qr -> log.info("QR code retrieved successfully"))
             .doOnError(err -> log.error("Failed to get QR code", err));
     }
@@ -136,7 +122,7 @@ public class WahaApiClient {
             .accept(MediaType.IMAGE_PNG)
             .retrieve()
             .bodyToMono(byte[].class)
-            .timeout(Duration.ofSeconds(30))
+            .timeout(Duration.ofSeconds(10))
             .doOnSuccess(bytes -> log.info("QR code image retrieved ({} bytes)", bytes.length))
             .doOnError(err -> log.error("Failed to get QR code image", err));
     }

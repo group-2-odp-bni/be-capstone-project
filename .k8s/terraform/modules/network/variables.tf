@@ -30,7 +30,15 @@ variable "subnet_cidr" {
   type        = string
 }
 
+variable "metallb_ip_range_start" {
+  description = "Start of MetalLB IP range (last octet)"
+  type        = number
+}
 
+variable "metallb_ip_range_end" {
+  description = "End of MetalLB IP range (last octet)"
+  type        = number
+}
 
 variable "labels" {
   description = "Labels to apply to all resources"

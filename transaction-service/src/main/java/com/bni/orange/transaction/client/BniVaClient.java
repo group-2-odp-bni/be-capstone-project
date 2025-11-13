@@ -1,44 +1,63 @@
 package com.bni.orange.transaction.client;
 
-import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 
+/**
+ * Mock BNI Virtual Account API Client
+ * TODO: Replace with actual BNI VA API integration
+ */
 @Slf4j
 @Component
 public class BniVaClient {
 
+    /**
+     * Register VA with BNI provider
+     * Mock implementation - always returns success
+     */
     public VaRegistrationResponse registerVirtualAccount(VaRegistrationRequest request) {
-        log.info("Mock: Registering VA {} with BNI for amount {}", maskVaNumber(request.vaNumber()), request.amount());
+        log.info("Mock: Registering VA {} with BNI for amount {}",
+            maskVaNumber(request.vaNumber()), request.amount());
 
-        return VaRegistrationResponse.builder()
-            .success(true)
-            .statusCode("SUCCESS")
-            .message("VA registered successfully")
-            .vaNumber(request.vaNumber())
-            .build();
+        // Mock successful registration
+        return new VaRegistrationResponse(
+            true,
+            "SUCCESS",
+            "VA registered successfully",
+            request.vaNumber()
+        );
     }
 
+    /**
+     * Cancel VA with BNI provider
+     * Mock implementation - always returns success
+     */
     public VaCancellationResponse cancelVirtualAccount(String vaNumber) {
         log.info("Mock: Cancelling VA {} with BNI", maskVaNumber(vaNumber));
 
-        return VaCancellationResponse.builder()
-            .success(true)
-            .statusCode("SUCCESS")
-            .message("VA cancelled successfully")
-            .build();
+        // Mock successful cancellation
+        return new VaCancellationResponse(
+            true,
+            "SUCCESS",
+            "VA cancelled successfully"
+        );
     }
 
+    /**
+     * Check VA status with BNI provider
+     * Mock implementation - always returns active
+     */
     public VaStatusResponse checkVirtualAccountStatus(String vaNumber) {
         log.info("Mock: Checking VA status {} with BNI", maskVaNumber(vaNumber));
 
-        return VaStatusResponse.builder()
-            .success(true)
-            .status("ACTIVE")
-            .message("VA is active")
-            .build();
+        // Mock active status
+        return new VaStatusResponse(
+            true,
+            "ACTIVE",
+            "VA is active"
+        );
     }
 
     private String maskVaNumber(String vaNumber) {
@@ -48,7 +67,9 @@ public class BniVaClient {
         return vaNumber.substring(0, 4) + "********" + vaNumber.substring(vaNumber.length() - 4);
     }
 
-    @Builder
+    /**
+     * VA Registration Request
+     */
     public record VaRegistrationRequest(
         String vaNumber,
         BigDecimal amount,
@@ -57,7 +78,9 @@ public class BniVaClient {
     ) {
     }
 
-    @Builder
+    /**
+     * VA Registration Response
+     */
     public record VaRegistrationResponse(
         boolean success,
         String statusCode,
@@ -66,7 +89,9 @@ public class BniVaClient {
     ) {
     }
 
-    @Builder
+    /**
+     * VA Cancellation Response
+     */
     public record VaCancellationResponse(
         boolean success,
         String statusCode,
@@ -74,7 +99,9 @@ public class BniVaClient {
     ) {
     }
 
-    @Builder
+    /**
+     * VA Status Response
+     */
     public record VaStatusResponse(
         boolean success,
         String status,

@@ -24,6 +24,10 @@ public class TransactionSpecification {
             .and(createdBetween(startDate, endDate));
     }
 
+    /**
+     * Enhanced specification builder with wallet filtering support.
+     * Used for multi-wallet transaction history filtering.
+     */
     public static Specification<Transaction> buildSpecification(
         UUID userId,
         UUID walletId,
@@ -32,16 +36,22 @@ public class TransactionSpecification {
         OffsetDateTime endDate
     ) {
         if (walletId != null) {
+            // When walletId is specified, filter by that specific wallet
             return belongsToWallet(walletId)
                 .and(hasStatus(status))
                 .and(createdBetween(startDate, endDate));
         } else {
+            // When walletId is not specified, filter by userId (legacy behavior)
             return belongsToUser(userId)
                 .and(hasStatus(status))
                 .and(createdBetween(startDate, endDate));
         }
     }
 
+    /**
+     * Enhanced specification builder with multi-wallet support.
+     * Filters transactions belonging to any of the user's accessible wallets.
+     */
     public static Specification<Transaction> buildSpecificationForUserWallets(
         List<UUID> walletIds,
         TransactionStatus status,
@@ -58,9 +68,9 @@ public class TransactionSpecification {
             if (userId == null) {
                 return criteriaBuilder.conjunction();
             }
-            // In dual-record model, user owns the transaction if they are the primary user
-            // Each user has their own transaction record (TRANSFER_OUT for sender, TRANSFER_IN for receiver)
-            return criteriaBuilder.equal(root.get("userId"), userId);
+            var senderPredicate = criteriaBuilder.equal(root.get("senderUserId"), userId);
+            var receiverPredicate = criteriaBuilder.equal(root.get("receiverUserId"), userId);
+            return criteriaBuilder.or(senderPredicate, receiverPredicate);
         };
     }
 
@@ -86,8 +96,7 @@ public class TransactionSpecification {
     }
 
     /**
-     * Filters transactions where the specified wallet is the primary wallet.
-     * In dual-record model, each wallet has its own transaction record.
+     * Filters transactions where the specified wallet is either sender or receiver.
      * Used for wallet-specific transaction history.
      */
     public static Specification<Transaction> belongsToWallet(UUID walletId) {
@@ -95,14 +104,14 @@ public class TransactionSpecification {
             if (walletId == null) {
                 return criteriaBuilder.conjunction();
             }
-            // In dual-record model, wallet owns the transaction if it's the primary wallet
-            return criteriaBuilder.equal(root.get("walletId"), walletId);
+            var senderWalletPredicate = criteriaBuilder.equal(root.get("senderWalletId"), walletId);
+            var receiverWalletPredicate = criteriaBuilder.equal(root.get("receiverWalletId"), walletId);
+            return criteriaBuilder.or(senderWalletPredicate, receiverWalletPredicate);
         };
     }
 
     /**
-     * Filters transactions where any of the specified wallets is the primary wallet.
-     * In dual-record model, each wallet has its own transaction record.
+     * Filters transactions where any of the specified wallets is either sender or receiver.
      * Used when displaying transaction history across all user's accessible wallets.
      */
     public static Specification<Transaction> belongsToWallets(List<UUID> walletIds) {
@@ -110,8 +119,9 @@ public class TransactionSpecification {
             if (walletIds == null || walletIds.isEmpty()) {
                 return criteriaBuilder.conjunction();
             }
-            // In dual-record model, check if wallet is the primary wallet
-            return root.get("walletId").in(walletIds);
+            var senderWalletPredicate = root.get("senderWalletId").in(walletIds);
+            var receiverWalletPredicate = root.get("receiverWalletId").in(walletIds);
+            return criteriaBuilder.or(senderWalletPredicate, receiverWalletPredicate);
         };
     }
 }

@@ -1,3 +1,6 @@
+# Production Profile - Kubernetes Environment
+# This profile is used when running in K8s cluster with service discovery
+
 spring:
   config:
     activate:
@@ -7,77 +10,27 @@ spring:
     gateway:
       server:
         webflux:
+          # All services use unified port 8080 in K8s for consistency
           routes:
-            - id: authentication-service-otp
-              uri: http://authentication-service:8080
-              predicates:
-                - Path=/api/v1/auth/login, /api/v1/auth/register, /api/v1/auth/resend-otp, /api/v1/pin/reset/request
-              filters:
-                - name: RequestRateLimiter
-                  args:
-                    redis-rate-limiter.replenishRate: 3
-                    redis-rate-limiter.burstCapacity: 5
-                    redis-rate-limiter.requestedTokens: 1
-                    key-resolver: "#{@ipKeyResolver}"
-                - name: CircuitBreaker
-                  args:
-                    name: authentication-service
-                    fallbackUri: forward:/fallback/auth
-
             - id: authentication-service
               uri: http://authentication-service:8080
               predicates:
-                - Path=/api/v1/auth/verify, /api/v1/auth/refresh, /api/v1/auth/logout, /api/v1/auth/pin, /api/v1/pin/**, /api/v1/sessions/**, /oauth2/jwks
-              filters:
-                - name: CircuitBreaker
-                  args:
-                    name: authentication-service
-                    fallbackUri: forward:/fallback/auth
+                - Path=/api/v1/auth/**, /api/v1/pin/**, /api/v1/sessions/**, /oauth2/jwks
 
             - id: user-service
               uri: http://user-service:8080
               predicates:
                 - Path=/api/v1/user/**, /api/v1/users/**
-              filters:
-                - name: ScopeValidation
-                  args:
-                    requiredScope: SCOPE_FULL_ACCESS
-                - name: CircuitBreaker
-                  args:
-                    name: user-service
-                    fallbackUri: forward:/fallback/user
 
             - id: wallet-service
               uri: http://wallet-service:8080
               predicates:
                 - Path=/api/v1/wallet/**, /api/v1/wallets/**
-              filters:
-                - name: ScopeValidation
-                  args:
-                    requiredScope: SCOPE_FULL_ACCESS
-                - name: CircuitBreaker
-                  args:
-                    name: wallet-service
-                    fallbackUri: forward:/fallback/wallet
 
             - id: transaction-service
               uri: http://transaction-service:8080
               predicates:
-                - Path=/api/v1/transfers/**, /api/v1/transactions/**, /api/v1/quick-transfers/**, /api/v1/topup/**, /api/v1/contacts/**
-              filters:
-                - name: RequestRateLimiter
-                  args:
-                    redis-rate-limiter.replenishRate: 10
-                    redis-rate-limiter.burstCapacity: 20
-                    redis-rate-limiter.requestedTokens: 1
-                    key-resolver: "#{@userKeyResolver}"
-                - name: ScopeValidation
-                  args:
-                    requiredScope: SCOPE_FULL_ACCESS
-                - name: CircuitBreaker
-                  args:
-                    name: transaction-service
-                    fallbackUri: forward:/fallback/transaction
+                - Path=/api/v1/transfers/**, /api/v1/transactions/**, /api/v1/quick-transfers/**
 
   data:
     redis:
@@ -93,27 +46,14 @@ spring:
 orange:
   cors:
     allowed-origins:
-      - "https://app.orangebybni.my.id"
       - "https://orangebybni.my.id"
+      - "https://*.orangebybni.my.id"
+      - "http://api.orangebybni.my.id"
       - "https://api.orangebybni.my.id"
-      - "https://api-dev.orangebybni.my.id"
-
-  security:
-    ip-blocking-enabled: true
-    allow-localhost-blocking: false  # Never block localhost in production
-    violation-threshold: 10
-    violation-window: 5m
-    block-duration: 1h
-    suspicious-duration: 30m
-    suspicious-threshold: 5
 
 logging:
   level:
-    root: INFO
     com.bni.orange: INFO
-    org.springframework.web: WARN
+    org.springframework.cloud.gateway: INFO
     org.springframework.security: WARN
     org.springframework.kafka: WARN
-    org.springframework.boot.actuate: ERROR
-    org.springframework.boot.actuate.endpoint.web: ERROR
-    org.springframework.boot.actuate.endpoint: ERROR

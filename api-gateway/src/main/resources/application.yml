@@ -9,23 +9,39 @@ spring:
     gateway:
       server:
         webflux:
-          httpclient:
-            connect-timeout: 5000
-            response-timeout: 30s
+          # Global CORS configuration
+          globalcors:
+            cors-configurations:
+              '[/**]':
+                allowedOriginPatterns: "*"
+                allowedMethods:
+                  - GET
+                  - POST
+                  - PUT
+                  - DELETE
+                  - PATCH
+                  - OPTIONS
+                allowedHeaders: "*"
+                allowCredentials: true
+                maxAge: 3600
 
-  http:
-    codecs:
-      max-in-memory-size: 2MB
+          # Default filters applied to all routes
+          default-filters:
+            - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 100
+                redis-rate-limiter.burstCapacity: 200
+                redis-rate-limiter.requestedTokens: 1
 
-
+# Server configuration
 server:
   port: ${SERVER_PORT:8080}
-  http2:
-    enabled: true
   compression:
     enabled: true
     mime-types: application/json,application/xml,text/html,text/xml,text/plain
 
+# Management endpoints
 management:
   endpoints:
     web:
@@ -34,42 +50,7 @@ management:
   endpoint:
     health:
       show-details: always
-  prometheus:
-    metrics:
-      export:
+  metrics:
+    export:
+      prometheus:
         enabled: true
-
-resilience4j.circuitbreaker:
-  configs:
-    default:
-      failureRateThreshold: 50
-      minimumNumberOfCalls: 10
-      slidingWindowType: COUNT_BASED
-      slidingWindowSize: 10
-      waitDurationInOpenState: 10s
-      permittedNumberOfCallsInHalfOpenState: 3
-      registerHealthIndicator: true
-  instances:
-    authentication-service:
-      base-config: default
-    user-service:
-      base-config: default
-    wallet-service:
-      base-config: default
-    transaction-service:
-      base-config: default
-
-resilience4j.timelimiter:
-  instances:
-    authentication-service:
-      timeout-duration: 5s
-      cancel-running-future: true
-    user-service:
-      timeout-duration: 5s
-      cancel-running-future: true
-    wallet-service:
-      timeout-duration: 5s
-      cancel-running-future: true
-    transaction-service:
-      timeout-duration: 10s
-      cancel-running-future: true

@@ -10,7 +10,7 @@ public record WahaWebhookEvent(
     String event,
     String session,
     Map<String, Object> payload,
-    Object environment,  // Can be String or Map depending on WAHA version
+    String environment,
     @JsonProperty("engine")
     String engine
 ) {

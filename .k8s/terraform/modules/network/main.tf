@@ -132,27 +132,23 @@ resource "google_compute_firewall" "allow_health_checks" {
   priority = 1000
 }
 
-# Firewall Rule - Allow NodePort services for GCP Load Balancer health checks
+# Firewall Rule - Allow NodePort services (30000-32767)
 resource "google_compute_firewall" "allow_nodeports" {
   name    = "${var.project_name}-${var.environment}-allow-nodeports"
   network = google_compute_network.vpc.id
   project = var.project_id
 
-  description = "Allow GCP Load Balancer to access specific NodePort services"
+  description = "Allow Kubernetes NodePort services"
 
   allow {
     protocol = "tcp"
-    ports    = ["30080", "30443"] # Specific NodePorts for NGINX Ingress
+    ports    = ["30000-32767"]
   }
 
-  # CRITICAL: Only health check ranges + load balancer proxies
-  source_ranges = [
-    "35.191.0.0/16",  # Health checks
-    "130.211.0.0/22", # Health checks
-  ]
-  target_tags = ["k3s-node"]
+  source_ranges = ["0.0.0.0/0"]
+  target_tags   = ["k3s-node"]
 
-  priority = 900 # Higher priority than default
+  priority = 1000
 }
 
 # Firewall Rule - Allow Flannel VXLAN (K3s default CNI)
@@ -174,21 +170,21 @@ resource "google_compute_firewall" "allow_flannel" {
   priority = 1000
 }
 
-# Firewall Rule - Allow OpenVPN for secure team access
-resource "google_compute_firewall" "allow_openvpn" {
-  name    = "${var.project_name}-${var.environment}-allow-openvpn"
+# Firewall Rule - Allow Ceph communication
+resource "google_compute_firewall" "allow_ceph" {
+  name    = "${var.project_name}-${var.environment}-allow-ceph"
   network = google_compute_network.vpc.id
   project = var.project_id
 
-  description = "Allow OpenVPN connections for secure team access to database and infrastructure"
+  description = "Allow Ceph storage communication between nodes"
 
   allow {
-    protocol = "udp"
-    ports    = ["1194"]
+    protocol = "tcp"
+    ports    = ["6789", "6800-7300"]
   }
 
-  source_ranges = ["0.0.0.0/0"]
-  target_tags   = ["k3s-master"]
+  source_tags = ["k3s-node"]
+  target_tags = ["k3s-node"]
 
   priority = 1000
 }

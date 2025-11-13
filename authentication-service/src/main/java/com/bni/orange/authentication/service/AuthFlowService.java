@@ -14,7 +14,6 @@ import com.bni.orange.authentication.model.response.OtpResponse;
 import com.bni.orange.authentication.model.response.StateTokenResponse;
 import com.bni.orange.authentication.model.response.TokenResponse;
 import com.bni.orange.authentication.repository.UserRepository;
-import com.bni.orange.authentication.service.captcha.CaptchaService;
 import com.bni.orange.authentication.util.ResponseBuilder;
 import com.bni.orange.authentication.validator.PinValidator;
 import jakarta.servlet.http.HttpServletRequest;
@@ -26,9 +25,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.Executor;
 
 import static com.bni.orange.authentication.util.PhoneNumberUtil.normalizePhoneNumber;
 
@@ -47,94 +43,25 @@ public class AuthFlowService {
     private final PinValidator pinValidator;
     private final EventPublisher eventPublisher;
     private final KafkaTopicProperties topicProperties;
-    private final CaptchaService captchaService;
-
-    private final Executor virtualThreadTaskExecutor;
 
     @Transactional
-    public ApiResponse<OtpResponse> requestLoginOtp(AuthRequest request, HttpServletRequest servletRequest) {
+    public ApiResponse<OtpResponse> requestOtp(AuthRequest request, HttpServletRequest servletRequest) {
         var normalizedPhoneNumber = normalizePhoneNumber(request.phoneNumber());
-
-        var captchaValidation = CompletableFuture.runAsync(() ->
-            validateCaptcha(request.captchaToken(), "login"), virtualThreadTaskExecutor);
-
-        var cooldownCheck = CompletableFuture.runAsync(() -> {
-            if (otpService.isCooldown(normalizedPhoneNumber)) {
-                throw new BusinessException(ErrorCode.OTP_COOLDOWN);
-            }
-        }, virtualThreadTaskExecutor);
-
-        var userFuture = CompletableFuture.supplyAsync(() ->
-            userRepository
-                .findByPhoneNumber(normalizedPhoneNumber)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND)), virtualThreadTaskExecutor);
-
-        try {
-            CompletableFuture.allOf(captchaValidation, cooldownCheck, userFuture).join();
-        } catch (CompletionException e) {
-            if (e.getCause() instanceof BusinessException be) {
-                throw be;
-            }
-            log.error("Error during parallel login validation", e);
-            throw new BusinessException(ErrorCode.GENERAL_ERROR, e.getMessage());
+        if (otpService.isCooldown(normalizedPhoneNumber)) {
+            throw new BusinessException(ErrorCode.OTP_COOLDOWN);
         }
 
-        var user = userFuture.join();
-        return processOtpRequest(user, servletRequest);
-    }
+        var user = userRepository.findByPhoneNumber(normalizedPhoneNumber)
+            .orElseGet(() -> {
+                var newUser = User.builder()
+                    .userPins("")
+                    .name("New User")
+                    .phoneNumber(normalizedPhoneNumber)
+                    .status(UserStatus.PENDING_VERIFICATION)
+                    .build();
+                return userRepository.save(newUser);
+            });
 
-    @Transactional
-    public ApiResponse<OtpResponse> requestRegistrationOtp(AuthRequest request, HttpServletRequest servletRequest) {
-        var normalizedPhoneNumber = normalizePhoneNumber(request.phoneNumber());
-
-        var captchaValidation = CompletableFuture.runAsync(() ->
-            validateCaptcha(request.captchaToken(), "register"), virtualThreadTaskExecutor);
-
-        var userCheck = CompletableFuture.runAsync(
-            () -> userRepository
-                .findByPhoneNumber(normalizedPhoneNumber)
-                .ifPresent(u -> {
-                    throw new BusinessException(ErrorCode.USER_ALREADY_EXISTS);
-                }),
-            virtualThreadTaskExecutor);
-
-        var cooldownCheck = CompletableFuture.runAsync(
-            () -> {
-                if (otpService.isCooldown(normalizedPhoneNumber)) {
-                    throw new BusinessException(ErrorCode.OTP_COOLDOWN);
-                }
-            },
-            virtualThreadTaskExecutor);
-
-        try {
-            CompletableFuture.allOf(captchaValidation, userCheck, cooldownCheck).join();
-        } catch (CompletionException e) {
-            if (e.getCause() instanceof BusinessException be) {
-                throw be;
-            }
-            log.error("Error during parallel registration validation", e);
-            throw new BusinessException(ErrorCode.GENERAL_ERROR, e.getMessage());
-        }
-
-        var newUser = User.builder()
-            .userPins("")
-            .name("New User")
-            .phoneNumber(normalizedPhoneNumber)
-            .status(UserStatus.PENDING_VERIFICATION)
-            .build();
-        var user = userRepository.save(newUser);
-
-        return processOtpRequest(user, servletRequest);
-    }
-
-    private void validateCaptcha(String captchaToken, String expectedAction) {
-        var captchaValid = captchaService.validateToken(captchaToken, expectedAction).block();
-        if (!Boolean.TRUE.equals(captchaValid)) {
-            throw new BusinessException(ErrorCode.INVALID_CAPTCHA);
-        }
-    }
-
-    private ApiResponse<OtpResponse> processOtpRequest(User user, HttpServletRequest servletRequest) {
         var otp = otpService.generateAndStoreOtp(user.getPhoneNumber());
 
         var otpEvent = DomainEventFactory.createOtpNotificationEvent(
@@ -196,6 +123,8 @@ public class AuthFlowService {
 
     @Transactional
     public ApiResponse<TokenResponse> authenticateWithPin(UUID userId, String pin, String scope, String jti, HttpServletRequest request) {
+        tokenService.consumeStateToken(jti);
+
         if (loginAttemptService.isLocked(userId.toString())) {
             throw new BusinessException(ErrorCode.ACCOUNT_LOCKED);
         }
@@ -227,8 +156,6 @@ public class AuthFlowService {
         }
 
         loginAttemptService.loginSucceeded(userId.toString());
-
-        tokenService.consumeStateToken(jti);
 
         var ipAddress = Optional.ofNullable(request.getHeader("X-FORWARDED-FOR")).orElse(request.getRemoteAddr());
         var userAgent = request.getHeader("User-Agent");

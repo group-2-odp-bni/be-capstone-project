@@ -10,12 +10,10 @@ public enum ErrorCode {
 
     // User & General (1xxx)
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "AUTH-1001", "User not found for the given identifier."),
-    USER_ALREADY_EXISTS(HttpStatus.CONFLICT, "AUTH-1002", "A user with this phone number already exists."),
 
     // OTP Flow (2xxx)
     OTP_COOLDOWN(HttpStatus.TOO_MANY_REQUESTS, "AUTH-2001", "Please wait before requesting another OTP."),
     INVALID_OTP(HttpStatus.BAD_REQUEST, "AUTH-2002", "The provided OTP is invalid or has expired."),
-    INVALID_CAPTCHA(HttpStatus.BAD_REQUEST, "AUTH-2003", "Invalid or missing CAPTCHA. Please try again."),
 
     // PIN & Login Flow (3xxx)
     ACCOUNT_LOCKED(HttpStatus.LOCKED, "AUTH-3001", "Account is temporarily locked due to too many failed attempts."),

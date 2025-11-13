@@ -95,73 +95,216 @@ services:
       - ./waha/sessions:/app/.sessions
       - ./waha/media:/app/.media
     environment:
-      # Core GOWS engine configuration
-      - WHATSAPP_DEFAULT_ENGINE=GOWS
-      - WAHA_LOG_LEVEL=warn
-      - WHATSAPP_DOWNLOAD_MEDIA=false
-      - WAHA_FILES_ENABLED=false
-
-      # Disable UI and documentation (security & resource optimization)
-      - WAHA_DASHBOARD_ENABLED=false
-      - WAHA_SWAGGER_ENABLED=false
-
-      # CRITICAL: Ignore non-essential events (research-backed optimization)
-      - WAHA_SESSION_CONFIG_IGNORE_GROUPS=true
-      - WAHA_SESSION_CONFIG_IGNORE_CHANNELS=true
-      - WAHA_SESSION_CONFIG_IGNORE_STATUS=true
-      - WAHA_SESSION_CONFIG_IGNORE_BROADCAST=true
-
-      # Service configuration
-      - WAHA_BASE_URL=http://localhost:3000
+      - WAHA_BASE_URL=http://waha:3000
       - WHATSAPP_API_PORT=3000
       - TZ=Asia/Jakarta
-      - WAHA_WORKER_ID=waha-gows-otp
+      - WAHA_API_KEY=${WAHA_API_KEY:-your-secret-api-key-here}
+      - WAHA_DASHBOARD_USERNAME=${WAHA_DASHBOARD_USERNAME:-admin}
+      - WAHA_DASHBOARD_PASSWORD=${WAHA_DASHBOARD_PASSWORD:-change-me-in-production}
+      - WHATSAPP_DEFAULT_ENGINE=WEBJS
+      - WAHA_LOG_FORMAT=JSON
+      - WAHA_LOG_LEVEL=info
+      - WAHA_LOCAL_STORE_BASE_DIR=/app/.sessions
+      - WHATSAPP_FILES_FOLDER=/app/.media
+      - WHATSAPP_FILES_LIFETIME=0
+      - WHATSAPP_HOOK_URL=http://notification-worker:8085/api/webhooks/waha
+      - WHATSAPP_HOOK_EVENTS=message,message.any,session.status,message.ack
+      - WHATSAPP_HOOK_HMAC_KEY=${WAHA_WEBHOOK_HMAC_SECRET:-your-webhook-hmac-secret}
+      - WAHA_AUTO_START_DELAY_SECONDS=5
       - WHATSAPP_RESTART_ALL_SESSIONS=True
+      - WAHA_WORKER_ID=waha-main
       - WAHA_PRINT_QR=True
-
-      # Webhook configuration
-      - WHATSAPP_HOOK_URL=http://host.docker.internal:8085/api/webhooks/waha
-      - WHATSAPP_HOOK_EVENTS=message.ack,session.status
-      - WHATSAPP_HOOK_HMAC_KEY=${WAHA_WEBHOOK_HMAC_SECRET:-64eb6963dd30bbe9786cb9193f9eabee6ddac7e9aeb0deb6fc72a1bd065abb52}
-
-      # Authentication (keeping for backward compatibility, dashboard disabled anyway)
-      - WAHA_API_KEY=${WAHA_API_KEY:-f5010a544c324fc483623e2031b2b92f}
-      - WAHA_DASHBOARD_USERNAME=admin
-      - WAHA_DASHBOARD_PASSWORD=76a63dc99b9c426999aac835f88bb6dab65e47887a8b706d034ea4ef7c13507a
     networks:
       - orange-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  krakend:
+    build:
+      context: .
+      dockerfile: krakend.Dockerfile
+    container_name: orange-krakend
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./krakend:/etc/krakend
+    networks:
+      - orange-network
+    command: [ "run", "-d", "-c", "/etc/krakend/krakend.json" ]
+#    depends_on:
+#      authentication-service:
+#        condition: service_started
+#      user-service:
+#        condition: service_started
+#      transaction-service:
+#        condition: service_started
+#      wallet-service:
+#        condition: service_started
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/__health" ]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 40s
+      retries: 3
+      start_period: 10s
     deploy:
       resources:
         limits:
-          cpus: '0.5'
-          memory: 512M
-        reservations:
-          cpus: '0.1'
-          memory: 256M
+          cpus: '0.25'
+          memory: 128M
 
+#  authentication-service:
+#    build:
+#      context: ../authentication-service
+#    container_name: orange-authentication-service
+#    environment:
+#      - SPRING_PROFILES_ACTIVE=dev
+#      - DB_URL=jdbc:postgresql://postgres:5432/orange_db
+#      - DB_USERNAME=mikasa
+#      - DB_PASSWORD=mikasa
+#      - REDIS_HOST=redis
+#      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+#      - SERVER_PORT=8081
+#    depends_on:
+#      postgres:
+#        condition: service_healthy
+#      redis:
+#        condition: service_healthy
+#      kafka:
+#        condition: service_healthy
+#    networks:
+#      - orange-network
+#    healthcheck:
+#      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8081/actuator/health" ]
+#      interval: 30s
+#      timeout: 10s
+#      retries: 3
+#      start_period: 40s
+#    deploy:
+#      resources:
+#        limits:
+#          cpus: '0.25'
+#          memory: 256M
+#
+#  user-service:
+#    build:
+#      context: ../user-service
+#    container_name: orange-user-service
+#    environment:
+#      - SPRING_PROFILES_ACTIVE=dev
+#      - DB_URL=jdbc:postgresql://postgres:5432/orange_db
+#      - DB_USERNAME=mikasa
+#      - DB_PASSWORD=mikasa
+#      - REDIS_HOST=redis
+#      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+#      - SERVER_PORT=8082
+#      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=http://authentication-service:8081/oauth2/jwks
+#    depends_on:
+#      postgres:
+#        condition: service_healthy
+#      redis:
+#        condition: service_healthy
+#      kafka:
+#        condition: service_healthy
+#    networks:
+#      - orange-network
+#    healthcheck:
+#      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8082/actuator/health" ]
+#      interval: 30s
+#      timeout: 10s
+#      retries: 3
+#      start_period: 40s
+#    deploy:
+#      resources:
+#        limits:
+#          cpus: '0.25'
+#          memory: 256M
+#
+#  transaction-service:
+#    build:
+#      context: ../transaction-service
+#    container_name: orange-transaction-service
+#    environment:
+#      - SPRING_PROFILES_ACTIVE=dev
+#      - DB_URL=jdbc:postgresql://postgres:5432/orange_db
+#      - DB_USERNAME=mikasa
+#      - DB_PASSWORD=mikasa
+#      - REDIS_HOST=redis
+#      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+#      - SERVER_PORT=8083
+#      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=http://authentication-service:8081/oauth2/jwks
+#    depends_on:
+#      postgres:
+#        condition: service_healthy
+#      redis:
+#        condition: service_healthy
+#      kafka:
+#        condition: service_healthy
+#    networks:
+#      - orange-network
+#    healthcheck:
+#      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8083/actuator/health" ]
+#      interval: 30s
+#      timeout: 10s
+#      retries: 3
+#      start_period: 40s
+#    deploy:
+#      resources:
+#        limits:
+#          cpus: '0.25'
+#          memory: 256M
+#
+#  wallet-service:
+#    build:
+#      context: ../wallet-service
+#    container_name: orange-wallet-service
+#    environment:
+#      - SPRING_PROFILES_ACTIVE=dev
+#      - DB_URL=jdbc:postgresql://postgres:5432/orange_db
+#      - DB_USERNAME=mikasa
+#      - DB_PASSWORD=mikasa
+#      - REDIS_HOST=redis
+#      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+#      - SERVER_PORT=8084
+#      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=http://authentication-service:8081/oauth2/jwks
+#    depends_on:
+#      postgres:
+#        condition: service_healthy
+#      redis:
+#        condition: service_healthy
+#      kafka:
+#        condition: service_healthy
+#    networks:
+#      - orange-network
+#    healthcheck:
+#      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8084/actuator/health" ]
+#      interval: 30s
+#      timeout: 10s
+#      retries: 3
+#      start_period: 40s
+#    deploy:
+#      resources:
+#        limits:
+#          cpus: '0.25'
+#          memory: 256M
+#
 #  notification-worker:
 #    build:
 #      context: ../notification-worker
 #    container_name: orange-notification-worker
 #    environment:
-#      - SPRING_PROFILES_ACTIVE=prod
+#      - SPRING_PROFILES_ACTIVE=dev
 #      - DB_URL=jdbc:postgresql://postgres:5432/orange_db
 #      - DB_USERNAME=mikasa
 #      - DB_PASSWORD=mikasa
 #      - REDIS_HOST=redis
 #      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
 #      - SERVER_PORT=8085
-#      - WAHA_BASE_URL=http://waha:3000
-#      - WAHA_API_KEY=${WAHA_API_KEY:-f5010a544c324fc483623e2031b2b92f}
-#      - WAHA_WEBHOOK_HMAC_SECRET=${WAHA_WEBHOOK_HMAC_SECRET:-64eb6963dd30bbe9786cb9193f9eabee6ddac7e9aeb0deb6fc72a1bd065abb52}
-#    ports:
-#      - "8085:8085"
+#      - WAHA_URL=http://waha:3000
+#      - WAHA_API_KEY=${WAHA_API_KEY:-your-secret-api-key-here}
 #    depends_on:
 #      postgres:
 #        condition: service_healthy

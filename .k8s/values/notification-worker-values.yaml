@@ -4,7 +4,6 @@ service:
   targetPort: 8080
 
 image:
-  registry: docker.io
   repository: teukumunawar/orange-pay-notification-worker
   tag: latest
   pullPolicy: Always
@@ -23,8 +22,8 @@ secrets:
     secretName: app-secrets
     key: DB_PASSWORD
   WAHA_API_KEY:
-    secretName: app-secrets
-    key: WAHA_API_KEY
+    secretName: waha-secret
+    key: api-key
 
 resources:
   requests:

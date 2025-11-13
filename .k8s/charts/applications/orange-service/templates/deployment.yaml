@@ -61,14 +61,9 @@ spec:
           {{- end }}
           {{- if .Values.livenessProbe.enabled }}
           livenessProbe:
-            {{- if .Values.livenessProbe.httpGet }}
             httpGet:
-              path: {{ .Values.livenessProbe.httpGet.path }}
-              port: {{ .Values.livenessProbe.httpGet.port | default .Values.service.targetPort }}
-            {{- else if .Values.livenessProbe.tcpSocket }}
-            tcpSocket:
-              port: {{ .Values.livenessProbe.tcpSocket.port | default .Values.service.targetPort }}
-            {{- end }}
+              path: {{ .Values.livenessProbe.path }}
+              port: {{ .Values.service.targetPort }}
             initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
             timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
@@ -76,14 +71,9 @@ spec:
           {{- end }}
           {{- if .Values.readinessProbe.enabled }}
           readinessProbe:
-            {{- if .Values.readinessProbe.httpGet }}
             httpGet:
-              path: {{ .Values.readinessProbe.httpGet.path }}
-              port: {{ .Values.readinessProbe.httpGet.port | default .Values.service.targetPort }}
-            {{- else if .Values.readinessProbe.tcpSocket }}
-            tcpSocket:
-              port: {{ .Values.readinessProbe.tcpSocket.port | default .Values.service.targetPort }}
-            {{- end }}
+              path: {{ .Values.readinessProbe.path }}
+              port: {{ .Values.service.targetPort }}
             initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
             timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
@@ -91,14 +81,9 @@ spec:
           {{- end }}
           {{- if .Values.startupProbe.enabled }}
           startupProbe:
-            {{- if .Values.startupProbe.httpGet }}
             httpGet:
-              path: {{ .Values.startupProbe.httpGet.path }}
-              port: {{ .Values.startupProbe.httpGet.port | default .Values.service.targetPort }}
-            {{- else if .Values.startupProbe.tcpSocket }}
-            tcpSocket:
-              port: {{ .Values.startupProbe.tcpSocket.port | default .Values.service.targetPort }}
-            {{- end }}
+              path: {{ .Values.startupProbe.path }}
+              port: {{ .Values.service.targetPort }}
             initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.startupProbe.periodSeconds }}
             timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}

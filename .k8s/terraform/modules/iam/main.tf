@@ -37,30 +37,7 @@ resource "google_project_iam_member" "storage_viewer" {
   member  = "serviceAccount:${google_service_account.k3s_nodes.email}"
 }
 
-# Compute Storage Admin - REQUIRED for GCP Persistent Disk CSI Driver
-# Allows CSI driver to create, attach, detach, and delete persistent disks
-resource "google_project_iam_member" "compute_storage_admin" {
-  project = var.project_id
-  role    = "roles/compute.storageAdmin"
-  member  = "serviceAccount:${google_service_account.k3s_nodes.email}"
-}
-
-# Service Account User - Required for CSI driver to act on behalf of the service account
-resource "google_project_iam_member" "service_account_user" {
-  project = var.project_id
-  role    = "roles/iam.serviceAccountUser"
-  member  = "serviceAccount:${google_service_account.k3s_nodes.email}"
-}
-
-# Compute Instance Admin - REQUIRED for GCP Persistent Disk CSI Driver
-# Allows CSI driver to attach/detach disks to instances
-resource "google_project_iam_member" "compute_instance_admin" {
-  project = var.project_id
-  role    = "roles/compute.instanceAdmin.v1"
-  member  = "serviceAccount:${google_service_account.k3s_nodes.email}"
-}
-
-# Optional: Storage Object Admin for GCS backups
+# Optional: Storage Object Admin for Ceph backups to GCS
 # Uncomment if you want to enable GCS backups
 # resource "google_project_iam_member" "storage_admin" {
 #   project = var.project_id

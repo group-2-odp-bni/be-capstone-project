@@ -64,6 +64,8 @@ module "network" {
   vpc_cidr    = var.vpc_cidr
   subnet_cidr = var.subnet_cidr
 
+  metallb_ip_range_start = var.metallb_ip_range_start
+  metallb_ip_range_end   = var.metallb_ip_range_end
 
   labels = local.common_labels
 }
@@ -88,10 +90,12 @@ module "compute" {
   zone         = var.zone
 
   # Network configuration from network module
-  vpc_network_id   = module.network.vpc_network_id
-  subnet_id        = module.network.subnet_id
-  vpc_network_name = module.network.vpc_network_name
-  subnet_cidr      = var.subnet_cidr
+  vpc_network_id         = module.network.vpc_network_id
+  subnet_id              = module.network.subnet_id
+  vpc_network_name       = module.network.vpc_network_name
+  subnet_cidr            = var.subnet_cidr
+  metallb_ip_range_start = var.metallb_ip_range_start
+  metallb_ip_range_end   = var.metallb_ip_range_end
 
   # IAM configuration from IAM module
   service_account_email = module.iam.service_account_email
@@ -102,7 +106,6 @@ module "compute" {
   master_disk_type    = var.master_disk_type
 
   # Worker node configuration
-  worker_count        = var.worker_count
   worker_machine_type = var.worker_machine_type
   worker_disk_size    = var.worker_disk_size
   worker_disk_type    = var.worker_disk_type
@@ -116,10 +119,9 @@ module "compute" {
   ssh_user            = var.ssh_user
 
   # Feature flags
-  enable_preemptible_vms  = var.enable_preemptible_vms
-  enable_monitoring       = var.enable_monitoring
-  enable_external_ip      = var.enable_external_ip
-  use_static_ip_for_master = false  # Static IP already exists manually (orange-wallet-vpn-static-ip)
+  enable_preemptible_vms = var.enable_preemptible_vms
+  enable_monitoring      = var.enable_monitoring
+  enable_external_ip     = var.enable_external_ip
 
   labels = local.common_labels
 
@@ -131,25 +133,7 @@ module "compute" {
 
 # Save K3s token to local file for reference (excluded from git)
 resource "local_file" "k3s_token" {
-  content         = local.k3s_token
-  filename        = "${path.module}/.k3s-token"
+  content  = local.k3s_token
+  filename = "${path.module}/.k3s-token"
   file_permission = "0600"
-}
-
-# Load Balancer Module - GCP External Load Balancer for Ingress
-module "load_balancer" {
-  source = "./modules/load-balancer"
-
-  project_id   = var.project_id
-  project_name = var.project_name
-  environment  = var.environment
-  zone         = var.zone
-
-  # Worker instances for backend
-  worker_instance_self_links = module.compute.worker_instance_self_links
-
-  depends_on = [
-    module.compute,
-    module.network
-  ]
 }

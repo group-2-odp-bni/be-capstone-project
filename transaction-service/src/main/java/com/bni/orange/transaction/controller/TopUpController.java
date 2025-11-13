@@ -82,6 +82,16 @@ public class TopUpController {
         return ResponseEntity.ok(ApiResponse.success("Top-up cancelled successfully", null));
     }
 
+    @PostMapping("/callback/bni")
+    public ResponseEntity<ApiResponse<Void>> handleBniCallback(
+        @Valid @RequestBody TopUpCallbackRequest request,
+        @RequestHeader(value = "X-Signature", required = false) String signature
+    ) {
+        log.info("POST /api/v1/topup/callback/bni - VA: {}", request.vaNumber());
+        topUpService.processPaymentCallback(PaymentProvider.BNI_VA, request, signature);
+        return ResponseEntity.ok(ApiResponse.success("Callback processed successfully", null));
+    }
+
     @PostMapping("/callback/{provider}")
     public ResponseEntity<ApiResponse<Void>> handleProviderCallback(
         @PathVariable String provider,
@@ -89,12 +99,7 @@ public class TopUpController {
         @RequestHeader(value = "X-Signature", required = false) String signature
     ) {
         log.info("POST /api/v1/topup/callback/{} - VA: {}", provider, request.vaNumber());
-
-        var paymentProvider = provider.equalsIgnoreCase("bni")
-            ? PaymentProvider.BNI_VA
-            : PaymentProvider.valueOf(provider.toUpperCase());
-
-        topUpService.processPaymentCallback(paymentProvider, request, signature);
+        topUpService.processPaymentCallback(PaymentProvider.valueOf(provider.toUpperCase()), request, signature);
         return ResponseEntity.ok(ApiResponse.success("Callback processed successfully", null));
     }
 }

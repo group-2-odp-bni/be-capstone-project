@@ -16,18 +16,12 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
-import org.springframework.security.core.context.SecurityContext;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.netty.http.client.HttpClient;
 
 import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-import org.springframework.http.HttpHeaders;
-import org.springframework.security.core.context.ReactiveSecurityContextHolder;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
-import org.springframework.web.reactive.function.client.ClientRequest;
-import reactor.core.publisher.Mono;
 
 @Slf4j
 @Configuration
@@ -74,19 +68,6 @@ public class WebClientConfig {
                     .doOnSuccess(response -> log.debug("{} response: {}", serviceName, response.statusCode()))
                     .doOnError(error -> log.error("Error calling {}: {}", serviceName, error.getMessage()));
             })
-            .filter((request, next) ->
-                ReactiveSecurityContextHolder.getContext()
-                    .map(SecurityContext::getAuthentication)
-                    .filter(authentication -> authentication instanceof JwtAuthenticationToken)
-                    .map(authentication -> (JwtAuthenticationToken) authentication)
-                    .map(jwtAuthentication -> {
-                        log.debug("Attaching bearer token to {} request", serviceName);
-                        return ClientRequest.from(request)
-                            .header(HttpHeaders.AUTHORIZATION, "Bearer " + jwtAuthentication.getToken().getTokenValue())
-                            .build();
-                    })
-                    .switchIfEmpty(Mono.just(request))
-                    .flatMap(next::exchange))
             .build();
     }
 

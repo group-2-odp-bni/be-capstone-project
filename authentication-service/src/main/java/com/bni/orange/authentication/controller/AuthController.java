@@ -32,20 +32,12 @@ public class AuthController {
     private final AuthFlowService authFlowService;
     private final TokenService tokenService;
 
-    @PostMapping("/login")
-    public ResponseEntity<ApiResponse<OtpResponse>> requestLoginOtp(
+    @PostMapping("/request")
+    public ResponseEntity<ApiResponse<OtpResponse>> requestOtp(
         @RequestBody @Valid AuthRequest request,
         HttpServletRequest servletRequest
     ) {
-        return ResponseEntity.ok(authFlowService.requestLoginOtp(request, servletRequest));
-    }
-
-    @PostMapping("/register")
-    public ResponseEntity<ApiResponse<OtpResponse>> requestRegistrationOtp(
-        @RequestBody @Valid AuthRequest request,
-        HttpServletRequest servletRequest
-    ) {
-        return ResponseEntity.ok(authFlowService.requestRegistrationOtp(request, servletRequest));
+        return ResponseEntity.ok(authFlowService.requestOtp(request, servletRequest));
     }
 
     @PostMapping("/verify")
@@ -61,7 +53,7 @@ public class AuthController {
         @RequestBody @Valid AuthRequest request,
         HttpServletRequest servletRequest
     ) {
-        return ResponseEntity.ok(authFlowService.requestLoginOtp(request, servletRequest));
+        return ResponseEntity.ok(authFlowService.requestOtp(request, servletRequest));
     }
 
     @PostMapping("/pin")

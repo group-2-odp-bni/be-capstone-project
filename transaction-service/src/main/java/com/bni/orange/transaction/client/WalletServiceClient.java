@@ -1,16 +1,14 @@
 package com.bni.orange.transaction.client;
 
 import com.bni.orange.transaction.client.base.BaseServiceClient;
+import com.bni.orange.transaction.error.BusinessException;
 import com.bni.orange.transaction.error.ErrorCode;
-import com.bni.orange.transaction.model.request.internal.BalanceUpdateRequest;
-import com.bni.orange.transaction.model.request.internal.BalanceValidateRequest;
-import com.bni.orange.transaction.model.request.internal.RoleValidateRequest;
+import com.bni.orange.transaction.model.enums.WalletPermission;
+import com.bni.orange.transaction.model.request.BalanceAdjustmentRequest;
+import com.bni.orange.transaction.model.response.ApiResponse;
+import com.bni.orange.transaction.model.response.BalanceResponse;
+import com.bni.orange.transaction.model.response.WalletAccessValidation;
 import com.bni.orange.transaction.model.response.WalletResolutionResponse;
-import com.bni.orange.transaction.model.response.internal.BalanceUpdateResponse;
-import com.bni.orange.transaction.model.response.internal.InternalApiResponse;
-import com.bni.orange.transaction.model.response.internal.RoleValidateResponse;
-import com.bni.orange.transaction.model.response.internal.UserWalletsResponse;
-import com.bni.orange.transaction.model.response.internal.ValidationResultResponse;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.retry.Retry;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +18,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -39,96 +38,93 @@ public class WalletServiceClient extends BaseServiceClient {
         return ErrorCode.WALLET_SERVICE_ERROR;
     }
 
-    public Mono<ValidationResultResponse> validateBalance(BalanceValidateRequest request) {
-        log.debug("Validating balance for wallet: {}, amount: {}, action: {}",
-            request.walletId(), request.amount(), request.action());
+    public Mono<BalanceResponse> getBalance(UUID walletId) {
+        log.debug("Getting balance for wallet: {}", walletId);
 
-        return executePostInternal(
+        return executeGet(
+            uriSpec -> uriSpec.uri("/api/v1/wallets/{walletId}/balance", walletId),
+            new ParameterizedTypeReference<>() {},
+            notFoundMapper(ErrorCode.WALLET_NOT_FOUND, "Wallet not found: " + walletId)
+        );
+    }
+
+    public Mono<BalanceResponse> adjustBalance(
+        UUID walletId,
+        BalanceAdjustmentRequest request,
+        String idempotencyKey
+    ) {
+        log.debug("Adjusting balance for wallet: {}, amount: {}", walletId, request.amount());
+
+        return executePost(
             uriSpec -> uriSpec
-                .uri("/internal/v1/wallets/balance:validate")
+                .uri("/api/v1/wallets/{walletId}/balance/adjust", walletId)
+                .header("Idempotency-Key", idempotencyKey)
                 .bodyValue(request),
-            new ParameterizedTypeReference<InternalApiResponse<ValidationResultResponse>>() {},
-            notFoundMapper(ErrorCode.WALLET_NOT_FOUND, "Wallet not found: " + request.walletId())
-        ).doOnSuccess(result -> {
-            if (!result.allowed()) {
-                log.warn("Balance validation failed: walletId={}, code={}, message={}",
-                    request.walletId(), result.code(), result.message());
+            new ParameterizedTypeReference<ApiResponse<BalanceResponse>>() {},
+            conflictMapper(ErrorCode.INSUFFICIENT_BALANCE, "Insufficient balance for wallet: " + walletId)
+        );
+    }
+
+    public Mono<WalletAccessValidation> validateAccess(
+        UUID walletId,
+        UUID userId,
+        WalletPermission permission
+    ) {
+        log.debug("Validating wallet access: walletId={}, userId={}, permission={}",
+            walletId, userId, permission);
+
+        return executeGet(
+            uriSpec -> uriSpec.uri(uriBuilder -> uriBuilder
+                .path("/internal/wallets/{walletId}/validate")
+                .queryParam("userId", userId)
+                .queryParam("permission", permission)
+                .build(walletId)),
+            new ParameterizedTypeReference<ApiResponse<WalletAccessValidation>>() {},
+            notFoundMapper(ErrorCode.WALLET_NOT_FOUND, "Wallet not found: " + walletId)
+        ).doOnSuccess(validation -> {
+            if (!validation.hasAccess()) {
+                log.warn("Wallet access denied: walletId={}, userId={}, reason={}",
+                    walletId, userId, validation.denialReason());
             } else {
-                log.debug("Balance validation passed: walletId={}", request.walletId());
+                log.debug("Wallet access granted: walletId={}, userId={}, role={}",
+                    walletId, userId, validation.userRole());
             }
         });
     }
 
-    public Mono<BalanceUpdateResponse> updateBalance(BalanceUpdateRequest request) {
-        log.debug("Updating balance for wallet: {}, delta: {}, referenceId: {}",
-            request.walletId(), request.delta(), request.referenceId());
+    public Mono<WalletResolutionResponse> resolveRecipientWallet(
+        String identifier,
+        String identifierType,
+        String currency
+    ) {
+        log.debug("Resolving recipient wallet: identifier={}, type={}, currency={}",
+            identifier, identifierType, currency);
 
-        return executePostInternal(
+        var requestBody = Map.of(
+            "identifier", identifier,
+            "identifierType", identifierType != null ? identifierType : "PHONE",
+            "currency", currency != null ? currency : "IDR"
+        );
+
+        return executePost(
             uriSpec -> uriSpec
-                .uri("/internal/v1/wallets/balance:update")
-                .bodyValue(request),
-            new ParameterizedTypeReference<InternalApiResponse<BalanceUpdateResponse>>() {},
-            conflictMapper(ErrorCode.INSUFFICIENT_BALANCE, "Insufficient balance for wallet: " + request.walletId())
-        ).doOnSuccess(result -> {
-            if ("OK".equals(result.code())) {
-                log.info("Balance updated successfully: walletId={}, previous={}, new={}, delta={}",
-                    result.walletId(), result.previousBalance(), result.newBalance(), request.delta());
-            } else {
-                log.warn("Balance update failed: walletId={}, code={}, message={}",
-                    result.walletId(), result.code(), result.message());
-            }
-        });
-    }
-
-    public Mono<RoleValidateResponse> validateRole(RoleValidateRequest request) {
-        log.debug("Validating role for wallet: {}, userId={}, action={}",
-            request.walletId(), request.userId(), request.action());
-
-        return executePostInternal(
-            uriSpec -> uriSpec
-                .uri("/internal/v1/wallets/roles:validate")
-                .bodyValue(request),
-            new ParameterizedTypeReference<InternalApiResponse<RoleValidateResponse>>() {},
-            notFoundMapper(ErrorCode.WALLET_NOT_FOUND, "Wallet not found: " + request.walletId())
-        ).doOnSuccess(result -> {
-            if (!result.allowed()) {
-                log.warn("Role validation failed: walletId={}, userId={}, code={}, message={}",
-                    request.walletId(), request.userId(), result.code(), result.message());
-            } else {
-                log.debug("Role validation passed: walletId={}, userId={}, role={}",
-                    request.walletId(), request.userId(), result.effectiveRole());
-            }
-        });
-    }
-
-    public Mono<WalletResolutionResponse> getDefaultWalletByUserId(UUID userId) {
-        log.debug("Getting default wallet for user: {}", userId);
-
-        return executeGetInternal(
-            uriSpec -> uriSpec.uri("/internal/v1/users/{userId}/default-wallet", userId),
-            new ParameterizedTypeReference<InternalApiResponse<WalletResolutionResponse>>() {},
-            notFoundMapper(ErrorCode.WALLET_NOT_FOUND, "User not found or has no default wallet: " + userId)
-        ).doOnSuccess(wallet -> {
-            if (wallet.walletId() != null) {
-                log.debug("Found default wallet for user {}: walletId={}, name={}, type={}",
-                    userId, wallet.walletId(), wallet.walletName(), wallet.walletType());
-            } else {
-                log.warn("User {} has no default wallet set", userId);
-            }
-        });
+                .uri("/internal/wallets/_resolve-recipient")
+                .bodyValue(requestBody),
+            new ParameterizedTypeReference<ApiResponse<WalletResolutionResponse>>() {},
+            notFoundMapper(ErrorCode.RECIPIENT_WALLET_NOT_FOUND, "Recipient has no default wallet set for receiving transfers")
+        ).doOnSuccess(wallet -> log.debug("Resolved recipient wallet: walletId={}, name={}, type={}",
+            wallet.walletId(), wallet.walletName(), wallet.walletType()));
     }
 
     public Mono<List<UUID>> getUserWalletIds(UUID userId) {
         log.debug("Getting wallet IDs for user: {}", userId);
 
-        return executeGetInternal(
+        return executeGet(
             uriSpec -> uriSpec.uri(uriBuilder -> uriBuilder
-                .path("/internal/v1/users/{userId}/wallets")
+                .path("/internal/users/{userId}/wallets")
                 .queryParam("idsOnly", true)
                 .build(userId)),
-            new ParameterizedTypeReference<InternalApiResponse<UserWalletsResponse>>() {
-            }
-        ).map(UserWalletsResponse::walletIds)
-            .doOnSuccess(walletIds -> log.debug("User {} has access to {} wallets", userId, walletIds.size()));
+            new ParameterizedTypeReference<ApiResponse<List<UUID>>>() {}
+        ).doOnSuccess(walletIds -> log.debug("User {} has access to {} wallets", userId, walletIds.size()));
     }
 }

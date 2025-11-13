@@ -44,25 +44,6 @@ orange:
   webhook:
     hmac-secret: ${WAHA_WEBHOOK_HMAC_SECRET:64eb6963dd30bbe9786cb9193f9eabee6ddac7e9aeb0deb6fc72a1bd065abb52}
 
-resilience:
-  retry:
-    max-attempts: 3
-    initial-backoff: 2s
-    multiplier: 2.0
-    max-backoff: 10s
-    fail-after-max-attempts: true
-    retryable-exceptions:
-      - com.bni.orange.notification.client.WahaApiClient$WahaClientException
-      - com.bni.orange.notification.client.WahaApiClient$WahaServiceException
-      - java.util.concurrent.TimeoutException
-  circuit-breaker:
-    sliding-window-size: 100
-    minimum-number-of-calls: 10
-    failure-rate-threshold: 50
-    wait-duration-in-open-state: 60s
-    permitted-number-of-calls-in-half-open-state: 10
-    automatic-transition-from-open-to-half-open-enabled: true
-
 server:
   port: 8085
 

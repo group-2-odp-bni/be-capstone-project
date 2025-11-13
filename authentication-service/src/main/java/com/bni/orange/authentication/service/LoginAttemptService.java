@@ -65,7 +65,8 @@ public class LoginAttemptService {
 
             try {
                 log.debug("Applying progressive delay of {} seconds for key: {}", delaySeconds, key);
-                CompletableFuture.runAsync(() -> {}, CompletableFuture.delayedExecutor(delaySeconds, TimeUnit.SECONDS)).get();
+                CompletableFuture.runAsync(() -> {
+                }, CompletableFuture.delayedExecutor(delaySeconds, TimeUnit.SECONDS)).get();
             } catch (InterruptedException | ExecutionException e) {
                 log.warn("Progressive delay interrupted for key: {}", key, e);
                 Thread.currentThread().interrupt();

@@ -21,7 +21,6 @@ public class GlobalExceptionHandler {
         HttpServletRequest request
     ) {
         var errorCode = ex.getErrorCode();
-        log.error("BusinessException occurred for request URI: {}. ErrorCode: {}, Message: {}", request.getRequestURI(), errorCode.getCode(), ex.getMessage(), ex);
 
         var response = ApiResponse.<Void>builder()
             .message("Request failed")
@@ -40,7 +39,6 @@ public class GlobalExceptionHandler {
         HttpServletRequest request
     ) {
         var errorCode = ErrorCode.FORBIDDEN_ACCESS;
-        log.error("AccessDeniedException occurred for request URI: {}. ErrorCode: {}, Message: {}", request.getRequestURI(), errorCode.getCode(), errorCode.getMessage());
 
         var response = ApiResponse.<Void>builder()
             .message("Access denied")
@@ -63,7 +61,6 @@ public class GlobalExceptionHandler {
         ex.getBindingResult()
             .getFieldErrors()
             .forEach(error -> validationErrors.put(error.getField(), error.getDefaultMessage()));
-        log.error("MethodArgumentNotValidException occurred for request URI: {}. Validation Errors: {}", request.getRequestURI(), validationErrors, ex);
 
         var response = ApiResponse.<Void>builder()
             .message("Validation failed")

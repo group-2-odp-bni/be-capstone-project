@@ -96,6 +96,7 @@ curl -sfL https://get.k3s.io | \
   --write-kubeconfig-mode 644 \
   --disable traefik \
   --disable servicelb \
+  --disable local-storage \
   --disable metrics-server \
   --node-ip="${NODE_IP}" \
   --node-external-ip="${NODE_IP}" \
@@ -188,8 +189,9 @@ echo ""
 echo -e "${BLUE}============================================${NC}"
 echo -e "${BLUE}Next Steps:${NC}"
 echo -e "${BLUE}============================================${NC}"
-echo -e "1. Join worker nodes to the cluster"
-echo -e "3. Install NGINX Ingress: ${GREEN}sudo ./install-nginx-ingress.sh${NC}"
+echo -e "1. Install MetalLB: ${GREEN}sudo ./install-metallb.sh${NC}"
+echo -e "2. Install NGINX Ingress: ${GREEN}sudo ./install-nginx-ingress.sh${NC}"
+echo -e "3. Install Ceph CSI: ${GREEN}sudo ./install-ceph-csi.sh${NC}"
 echo -e "4. Install Cert-Manager: ${GREEN}sudo ./install-cert-manager.sh${NC}"
 echo ""
 echo -e "Worker Node Join Command:"

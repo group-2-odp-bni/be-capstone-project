@@ -4,7 +4,6 @@
 replicaCount: 1
 
 image:
-  registry: docker.io
   repository: teukumunawar/orange-pay-wallet-service
   tag: latest
   pullPolicy: Always
@@ -19,7 +18,7 @@ service:
   annotations: {}
 
 ingress:
-  enabled: false
+  enabled: true
   className: nginx
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /

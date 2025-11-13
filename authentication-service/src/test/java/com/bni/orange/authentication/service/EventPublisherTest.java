@@ -1,6 +1,7 @@
 package com.bni.orange.authentication.service;
 
 import com.google.protobuf.Message;
+import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.junit.jupiter.api.BeforeEach;
@@ -13,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.kafka.support.SendResult;
 
 import java.util.Map;
@@ -22,6 +24,7 @@ import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -180,6 +183,34 @@ class EventPublisherTest {
 
         verify(kafkaTemplate).send(topic, "key1", event1.toByteArray());
         verify(kafkaTemplate).send(topic, "key2", event2.toByteArray());
+    }
+
+    @Test
+    @DisplayName("isKafkaAvailable should return true when producer is created successfully")
+    void isKafkaAvailable_onSuccess_shouldReturnTrue() {
+        var producerFactory = mock(ProducerFactory.class);
+        var producer = mock(Producer.class);
+
+        when(kafkaTemplate.getProducerFactory()).thenReturn(producerFactory);
+        when(producerFactory.createProducer()).thenReturn(producer);
+
+        var isAvailable = eventPublisher.isKafkaAvailable();
+
+        assertTrue(isAvailable);
+        verify(producer).close();
+    }
+
+    @Test
+    @DisplayName("isKafkaAvailable should return false when producer creation fails")
+    void isKafkaAvailable_onFailure_shouldReturnFalse() {
+        var producerFactory = mock(ProducerFactory.class);
+
+        when(kafkaTemplate.getProducerFactory()).thenReturn(producerFactory);
+        when(producerFactory.createProducer()).thenThrow(new RuntimeException("Connection failed"));
+
+        var isAvailable = eventPublisher.isKafkaAvailable();
+
+        assertFalse(isAvailable);
     }
 
     @Test

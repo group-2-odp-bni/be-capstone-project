@@ -1,7 +1,6 @@
 package com.bni.orange.transaction.error;
 
-import com.bni.orange.transaction.model.response.ApiResponse;
-import jakarta.servlet.http.HttpServletRequest;
+import com.bni.orange.transaction.model.response.error.ApiErrorResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -9,7 +8,6 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
-import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
@@ -17,77 +15,50 @@ import java.util.Map;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
-    public ResponseEntity<ApiResponse<Void>> handleBusinessException(
-        BusinessException ex,
-        HttpServletRequest request
-    ) {
-        var errorCode = ex.getErrorCode();
-        log.error("BusinessException occurred for request URI: {}. ErrorCode: {}, Message: {}",
-            request.getRequestURI(), errorCode.getCode(), ex.getMessage(), ex);
-
-        var response = ApiResponse.<Void>builder()
-            .message("Request failed")
-            .error(ApiResponse.ErrorDetail.builder()
-                .code(errorCode.getCode())
-                .message(ex.getMessage())
-                .details(ex.getDetails())
-                .build())
-            .path(request.getRequestURI())
+    public ResponseEntity<ApiErrorResponse> handleBusinessException(BusinessException ex) {
+        log.error("Business exception: code={}, message='{}'", ex.getErrorCode().getCode(), ex.getMessage(), ex);
+        var errorResponse = ApiErrorResponse.builder()
+            .code(ex.getErrorCode().getCode())
+            .message(ex.getMessage())
+            .details(ex.getDetails())
             .build();
-
-        return new ResponseEntity<>(response, errorCode.getStatus());
+        return new ResponseEntity<>(errorResponse, ex.getErrorCode().getStatus());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiResponse<Void>> handleValidationException(
-        MethodArgumentNotValidException ex,
-        HttpServletRequest request
-    ) {
-        var validationErrors = new HashMap<String, String>();
-        ex.getBindingResult()
-            .getFieldErrors()
-            .forEach(error -> validationErrors.put(error.getField(), error.getDefaultMessage()));
+    public ResponseEntity<ApiErrorResponse> handleValidationException(MethodArgumentNotValidException ex) {
+        var validationErrors = ex.getBindingResult().getFieldErrors().stream()
+            .map(fieldError -> new ApiErrorResponse.ValidationError(fieldError.getField(), fieldError.getDefaultMessage()))
+            .toList();
 
-        log.warn("MethodArgumentNotValidException occurred for request URI: {}. Validation Errors: {}",
-            request.getRequestURI(), validationErrors);
+        log.warn("Validation error: {}", validationErrors);
 
-        var response = ApiResponse.<Void>builder()
-            .message("Validation failed")
-            .error(ApiResponse.ErrorDetail.builder()
-                .code("VALIDATION_ERROR")
-                .message("Validation failed")
-                .details(validationErrors)
-                .build())
-            .path(request.getRequestURI())
+        var errorCode = ErrorCode.VALIDATION_ERROR;
+        var errorResponse = ApiErrorResponse.builder()
+            .code(errorCode.getCode())
+            .message(errorCode.getMessage())
+            .validationErrors(validationErrors)
             .build();
 
-        return ResponseEntity.badRequest().body(response);
+        return new ResponseEntity<>(errorResponse, errorCode.getStatus());
     }
 
     @ExceptionHandler(WebClientResponseException.class)
-    public ResponseEntity<ApiResponse<Void>> handleWebClientException(
-        WebClientResponseException ex,
-        HttpServletRequest request
-    ) {
-        log.error("External service error: status={}, response='{}'",
-            ex.getStatusCode(), ex.getResponseBodyAsString(), ex);
+    public ResponseEntity<ApiErrorResponse> handleWebClientException(WebClientResponseException ex) {
+        log.error("External service error: status={}, response='{}'", ex.getStatusCode(), ex.getResponseBodyAsString(), ex);
 
         var errorCode = determineErrorCodeFromWebClientException(ex);
 
-        var response = ApiResponse.<Void>builder()
-            .message("External service error")
-            .error(ApiResponse.ErrorDetail.builder()
-                .code(errorCode.getCode())
-                .message(errorCode.getMessage())
-                .details(Map.of(
-                    "external_status", ex.getStatusCode().value(),
-                    "external_response", ex.getResponseBodyAsString()
-                ))
-                .build())
-            .path(request.getRequestURI())
+        var errorResponse = ApiErrorResponse.builder()
+            .code(errorCode.getCode())
+            .message(errorCode.getMessage())
+            .details(Map.of(
+                "external_status", ex.getStatusCode().value(),
+                "external_response", ex.getResponseBodyAsString()
+            ))
             .build();
 
-        return new ResponseEntity<>(response, errorCode.getStatus());
+        return new ResponseEntity<>(errorResponse, errorCode.getStatus());
     }
 
     private ErrorCode determineErrorCodeFromWebClientException(WebClientResponseException ex) {
@@ -97,22 +68,13 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponse<Void>> handleGenericException(
-        Exception ex,
-        HttpServletRequest request
-    ) {
+    public ResponseEntity<ApiErrorResponse> handleGenericException(Exception ex) {
         log.error("An unexpected error occurred", ex);
         var errorCode = ErrorCode.INTERNAL_SERVER_ERROR;
-
-        var response = ApiResponse.<Void>builder()
-            .message("An unexpected error occurred")
-            .error(ApiResponse.ErrorDetail.builder()
-                .code(errorCode.getCode())
-                .message(errorCode.getMessage())
-                .build())
-            .path(request.getRequestURI())
+        var errorResponse = ApiErrorResponse.builder()
+            .code(errorCode.getCode())
+            .message(errorCode.getMessage())
             .build();
-
-        return new ResponseEntity<>(response, errorCode.getStatus());
+        return new ResponseEntity<>(errorResponse, errorCode.getStatus());
     }
 }

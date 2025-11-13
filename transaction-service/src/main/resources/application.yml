@@ -60,17 +60,13 @@ orange:
     reference:
       prefix: "TRX"
       date-format: "yyyyMMdd"
-    limit:
-      transfer:
-        min-amount: 10000
-        max-amount: 10000000
 
   # BNI Virtual Account Integration
   integration:
     bni-va:
       base-url: ${BNI_VA_BASE_URL:https://api-sandbox.bni.co.id}
-      client-id: "dummy-client-id"
-      client-secret: "secret-key-for-dev"
+      client-id: ${BNI_VA_CLIENT_ID:mock-client-id}
+      client-secret: ${BNI_VA_CLIENT_SECRET:mock-secret-key-12345}
       timeout: 30s
       mock-enabled: ${BNI_VA_MOCK_ENABLED:true}
 
@@ -146,5 +142,5 @@ resilience:
     minimum-number-of-calls: 5
     failure-rate-threshold: 50.0
     wait-duration-in-open-state: 30s
-    permitted-number-of-calls-in-half-open-state: 10
+    permitted-number-of-calls-in-half-open-state: 3
     automatic-transition-from-open-to-half-open-enabled: true

@@ -7,7 +7,7 @@ service:
 
 # Image configuration
 image:
-  registry: docker.io
+  registry: ghcr.io
   repository: ""  # Override per service (e.g., your-org/authentication-service)
   tag: "latest"
   pullPolicy: IfNotPresent

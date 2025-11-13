@@ -26,7 +26,6 @@ import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
-import java.util.Objects;
 import java.util.Optional;
 
 import static com.bni.orange.authentication.util.SecurityUtils.hashToken;
@@ -67,7 +66,7 @@ public class TokenService {
         var stateTokenKey = redisProperties.prefix().stateToken() + jti;
         var status = redisTemplate.opsForValue().get(stateTokenKey);
 
-        if (Objects.isNull(status)) {
+        if (status == null) {
             throw new BusinessException(ErrorCode.INVALID_TOKEN_SCOPE, "State token has expired or already been used");
         }
 

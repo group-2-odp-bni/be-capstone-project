@@ -32,7 +32,6 @@ public class JwtBlacklistGatewayFilter implements GlobalFilter, Ordered {
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         final String path = exchange.getRequest().getURI().getPath();
-        log.info("JwtBlacklistGatewayFilter is called for path: {}", path);
 
         if (isPublicEndpoint(path)) {
             return chain.filter(exchange);
@@ -86,8 +85,7 @@ public class JwtBlacklistGatewayFilter implements GlobalFilter, Ordered {
     }
 
     private boolean isPublicEndpoint(String path) {
-        return path.startsWith("/api/v1/auth/login") ||
-            path.startsWith("/api/v1/auth/register") ||
+        return path.startsWith("/api/v1/auth/request") ||
             path.startsWith("/api/v1/auth/verify") ||
             path.startsWith("/api/v1/auth/refresh") ||
             path.startsWith("/api/v1/auth/resend-otp") ||

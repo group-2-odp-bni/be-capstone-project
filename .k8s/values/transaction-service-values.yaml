@@ -4,7 +4,6 @@ service:
   targetPort: 8080
 
 image:
-  registry: docker.io
   repository: teukumunawar/orange-pay-transaction-service
   tag: latest
   pullPolicy: Always

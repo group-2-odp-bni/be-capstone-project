@@ -121,6 +121,8 @@ cat > $SETUP_DIR/.env <<EOF
 # K3s Configuration
 K3S_VERSION=${k3s_version}
 K3S_TOKEN=${k3s_token}
+METALLB_IP_RANGE_START=${metallb_ip_range_start}
+METALLB_IP_RANGE_END=${metallb_ip_range_end}
 SUBNET_CIDR=${subnet_cidr}
 NODE_IP=$(hostname -I | awk '{print $1}')
 EOF

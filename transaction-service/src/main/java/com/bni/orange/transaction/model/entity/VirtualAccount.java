@@ -52,12 +52,10 @@ public class VirtualAccount {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "provider", nullable = false, columnDefinition = "domain.payment_provider")
-    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private PaymentProvider provider;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, columnDefinition = "domain.va_status")
-    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private VirtualAccountStatus status;
 
     @Column(name = "amount", nullable = false, precision = 20, scale = 2)

@@ -41,7 +41,7 @@ public class TransferController {
         @Valid @RequestBody RecipientLookupRequest request,
         @AuthenticationPrincipal Jwt jwt
     ) {
-        var recipient = transferService.inquiry(request, getUserIdFromJwt(jwt), jwt.getTokenValue());
+        var recipient = transferService.lookupRecipient(request, getUserIdFromJwt(jwt), jwt.getTokenValue());
         return ResponseEntity.ok(ApiResponse.success(recipient));
     }
 

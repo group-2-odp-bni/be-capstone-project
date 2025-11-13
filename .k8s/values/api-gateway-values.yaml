@@ -4,7 +4,6 @@
 replicaCount: 1
 
 image:
-  registry: docker.io
   repository: teukumunawar/orange-pay-api-gateway
   tag: latest
   pullPolicy: Always
@@ -19,7 +18,7 @@ service:
   annotations: {}
 
 ingress:
-  enabled: false
+  enabled: true
   className: nginx
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
@@ -56,10 +55,11 @@ resources:
     memory: "512Mi"
     cpu: "500m"
 
-# Health checks (using TCP probe for reliability)
+# Health checks
 livenessProbe:
   enabled: true
-  tcpSocket:
+  httpGet:
+    path: /actuator/health/liveness
     port: 8080
   initialDelaySeconds: 60
   periodSeconds: 10
@@ -68,7 +68,8 @@ livenessProbe:
 
 readinessProbe:
   enabled: true
-  tcpSocket:
+  httpGet:
+    path: /actuator/health/readiness
     port: 8080
   initialDelaySeconds: 30
   periodSeconds: 5
