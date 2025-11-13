@@ -1,6 +1,6 @@
 package com.bni.orange.wallet.service.command.initializer;
 import jakarta.transaction.Transactional;
-import org.springframework.boot.context.properties.ConfigurationProperties;
+
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.stereotype.Service;
 import lombok.RequiredArgsConstructor;

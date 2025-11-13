@@ -1,5 +1,6 @@
 package com.bni.orange.wallet.controller;
 
+import com.bni.orange.wallet.exception.business.ValidationFailedException;
 import com.bni.orange.wallet.model.enums.WalletMemberRole;
 import com.bni.orange.wallet.model.request.invite.GeneratedInvite;
 import com.bni.orange.wallet.model.request.invite.VerifyInviteCodeRequest;
@@ -29,6 +30,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.util.StringUtils;
 
 import java.net.URI;
 import java.util.List;
@@ -67,11 +69,25 @@ public class WalletMemberController {
   public ResponseEntity<ApiResponse<GeneratedInvite>> generateInviteLinkByPhone(
       @PathVariable UUID walletId,
       @RequestParam("phoneE164") String phoneE164,
+      @RequestParam(name = "userId", required = false) UUID userId,
       @RequestParam(name = "role", defaultValue = "VIEWER") WalletMemberRole role
   ) {
-    var normalized = normalizePhone(phoneE164);
-    validateE164(normalized);
-    var dto = inviteService.generateInviteLink(walletId, null, normalized, role);
+      String normalizedPhone = null;
+      if (userId != null) {
+          if (!StringUtils.hasText(phoneE164)) {
+              throw new ValidationFailedException("phoneE164 is required when userId is specified.");
+          }
+          normalizedPhone = normalizePhone(phoneE164);
+          validateE164(normalizedPhone);
+      } else {
+          if (!StringUtils.hasText(phoneE164)) {
+              throw new ValidationFailedException("phoneE164 is required if userId is not specified.");
+          }
+          normalizedPhone = normalizePhone(phoneE164);
+          validateE164(normalizedPhone);
+      }
+
+    var dto = inviteService.generateInviteLink(walletId, userId, normalizedPhone, role);
     return ResponseEntity.ok(ApiResponse.ok("Invite link generated", dto));
   }
   @PostMapping("/invites/verify")
