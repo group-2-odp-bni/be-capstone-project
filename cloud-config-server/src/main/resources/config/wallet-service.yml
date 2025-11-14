@@ -57,6 +57,17 @@ spring:
   web:
     resources:
       add-mappings: false
+  mail:
+    host: ${SMTP_HOST:smtp.gmail.com}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_MAIL}
+    password: ${SMTP_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 
 server:
   port: ${SERVER_PORT:8083}
@@ -74,8 +85,11 @@ wallet:
     enabled: ${WALLET_EVENTS_ENABLED:true}
 app:
   invite:
-    ttl-seconds: 600 # TODO: Rollback to 600
+    ttl-seconds: 600
     base-url: https://app.orangebybni.com/invites/claim
+  mail:
+    from: ${SMTP_MAIL:orange.wallet.bni@gmail.com}
+    delete-wallet-confirm-base-url: ${APP_DELETE_WALLET_CONFIRM_URL:https://app.orangebybni.my.id/wallet/delete-confirm}
 orange:
   limits:
     default:

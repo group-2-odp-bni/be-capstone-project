@@ -82,7 +82,6 @@ public class InternalWalletController {
     return ResponseEntity.ok(ApiResponse.ok("OK", res));
   }
   @PostMapping("/wallets")
-  @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
   public ResponseEntity<ApiResponse<WalletDetailResponse>> createWallet(
       @RequestHeader(value="Idempotency-Key", required=false) String idemKey,
       @Valid @RequestBody WalletCreateRequest req

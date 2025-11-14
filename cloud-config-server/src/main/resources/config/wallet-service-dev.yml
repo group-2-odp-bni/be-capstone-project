@@ -23,6 +23,17 @@ spring:
       port: 6379
   kafka:
     bootstrap-servers: localhost:9092
+  mail:
+    host: ${SMTP_HOST:smtp.gmail.com}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_MAIL}
+    password: ${SMTP_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 
 logging:
   level:
@@ -34,3 +45,16 @@ logging:
     org.springframework.boot.actuate: ERROR
     org.springframework.boot.actuate.endpoint.web: ERROR
     org.springframework.boot.actuate.endpoint: ERROR
+
+app:
+  invite:
+    ttl-seconds: 600
+    base-url: https://app.orangebybni.com/invites/claim
+  mail:
+    from: ${SMTP_MAIL:orange.wallet.bni@gmail.com}
+    delete-wallet-confirm-base-url: ${APP_DELETE_WALLET_CONFIRM_URL:https://app.orangebybni.my.id/wallet/delete-confirm}
+  internal:
+    user-service-base-url: http://localhost:8082
+  wallet-delete:
+    secret: 9evyY2Iopik4onDHa+ygvSoI97DJnUx+2JEOeO9ROUE=
+    ttl-seconds: 900

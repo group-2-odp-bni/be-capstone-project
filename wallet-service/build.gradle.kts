@@ -43,6 +43,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
     implementation("org.springframework.kafka:spring-kafka")
     implementation("org.xerial.snappy:snappy-java:1.1.10.5")
+    implementation("org.springframework.boot:spring-boot-starter-mail")
 
     implementation("com.google.protobuf:protobuf-java:4.31.1")
     implementation("com.google.protobuf:protobuf-java-util:4.31.1")

@@ -20,7 +20,13 @@ public class SecurityConfig {
         http
             .csrf(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/actuator/health", "/actuator/health/liveness", "/actuator/health/readiness", "/actuator/info").permitAll()
+                .requestMatchers(
+                    "/internal/v1/user/**",
+                    "/actuator/health",
+                    "/actuator/health/liveness",
+                    "/actuator/health/readiness",
+                    "/actuator/info"
+                ).permitAll()
                 .anyRequest().authenticated()
             )
             .oauth2ResourceServer(oauth2 ->
