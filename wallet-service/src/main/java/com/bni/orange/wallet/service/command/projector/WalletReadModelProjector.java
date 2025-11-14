@@ -24,8 +24,8 @@ import java.util.UUID;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 @Transactional
+@RequiredArgsConstructor
 public class WalletReadModelProjector {
     private final WalletReadRepository walletReadRepo;
     private final WalletMemberReadRepository walletMemberReadRepo;

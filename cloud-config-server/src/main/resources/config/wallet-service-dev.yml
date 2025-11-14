@@ -52,9 +52,10 @@ app:
     base-url: https://app.orangebybni.com/invites/claim
   mail:
     from: ${SMTP_MAIL:orange.wallet.bni@gmail.com}
+
     delete-wallet-confirm-base-url: ${APP_DELETE_WALLET_CONFIRM_URL:https://app.orangebybni.my.id/wallet/delete-confirm}
-  internal:
-    user-service-base-url: http://localhost:8082
+  internal-user:
+    base-url: http://orange-user-service:8082
   wallet-delete:
     secret: 9evyY2Iopik4onDHa+ygvSoI97DJnUx+2JEOeO9ROUE=
-    ttl-seconds: 900
+    ttl-seconds: 86400
