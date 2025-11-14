@@ -23,3 +23,14 @@ spring:
       port: 6379
   kafka:
     bootstrap-servers: localhost:9092
+
+logging:
+  level:
+    root: INFO
+    com.bni.orange: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.kafka: DEBUG
+    org.springframework.boot.actuate: ERROR
+    org.springframework.boot.actuate.endpoint.web: ERROR
+    org.springframework.boot.actuate.endpoint: ERROR
