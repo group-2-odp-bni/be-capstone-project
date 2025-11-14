@@ -33,6 +33,10 @@ public class WalletEventPublisher {
 
   @Value("${orange.kafka.topics.wallet-invite-accepted:wallet.events.invite-accepted}")
   private String topicInviteAccepted;
+  
+  @Value("${orange.kafka.topics.wallet-members-cleared:wallet.events.members-cleared}")
+  private String topicWalletMembersCleared;
+  
   public void publish(String topic, String key, com.google.protobuf.Message payload,
                       String eventType, int version) {
 
@@ -71,5 +75,7 @@ public class WalletEventPublisher {
   public void publishWalletInviteAccepted(String key, com.google.protobuf.Message payload) {
     publish(topicInviteAccepted, key, payload, "WalletInviteAccepted", 1);
   }
-
+  public void publishWalletMembersCleared(String walletId, com.google.protobuf.Message payload) {
+    publish(topicWalletMembersCleared, walletId, payload, "WalletMembersCleared", 1);
+  }
 }
