@@ -1,4 +1,6 @@
 spring:
+  config:
+    import: optional:file:.env[.properties]
   application:
     name: wallet-service
   profiles:
@@ -6,11 +8,21 @@ spring:
   threads:
     virtual:
       enabled: true
-
+  mail:
+    host: ${SMTP_HOST:smtp.gmail.com}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_MAIL}
+    password: ${SMTP_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/orange_db}
-    username: ${DB_USERNAME:mikasa}
-    password: ${DB_PASSWORD:mikasa}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 10
@@ -58,6 +70,17 @@ spring:
     bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     admin:
       auto-create: ${SPRING_KAFKA_ADMIN_AUTO_CREATE:true}
+      properties:
+        security.protocol: ${SPRING_KAFKA_PROPERTIES_SECURITY_PROTOCOL:SASL_SSL}
+        sasl.mechanism: ${SPRING_KAFKA_PROPERTIES_SASL_MECHANISM:SCRAM-SHA-256}
+        sasl.jaas.config: ${SPRING_KAFKA_PROPERTIES_SASL_JAAS_CONFIG}
+    properties:
+      security.protocol: SSL
+      ssl.truststore.type: PEM
+      ssl.truststore.location: ${KAFKA_SSL_TRUSTSTORE_LOCATION}
+      ssl.keystore.type: PKCS12
+      ssl.keystore.location: ${KAFKA_SSL_KEYSTORE_LOCATION}
+      ssl.keystore.password: ${KAFKA_SSL_KEYSTORE_PASSWORD}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
@@ -87,7 +110,7 @@ spring:
       add-mappings: false
 
 server:
-  port: ${SERVER_PORT:8083}
+  port: ${SERVER_PORT:8080}
 
 management:
   endpoints:
@@ -104,13 +127,20 @@ app:
   invite:
     ttl-seconds: 600
     base-url: https://app.orangebybni.com/invites/claim
+  mail:
+    from: ${SMTP_MAIL:orange.wallet.bni@gmail.com}
+    delete-wallet-confirm-base-url: ${APP_DELETE_WALLET_CONFIRM_URL:https://app.orangebybni.my.id/wallet/delete-confirm}
 orange:
   kafka:
     topics:
       wallet-created: wallet.events.created
       wallet-updated: wallet.events.updated
-
-
+      wallet-member-invited: wallet.events.member-invited
+      wallet-invite-generated: wallet.events.invite-generated
+      wallet-invite-accepted: wallet.events.invite-accepted
+app:
+  internal-user:
+    base-url: http://orange-user-service:8082
 logging:
   level:
     root: INFO
