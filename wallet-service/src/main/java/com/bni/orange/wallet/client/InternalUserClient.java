@@ -1,10 +1,12 @@
 package com.bni.orange.wallet.client;
 
+import com.bni.orange.wallet.model.response.ApiResponse;
 import com.bni.orange.wallet.model.response.users.UserProfileResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.UUID;
 
@@ -12,23 +14,36 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class InternalUserClient {
 
-    private final RestTemplate restTemplate;
-
-    @Value("${app.internal.user-service-base-url}")
-    private String userServiceBaseUrl;
+    private final @Qualifier("internalUserWebClient") WebClient webClient;
 
     public UserProfileResponse getUserProfile(UUID userId) {
-        String url = userServiceBaseUrl + "/internal/v1/user/" + userId;
-        var response = restTemplate.getForObject(url, ApiResponseUserProfile.class);
-        if (response == null || response.getData() == null) {
-            throw new IllegalStateException("Failed to fetch user profile for id=" + userId);
+        ApiResponse<UserProfileResponse> resp = webClient.get()
+            .uri("/internal/v1/user/{id}", userId)
+            .retrieve()
+            .bodyToMono(new ParameterizedTypeReference<ApiResponse<UserProfileResponse>>() {})
+            .block();
+
+        if (resp == null || resp.getData() == null) {
+            throw new IllegalStateException("User profile not found: " + userId);
         }
-        return response.getData();
+
+        return resp.getData();
     }
 
-    public static class ApiResponseUserProfile {
-        private UserProfileResponse data;
-        public UserProfileResponse getData() { return data; }
-        public void setData(UserProfileResponse data) { this.data = data; }
+    public UserProfileResponse getUserByPhone(String phoneE164) {
+        ApiResponse<UserProfileResponse> resp = webClient.get()
+            .uri(uriBuilder -> uriBuilder
+                .path("/internal/v1/user/by-phone")
+                .queryParam("phone", phoneE164)
+                .build())
+            .retrieve()
+            .bodyToMono(new ParameterizedTypeReference<ApiResponse<UserProfileResponse>>() {})
+            .block();
+
+        if (resp == null || resp.getData() == null) {
+            throw new IllegalStateException("User not found: " + phoneE164);
+        }
+
+        return resp.getData();
     }
 }

@@ -91,4 +91,14 @@ public class WalletController {
     var dto = command.confirmDeleteWallet(token);
     return ResponseEntity.ok(ApiResponse.ok("Wallet deleted", dto));
   }
+  @PostMapping("/wallets/delete/approve")
+  @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
+  public ResponseEntity<ApiResponse<WalletDeleteResultResponse>> approveDeleteWallet(
+      @RequestParam("token") String token
+  ) {
+    var dto = command.approveDeleteWallet(token);
+    return ResponseEntity.ok(ApiResponse.ok("OK", dto));
+  }
+
 }
+

@@ -47,4 +47,44 @@ public class MailService {
             throw new RuntimeException("Failed to send confirmation email");
         }
     }
+    private void sendHtml(String toEmail, String subject, String html) {
+        try {
+            MimeMessage msg = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(msg, true, "UTF-8");
+            helper.setFrom(from);
+            helper.setTo(toEmail);
+            helper.setSubject(subject);
+            helper.setText(html, true);
+            mailSender.send(msg);
+        } catch (MessagingException e) {
+            log.error("Failed to send email to {}", toEmail, e);
+            throw new RuntimeException("Failed to send email");
+        }
+    }
+
+    public void sendWalletDeleteApprovalEmailToAdmin(
+            String toEmail,
+            String walletName,
+            String requesterName,
+            String approvalLinkToken
+    ) {
+
+        String subject = "[Orange Wallet] Approval Required – Shared Wallet Deletion";
+
+        String html = """
+            <p>Hello Admin,</p>
+            <p>The shared wallet <b>%s</b> has been requested for deletion by <b>%s</b>.</p>
+            <p>Please review and approve the deletion if appropriate.</p>
+            <p><a href="%s" style="color:#1A73E8;">Click here to approve deletion</a></p>
+            <br>
+            <p>If you did not expect this email, you can ignore it.</p>
+            <p>Regards,<br>Orange Wallet System</p>
+            """.formatted(
+                walletName,
+                requesterName,
+                approvalLinkToken 
+            );
+
+        sendHtml(toEmail, subject, html);
+    }
 }
