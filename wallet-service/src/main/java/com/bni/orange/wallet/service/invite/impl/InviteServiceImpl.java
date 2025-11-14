@@ -35,7 +35,6 @@ import org.springframework.transaction.annotation.Transactional;
 import com.bni.orange.wallet.domain.DomainEvents.WalletInviteLinkGenerated;
 import com.bni.orange.wallet.domain.DomainEvents.WalletInviteAccepted;
 import com.bni.orange.wallet.exception.business.ResourceNotFoundException;
-
 import org.springframework.util.StringUtils;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -102,7 +101,7 @@ public class InviteServiceImpl implements InviteService {
     }
     walletRepo.findById(walletId).orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
     String conflictIndexKey;
-    String keyForConflictValue; // Nilai yang digunakan untuk format KEY_FMT
+    String keyForConflictValue; 
     
     if (userId != null) {
         keyForConflictValue = userId.toString();
@@ -199,6 +198,13 @@ public class InviteServiceImpl implements InviteService {
       var walletId = UUID.fromString((String) claims.get("wid"));
       var uidStr   = (String) claims.get("uid");
       var nonce    = (String) claims.get("n");
+      if (uidStr != null) {
+          var inviteUserId = UUID.fromString(uidStr);
+          var currentUserId = CurrentUser.userId();
+          if (currentUserId == null || !inviteUserId.equals(currentUserId)) {
+              throw new ForbiddenOperationException("Invite is not for this account");
+          }
+      }
 
       var session = getSessionFlexible(walletId, uidStr, nonce);
       String walletName = "Shared Wallet";
@@ -235,13 +241,22 @@ public class InviteServiceImpl implements InviteService {
       throw new ValidationFailedException("Token and code are required");
     }
     var initialClaims = parseAndValidate(token);
-    if (initialClaims.containsKey("uid")) {
-        throw new ForbiddenOperationException("Invite already verified or bound to a user, please proceed to accept token.");
-    }
+    // if (initialClaims.containsKey("uid")) {
+    //     throw new ForbiddenOperationException("Invite already verified or bound to a user, please proceed to accept token.");
+    // }
     var wid      = UUID.fromString((String) initialClaims.get("wid"));
     var nonce    = (String) initialClaims.get("n");
     var expires  = initialClaims.getExpiration().toInstant().atOffset(ZoneOffset.UTC);
-    var anonKey = String.format(KEY_FMT, wid, "-", nonce);
+    var uidStr   = (String) initialClaims.get("uid");
+    if (uidStr == null) {
+        throw new ValidationFailedException("Invite is not bound to a user");
+    }
+    var inviteUserId  = UUID.fromString(uidStr);
+    var currentUserId = CurrentUser.userId();
+    if (currentUserId == null || !inviteUserId.equals(currentUserId)) {
+        throw new ForbiddenOperationException("Invite is not for this account");
+    }
+    var anonKey = String.format(KEY_FMT, wid, uidStr, nonce);
     var json = redis.opsForValue().get(anonKey);
     if (json == null) {
       return VerifyInviteCodeResponse.builder()
@@ -255,7 +270,7 @@ public class InviteServiceImpl implements InviteService {
 
     if (s.getAttempts() >= s.getMaxAttempts()) {
       redis.delete(anonKey);
-      String indexKey = String.format(INDEX_KEY_FMT, wid, s.getPhone());
+      String indexKey = String.format("wallet:invite:index:user:%s:%s", wid, uidStr);
       redis.delete(indexKey);
       return VerifyInviteCodeResponse.builder()
           .status("EXPIRED").walletId(wid).verified(false).expiresAt(expires)
@@ -280,14 +295,13 @@ public class InviteServiceImpl implements InviteService {
           .expiresAt(expires)
           .build();
     }
-
     var uid = CurrentUser.userId();                
     s.setUserId(uid);
     s.setStatus("VERIFIED");
-    var boundKey = String.format(KEY_FMT, wid, uid, nonce);
+    // var boundKey = String.format(KEY_FMT, wid, uid, nonce);
     redis.delete(anonKey);
     var remain = remainingTtlSeconds(s.getCreatedAt());
-    if (remain > 0) redis.opsForValue().set(boundKey, writeJson(s), Duration.ofSeconds(remain));
+    if (remain > 0) redis.opsForValue().set(anonKey, writeJson(s), Duration.ofSeconds(remain));
 
     String boundToken = signToken(wid, uid, nonce);
 
@@ -432,6 +446,20 @@ public class InviteServiceImpl implements InviteService {
       throw new RuntimeException(e);
     }
   }
+  private String normalizePhone(String p) {
+    if (p == null) return null;
+    String s = p.trim().replaceAll("[^0-9+]", "");
+    if (s.startsWith("0")) {
+        s = "62" + s.substring(1);
+    }
+    if (s.startsWith("62")) {
+        s = "+" + s;
+    }
+    if (!s.startsWith("+")) {
+        s = "+" + s;
+    }
+    return s;
+}
   private void recountMembersActive(WalletMember m) {
     long active = memberReadRepo.countByWalletIdAndStatusIn(
         m.getWalletId(),
