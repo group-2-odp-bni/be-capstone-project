@@ -6,6 +6,7 @@ import com.bni.orange.wallet.model.response.ApiResponse;
 import com.bni.orange.wallet.model.response.BalanceResponse;
 import com.bni.orange.wallet.model.response.WalletDetailResponse;
 import com.bni.orange.wallet.model.response.WalletListItemResponse;
+import com.bni.orange.wallet.model.response.wallet.WalletDeleteResultResponse;
 import com.bni.orange.wallet.service.command.WalletCommandService;
 import com.bni.orange.wallet.service.query.WalletQueryService;
 import jakarta.validation.Valid;
@@ -83,5 +84,22 @@ public class WalletController {
   public ResponseEntity<ApiResponse<BalanceResponse>> getBalance(@PathVariable UUID walletId) {
     var dto = query.getBalance(walletId);
     return ResponseEntity.ok(ApiResponse.ok("OK", dto));
+  }
+  @DeleteMapping("/wallets/{walletId}")
+  @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
+  public ResponseEntity<ApiResponse<WalletDeleteResultResponse>> deleteWallet(
+      @PathVariable UUID walletId
+  ) {
+    var dto = command.deleteWallet(walletId);
+    return ResponseEntity.ok(ApiResponse.ok("OK", dto));
+  }
+
+  @PostMapping("/wallets/delete/confirm")
+  @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
+  public ResponseEntity<ApiResponse<WalletDeleteResultResponse>> confirmDeleteWallet(
+      @RequestParam("token") String token
+  ) {
+    var dto = command.confirmDeleteWallet(token);
+    return ResponseEntity.ok(ApiResponse.ok("Wallet deleted", dto));
   }
 }
