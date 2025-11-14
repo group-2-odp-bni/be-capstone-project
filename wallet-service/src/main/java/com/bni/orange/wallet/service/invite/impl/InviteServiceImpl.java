@@ -241,9 +241,7 @@ public class InviteServiceImpl implements InviteService {
       throw new ValidationFailedException("Token and code are required");
     }
     var initialClaims = parseAndValidate(token);
-    // if (initialClaims.containsKey("uid")) {
-    //     throw new ForbiddenOperationException("Invite already verified or bound to a user, please proceed to accept token.");
-    // }
+
     var wid      = UUID.fromString((String) initialClaims.get("wid"));
     var nonce    = (String) initialClaims.get("n");
     var expires  = initialClaims.getExpiration().toInstant().atOffset(ZoneOffset.UTC);
@@ -298,7 +296,6 @@ public class InviteServiceImpl implements InviteService {
     var uid = CurrentUser.userId();                
     s.setUserId(uid);
     s.setStatus("VERIFIED");
-    // var boundKey = String.format(KEY_FMT, wid, uid, nonce);
     redis.delete(anonKey);
     var remain = remainingTtlSeconds(s.getCreatedAt());
     if (remain > 0) redis.opsForValue().set(anonKey, writeJson(s), Duration.ofSeconds(remain));

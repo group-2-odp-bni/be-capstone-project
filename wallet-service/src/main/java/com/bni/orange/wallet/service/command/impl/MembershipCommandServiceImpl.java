@@ -245,7 +245,7 @@ public class MembershipCommandServiceImpl implements MembershipCommandService {
     memberReadRepo.deleteByWalletIdAndUserId(walletId, userId);
   }
   private void deleteUserWalletRead(UUID walletId, UUID userId) {
-      userWalletReadRepo.findByUserIdAndWalletId(walletId, userId).ifPresent(uw -> {
+      userWalletReadRepo.findByUserIdAndWalletId(userId,walletId).ifPresent(uw -> {
           userWalletReadRepo.delete(uw);
       });
   }
