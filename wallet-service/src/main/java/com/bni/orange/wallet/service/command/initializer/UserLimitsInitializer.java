@@ -7,6 +7,8 @@ import lombok.RequiredArgsConstructor;
 import com.bni.orange.wallet.repository.UserLimitsRepository;
 import com.bni.orange.wallet.repository.read.UserLimitsReadRepository;
 import com.bni.orange.wallet.model.entity.UserLimits;
+import com.bni.orange.wallet.model.entity.read.UserLimitsRead;
+
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -45,21 +47,24 @@ public class UserLimitsInitializer {
             .build();
 
         oltpRepo.save(entity);
+        
+        var mirror = UserLimitsRead.builder()
+             .userId(userId)
+             .perTxMaxRp(entity.getPerTxMaxRp())
+             .dailyMaxRp(entity.getDailyMaxRp())
+             .weeklyMaxRp(entity.getWeeklyMaxRp())
+             .monthlyMaxRp(entity.getMonthlyMaxRp())
+             .perTxMinRp(entity.getPerTxMinRp())
+             .enforcePerTx(entity.isEnforcePerTx())
+             .enforceDaily(entity.isEnforceDaily())
+             .enforceWeekly(entity.isEnforceWeekly())
+             .enforceMonthly(entity.isEnforceMonthly())
+             .effectiveFrom(entity.getEffectiveFrom())
+             .effectiveThrough(entity.getEffectiveThrough())
+             .timezone(entity.getTimezone())
+             .build();
+             
+        readRepo.save(mirror);
 
-        readRepo.mirrorUpdate(
-            userId,
-            entity.getPerTxMaxRp(),
-            entity.getDailyMaxRp(),
-            entity.getWeeklyMaxRp(),
-            entity.getMonthlyMaxRp(),
-            entity.getPerTxMinRp(),
-            entity.isEnforcePerTx(),
-            entity.isEnforceDaily(),
-            entity.isEnforceWeekly(),
-            entity.isEnforceMonthly(),
-            entity.getEffectiveFrom(),
-            entity.getEffectiveThrough(),
-            entity.getTimezone()
-        );
     }
 }
