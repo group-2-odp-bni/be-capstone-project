@@ -78,6 +78,21 @@ public class WalletReadModelProjector {
         idx.setUpdatedAt(OffsetDateTime.now());
         userWalletReadRepo.save(idx);
     }
+
+    @Transactional
+    public void projectWalletMembersCleared(DomainEvents.WalletMembersCleared event) {
+        UUID walletId = event.getWalletId();
+        walletMemberReadRepo.deleteAllByWalletId(walletId);
+        userWalletReadRepo.deleteAllByWalletId(walletId);
+        walletReadRepo.findById(walletId).ifPresent(wr -> {
+            wr.setMembersActive(0);
+            wr.setDefaultForUser(false);
+            wr.setUpdatedAt(OffsetDateTime.now());
+            walletReadRepo.save(wr);
+        });
+    }
+
+
     @Transactional
     public void upsertWalletRead(Wallet src, boolean isCreate) {
         var existing = walletReadRepo.findById(src.getId());

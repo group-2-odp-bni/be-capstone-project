@@ -12,6 +12,7 @@ import java.util.UUID;
 public interface UserWalletReadRepository extends JpaRepository<UserWalletRead, PK> {
   Page<UserWalletRead> findByUserId(UUID userId, Pageable pageable);
   boolean existsByUserIdAndWalletId(UUID userId, UUID walletId);
+  void deleteAllByWalletId(UUID walletId);
 
   Optional<UserWalletRead> findByUserIdAndWalletId(UUID userId, UUID walletId);
 }

@@ -17,5 +17,6 @@ public interface WalletMemberReadRepository extends JpaRepository<WalletMemberRe
 
   Page<WalletMemberRead> findByWalletId(UUID walletId, Pageable pageable);
   void deleteByWalletIdAndUserId(java.util.UUID walletId, java.util.UUID userId);
+  void deleteAllByWalletId(UUID walletId);
 
 }
