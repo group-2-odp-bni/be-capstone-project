@@ -13,5 +13,6 @@ public interface WalletCommandService {
   WalletDetailResponse updateWallet(UUID walletId, WalletUpdateRequest req);
   WalletDeleteResultResponse deleteWallet(UUID walletId);
   WalletDeleteResultResponse confirmDeleteWallet(String token);
+  WalletDeleteResultResponse approveDeleteWallet(String token);
 
 }

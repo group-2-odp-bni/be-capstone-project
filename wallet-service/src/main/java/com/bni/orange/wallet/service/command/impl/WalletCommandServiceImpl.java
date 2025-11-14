@@ -75,11 +75,12 @@ public class WalletCommandServiceImpl implements WalletCommandService {
 
   @Value("${app.wallet-delete.secret}")
   private String walletDeleteSecret;
-
-  @Value("${app.wallet-delete.ttl-seconds:900}")
+  
+  @Value("${app.wallet-delete.ttl-seconds:86400}")
   private long deleteTtlSeconds;
 
-  private static final String WALLET_DELETE_KEY_FMT = "wallet:delete:%s:%s";
+  private static final String WALLET_DELETE_KEY_FMT = "wallet:delete:%s:%s"; 
+
   public WalletCommandServiceImpl(
       WalletRepository walletRepo,
       WalletMemberRepository walletMemberRepo,
@@ -297,43 +298,60 @@ public class WalletCommandServiceImpl implements WalletCommandService {
       if (wallet.getType() == WalletType.PERSONAL) {
           return doDeleteWallet(walletId, uid);
       }
+    WalletMember me = walletMemberRepo.findByWalletIdAndUserId(walletId, uid)
+        .orElseThrow(() -> new AccessDeniedException("You are not a member of this wallet"));
 
-      WalletMember member = walletMemberRepo.findByWalletIdAndUserId(walletId, uid)
-          .orElseThrow(() -> new AccessDeniedException("You are not a member of this wallet"));
+    if (me.getStatus() != WalletMemberStatus.ACTIVE || me.getRole() != WalletMemberRole.OWNER) {
+        throw new AccessDeniedException("Only ACTIVE OWNER can request deletion for shared wallet");
+    }
+        List<WalletMember> admins = walletMemberRepo
+        .findByWalletId(walletId, Pageable.unpaged())
+        .getContent()
+        .stream()
+        .filter(wm -> wm.getStatus() == WalletMemberStatus.ACTIVE)
+        .filter(wm -> wm.getRole() == WalletMemberRole.ADMIN)
+        .toList();
 
-      if (member.getRole() != WalletMemberRole.OWNER) {
-          throw new AccessDeniedException("Only OWNER can request deletion for shared wallet");
-      }
+    if (admins.isEmpty()) {
+        return doDeleteWallet(walletId, uid);
+    }
+    var ownerProfile = internalUserClient.getUserProfile(uid);
+    if (ownerProfile.getEmail() == null || Boolean.FALSE.equals(ownerProfile.getEmailVerified())) {
+        throw new ValidationFailedException("Owner email not available or not verified");
+    }
+    String nonce = UUID.randomUUID().toString().replace("-", "");
 
-      var profile = internalUserClient.getUserProfile(uid);
-      if (profile.getEmail() == null || Boolean.FALSE.equals(profile.getEmailVerified())) {
-          throw new ValidationFailedException("Email not available or not verified");
-      }
+    var session = WalletDeleteSession.builder()
+        .walletId(walletId)
+        .ownerId(uid)
+        .nonce(nonce)
+        .createdAt(OffsetDateTime.now())
+        .adminIds(admins.stream().map(WalletMember::getUserId).toList())
+        .approvedAdminIds(List.of()) 
+        .build();
+    String key = String.format(WALLET_DELETE_KEY_FMT, walletId, nonce);
+    try {
+        String json = om.writeValueAsString(session);
+        redis.opsForValue().set(key, json, Duration.ofSeconds(deleteTtlSeconds));
+    } catch (Exception e) {
+        throw new RuntimeException("Failed to create delete wallet session", e);
+    }
+    for (WalletMember admin : admins) {
+        UUID adminId = admin.getUserId();
+        var adminProfile = internalUserClient.getUserProfile(adminId);
+        if (adminProfile.getEmail() == null || Boolean.FALSE.equals(adminProfile.getEmailVerified())) {
+            continue;
+        }
 
-      String nonce = UUID.randomUUID().toString().replace("-", "");
-      var session = WalletDeleteSession.builder()
-          .walletId(walletId)
-          .ownerId(uid)
-          .nonce(nonce)
-          .createdAt(OffsetDateTime.now())
-          .build();
+        String token = signDeleteTokenForAdmin(walletId, uid, adminId, nonce);
 
-      String key = String.format(WALLET_DELETE_KEY_FMT, walletId, nonce);
-      try {
-          String json = om.writeValueAsString(session);
-          redis.opsForValue().set(key, json, Duration.ofSeconds(deleteTtlSeconds));
-      } catch (Exception e) {
-          throw new RuntimeException("Failed to create delete wallet session", e);
-      }
-
-      String token = signDeleteToken(walletId, uid, nonce);
-
-      mailService.sendWalletDeleteConfirmationEmail(
-          profile.getEmail(),
-          wallet.getName(),
-          token
-      );
-
+        mailService.sendWalletDeleteApprovalEmailToAdmin(
+            adminProfile.getEmail(),
+            wallet.getName(),
+            ownerProfile.getName() != null ? ownerProfile.getName() : "Wallet Owner",
+            token
+        );
+    }
       return WalletDeleteResultResponse.builder()
           .walletId(walletId)
           .destinationWalletId(null)
@@ -341,6 +359,7 @@ public class WalletCommandServiceImpl implements WalletCommandService {
           .message("Deletion requested. Confirmation email has been sent.")
           .build();
   }
+
   @Override
   public WalletDeleteResultResponse confirmDeleteWallet(String token) {
       Claims claims = parseDeleteToken(token);
@@ -374,22 +393,106 @@ public class WalletCommandServiceImpl implements WalletCommandService {
 
       return doDeleteWallet(walletId, ownerId);
   }
+@Override
+public WalletDeleteResultResponse approveDeleteWallet(String token) {
+    Claims claims = parseDeleteToken(token); // sama seperti dulu, tapi baca aid juga
+    UUID walletId = UUID.fromString((String) claims.get("wid"));
+    UUID ownerId  = UUID.fromString((String) claims.get("oid"));
+    UUID adminId  = UUID.fromString((String) claims.get("aid"));
+    String nonce  = (String) claims.get("n");
 
-  private String signDeleteToken(UUID walletId, UUID ownerId, String nonce) {
-      long now = System.currentTimeMillis();
-      long exp = now + deleteTtlSeconds * 1000L;
-      byte[] key = walletDeleteSecret.getBytes(StandardCharsets.UTF_8);
+    String key = String.format(WALLET_DELETE_KEY_FMT, walletId, nonce);
+    String json = redis.opsForValue().get(key);
+    if (json == null) {
+        throw new ValidationFailedException("Delete session expired or not found");
+    }
 
-      return Jwts.builder()
-          .setSubject("wallet-delete")
-          .claim("wid", walletId.toString())
-          .claim("oid", ownerId.toString())
-          .claim("n", nonce)
-          .setIssuedAt(new Date(now))
-          .setExpiration(new Date(exp))
-          .signWith(Keys.hmacShaKeyFor(key))
-          .compact();
-  }
+    WalletDeleteSession session;
+    try {
+        session = om.readValue(json, WalletDeleteSession.class);
+    } catch (Exception e) {
+        throw new RuntimeException("Corrupted delete session", e);
+    }
+
+    if (!session.getOwnerId().equals(ownerId) || !session.getWalletId().equals(walletId)) {
+        throw new ValidationFailedException("Delete session does not match token");
+    }
+
+    if (!session.getAdminIds().contains(adminId)) {
+        throw new AccessDeniedException("You are not required admin for this deletion");
+    }
+
+    UUID currentUserId = guard.currentUserOrThrow();
+    if (!currentUserId.equals(adminId)) {
+        throw new AccessDeniedException("Delete approval is not for this account");
+    }
+
+    List<UUID> approved = new java.util.ArrayList<>(session.getApprovedAdminIds());
+    if (!approved.contains(adminId)) {
+        approved.add(adminId);
+        session.setApprovedAdminIds(approved);
+    }
+
+    boolean allApproved = session.getAdminIds().stream().allMatch(approved::contains);
+
+    if (!allApproved) {
+        try {
+            String updatedJson = om.writeValueAsString(session);
+            redis.opsForValue().set(key, updatedJson, Duration.ofSeconds(remainingTtlSeconds(session.getCreatedAt())));
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to update delete session", e);
+        }
+
+        return WalletDeleteResultResponse.builder()
+            .walletId(walletId)
+            .destinationWalletId(null)
+            .balanceMoved(BigDecimal.ZERO)
+            .message("Your approval has been recorded. Waiting for other admins.")
+            .build();
+    }
+
+    redis.delete(key);
+
+    return doDeleteWallet(walletId, ownerId);
+}
+private long remainingTtlSeconds(OffsetDateTime createdAt) {
+    long passedSeconds = Duration.between(createdAt, OffsetDateTime.now()).getSeconds();
+    long remaining = deleteTtlSeconds - passedSeconds;
+    return Math.max(remaining, 1); 
+}
+
+  private String signDeleteTokenForAdmin(UUID walletId, UUID ownerId, UUID adminId, String nonce) {
+        long now = System.currentTimeMillis();
+        long exp = now + deleteTtlSeconds * 1000L;
+        byte[] key = walletDeleteSecret.getBytes(StandardCharsets.UTF_8);
+
+        return Jwts.builder()
+            .setSubject("wallet-delete-approval")
+            .claim("wid", walletId.toString())
+            .claim("oid", ownerId.toString())
+            .claim("aid", adminId.toString())
+            .claim("n", nonce)
+            .setIssuedAt(new Date(now))
+            .setExpiration(new Date(exp))
+            .signWith(Keys.hmacShaKeyFor(key))
+            .compact();
+    }
+
+    private String signDeleteToken(UUID walletId, UUID ownerId, String nonce) {
+        long now = System.currentTimeMillis();
+        long exp = now + deleteTtlSeconds * 1000L;
+        byte[] key = walletDeleteSecret.getBytes(StandardCharsets.UTF_8);
+
+        return Jwts.builder()
+            .setSubject("wallet-delete")
+            .claim("wid", walletId.toString())
+            .claim("oid", ownerId.toString())
+            .claim("n", nonce)
+            .setIssuedAt(new Date(now))
+            .setExpiration(new Date(exp))
+            .signWith(Keys.hmacShaKeyFor(key))
+            .compact();
+    }
 
   private Claims parseDeleteToken(String token) {
       try {
