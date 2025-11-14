@@ -2,6 +2,7 @@ package com.bni.orange.wallet.service.command.impl;
 
 import com.bni.orange.wallet.client.InternalUserClient;
 import com.bni.orange.wallet.domain.DomainEvents;
+import com.bni.orange.wallet.exception.business.ConflictException;
 import com.bni.orange.wallet.exception.business.ResourceNotFoundException;
 import com.bni.orange.wallet.exception.business.ValidationFailedException;
 import com.bni.orange.wallet.model.entity.UserReceivePrefs;
@@ -143,24 +144,33 @@ public class WalletCommandServiceImpl implements WalletCommandService {
   }
 
   private WalletDetailResponse doCreateWalletInternal(UUID userId, WalletCreateRequest req) {
-    var w = mapper.toEntity(req, userId);
+    final UUID uid = guard.currentUserOrThrow();
+    if (req.getName() != null && req.getType() != null) {
+        boolean exists = walletRepo.existsByUserIdAndNameAndType(uid, req.getName(), req.getType());
+        if (exists) {
+            throw new ConflictException("Wallet with the name '" + req.getName() +
+                                        "' and type '" + req.getType().name() +
+                                        "' already exists for this user.");
+        }
+    }
+    Wallet w = mapper.toEntity(req, uid);
     w.setId(null);
-    if (w.getUserId() == null) w.setUserId(userId);
+    if (w.getUserId() == null) w.setUserId(uid);
     if (w.getName() == null && w.getType() != null) {
         w.setName(w.getType().name().toLowerCase() + " wallet");
     }
     final Wallet saved = walletRepo.save(w);
-    upsertOwnerMembership(saved.getId(), userId);
+    upsertOwnerMembership(saved.getId(), uid);
     boolean wantDefault = Boolean.TRUE.equals(req.getSetAsDefaultReceive());
-    boolean hasDefault = prefsRepo.findById(userId).map(UserReceivePrefs::getDefaultWalletId).isPresent();
+    boolean hasDefault = prefsRepo.findById(uid).map(UserReceivePrefs::getDefaultWalletId).isPresent();
     boolean isNowDefault = wantDefault || !hasDefault;
 
     if (isNowDefault) {
-        markAsDefaultReceivePrefsOnly(userId, saved.getId());
+        markAsDefaultReceivePrefsOnly(uid, saved.getId());
     }
     appEvents.publishEvent(DomainEvents.WalletCreated.builder()
                     .walletId(saved.getId())
-                    .userId(userId)
+                    .userId(uid)
                     .type(saved.getType())
                     .status(saved.getStatus())
                     .currency(saved.getCurrency())
@@ -238,12 +248,15 @@ public class WalletCommandServiceImpl implements WalletCommandService {
       BigDecimal balance = wallet.getBalanceSnapshot() != null
           ? wallet.getBalanceSnapshot()
           : BigDecimal.ZERO;
-      if (balance.compareTo(BigDecimal.ZERO) > 0) {
+        OffsetDateTime now = OffsetDateTime.now();
+
+        if (balance.compareTo(BigDecimal.ZERO) > 0) {
           BigDecimal destBalance = destWallet.getBalanceSnapshot() != null
               ? destWallet.getBalanceSnapshot()
               : BigDecimal.ZERO;
 
           destWallet.setBalanceSnapshot(destBalance.add(balance));
+          destWallet.setUpdatedAt(now);
           wallet.setBalanceSnapshot(BigDecimal.ZERO);
       }
 
@@ -252,26 +265,37 @@ public class WalletCommandServiceImpl implements WalletCommandService {
 
       walletRepo.save(destWallet);
       walletRepo.save(wallet);
-
-      walletReadRepo.findById(walletId).ifPresent(wr -> {
-          wr.setStatus(wallet.getStatus());
-          wr.setMembersActive(0);
-          wr.setUpdatedAt(wallet.getUpdatedAt());
-          walletReadRepo.save(wr);
-      });
-
-      List<WalletMember> members = walletMemberRepo
-          .findByWalletId(walletId, Pageable.unpaged())
-          .getContent();
-
-      for (WalletMember wm : members) {
-          UUID memberUserId = wm.getUserId();
-
-          walletMemberRepo.delete(wm);
-          walletMemberReadRepo.deleteByWalletIdAndUserId(walletId, memberUserId);
-          userWalletReadRepo.findByUserIdAndWalletId(memberUserId, walletId)
-              .ifPresent(userWalletReadRepo::delete);
-      }
+      appEvents.publishEvent(DomainEvents.WalletUpdated.builder()
+                    .walletId(wallet.getId())
+              .userId(wallet.getUserId())
+              .type(wallet.getType())
+              .status(wallet.getStatus())
+              .currency(wallet.getCurrency())
+              .name(wallet.getName())
+              .balanceSnapshot(wallet.getBalanceSnapshot())
+              .updatedAt(wallet.getUpdatedAt())
+              .build());
+      appEvents.publishEvent(DomainEvents.WalletUpdated.builder()
+                    .walletId(destWallet.getId())
+              .userId(destWallet.getUserId())
+              .type(destWallet.getType())
+              .status(destWallet.getStatus())
+              .currency(destWallet.getCurrency())
+              .name(destWallet.getName())
+              .balanceSnapshot(destWallet.getBalanceSnapshot())
+              .updatedAt(destWallet.getUpdatedAt())
+              .build());
+        var members = walletMemberRepo
+                .findByWalletId(walletId, Pageable.unpaged())
+                .getContent();
+        for (WalletMember wm : members) {
+            walletMemberRepo.delete(wm);
+        }
+    appEvents.publishEvent(
+        DomainEvents.WalletMembersCleared.builder()
+            .walletId(walletId)
+            .build()
+    );
 
       prefsRepo.findById(actorId).ifPresent(p -> {
           if (walletId.equals(p.getDefaultWalletId())) {

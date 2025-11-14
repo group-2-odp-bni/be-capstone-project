@@ -4,12 +4,14 @@ import com.bni.orange.wallet.domain.DomainEvents.WalletCreated;
 import com.bni.orange.wallet.domain.DomainEvents.WalletInviteAccepted;
 import com.bni.orange.wallet.domain.DomainEvents.WalletInviteLinkGenerated;
 import com.bni.orange.wallet.domain.DomainEvents.WalletMemberInvited;
+import com.bni.orange.wallet.domain.DomainEvents.WalletMembersCleared;
 import com.bni.orange.wallet.domain.DomainEvents.WalletUpdated;
 import com.bni.orange.wallet.messaging.WalletEventPublisher;
 import com.bni.orange.wallet.proto.WalletCreatedEvent;
 import com.bni.orange.wallet.proto.WalletInviteAcceptedEvent;
 import com.bni.orange.wallet.proto.WalletInviteLinkGeneratedEvent;
 import com.bni.orange.wallet.proto.WalletMemberInvitedEvent;
+import com.bni.orange.wallet.proto.WalletMembersClearedEvent;
 import com.bni.orange.wallet.proto.WalletUpdatedEvent;
 import com.bni.orange.wallet.service.command.projector.WalletReadModelProjector;
 import lombok.RequiredArgsConstructor;
@@ -125,5 +127,20 @@ public class WalletAfterCommitListener {
 
         log.info("DEBUG: WalletInviteAccepted sent to Kafka");
     }
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onWalletMembersCleared(WalletMembersCleared e) {
 
+        log.info("DEBUG: WalletMembersCleared AFTER_COMMIT triggered");
+
+        var payload = WalletMembersClearedEvent.newBuilder()
+                .setWalletId(e.getWalletId().toString())
+                .build();
+
+        publisher.publishWalletMembersCleared(
+                e.getWalletId().toString(),
+                payload
+        );
+
+        log.info("DEBUG: WalletMembersCleared sent to Kafka");
+    }
 }
