@@ -24,18 +24,25 @@ public class UserEventListener {
 
     @KafkaListener(topics = "auth.user.registered", groupId = "wallet-service-group")
     public void handleUserRegistered(byte[] data) {
-        log.info("Received raw message on topic auth.user.registered");
+        log.info("Received user-registered event from Kafka");
         try {
             var event = UserRegisteredEvent.parseFrom(data);
-            log.info("Successfully parsed UserRegisteredEvent for user ID: {}", event.getUserId());
-
             var userIdStr = event.getUserId();
-            if (userIdStr.isEmpty()) {
-                log.error("User ID is missing from the user-registered event.");
+
+            if (userIdStr == null || userIdStr.isEmpty()) {
+                log.error("CRITICAL: User ID is missing from user-registered event. Event will be skipped.");
                 return;
             }
 
-            var userId = UUID.fromString(userIdStr);
+            UUID userId;
+            try {
+                userId = UUID.fromString(userIdStr);
+            } catch (IllegalArgumentException e) {
+                log.error("CRITICAL: Invalid UUID format for user ID: {}. Event will be skipped.", userIdStr);
+                return;
+            }
+
+            log.info("Processing user-registered event for userId={}", userId);
 
             var createRequest = WalletCreateRequest.builder()
                 .type(WalletType.PERSONAL)
@@ -44,16 +51,21 @@ public class UserEventListener {
                 .setAsDefaultReceive(true)
                 .build();
 
-
             var idempotencyKey = "user-registered:" + userId;
 
-            log.info("Creating default wallet for user ID: {}", userId);
-            walletCommandService.createWalletForUser(userId, createRequest, idempotencyKey);
-            log.info("Successfully created default wallet for user ID: {}", userId);
+            log.info("Creating default PERSONAL wallet for userId={} with idempotencyKey={}", userId, idempotencyKey);
+
+            var result = walletCommandService.createWalletForUser(userId, createRequest, idempotencyKey);
+
+            log.info("Successfully created default wallet for userId={}, walletId={}, walletName={}",
+                userId, result.getId(), result.getName());
+
         } catch (InvalidProtocolBufferException e) {
-            log.error("Failed to parse Protobuf message from topic auth.user.registered", e);
+            log.error("CRITICAL: Failed to parse Protobuf message from topic auth.user.registered. " +
+                "Message will be skipped. Error: {}", e.getMessage(), e);
         } catch (Exception e) {
-            log.error("An unexpected error occurred while processing user-registered event: {}", e.getMessage(), e);
+            log.error("CRITICAL: Unexpected error while processing user-registered event. " +
+                "userId may not have default wallet! Error: {}", e.getMessage(), e);
         }
     }
 }

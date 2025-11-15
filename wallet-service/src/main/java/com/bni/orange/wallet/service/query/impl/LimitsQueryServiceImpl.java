@@ -5,9 +5,11 @@ import com.bni.orange.wallet.model.enums.PeriodType;
 import com.bni.orange.wallet.model.response.limits.UserLimitsResponse;
 import com.bni.orange.wallet.repository.read.UserLimitsReadRepository;
 import com.bni.orange.wallet.service.command.LimitCounterService;
+import com.bni.orange.wallet.service.command.initializer.UserLimitsInitializer;
 import com.bni.orange.wallet.service.query.LimitsQueryService;
 import com.bni.orange.wallet.utils.limits.LimitBuckets;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -18,19 +20,28 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class LimitsQueryServiceImpl implements LimitsQueryService {
 
   private final UserLimitsReadRepository readRepo;
   private final LimitCounterService limitCounterService;
+  private final UserLimitsInitializer limitsInitializer;
 
   @Override
-  @Transactional(readOnly = true)
+  @Transactional
   public UserLimitsResponse getMyLimits() {
     UUID userId = currentUserId();
+
+    // Defensive programming: Auto-initialize if not found
     UserLimitsRead m = readRepo.findByUserId(userId)
-        .orElseThrow(() -> new IllegalStateException("User limits not found"));
+        .orElseGet(() -> {
+            log.warn("User limits not found for userId={}, auto-initializing...", userId);
+            limitsInitializer.ensureDefaultsForUser(userId);
+            return readRepo.findByUserId(userId)
+                .orElseThrow(() -> new IllegalStateException("Failed to initialize user limits for userId=" + userId));
+        });
     var zone = (m.getTimezone() == null || m.getTimezone().isBlank())
         ? ZoneId.of("Asia/Jakarta")
         : ZoneId.of(m.getTimezone());

@@ -143,9 +143,8 @@ public class WalletCommandServiceImpl implements WalletCommandService {
     return doCreateWalletInternal(userId, req);
   }
 
-  private WalletDetailResponse doCreateWalletInternal(UUID userId, WalletCreateRequest req) {
-    final UUID uid = guard.currentUserOrThrow();
-    if (req.getName() != null && req.getType() != null) {
+  private WalletDetailResponse doCreateWalletInternal(UUID uid, WalletCreateRequest req) {
+      if (req.getName() != null && req.getType() != null) {
         boolean exists = walletRepo.existsByUserIdAndNameAndType(uid, req.getName(), req.getType());
         if (exists) {
             throw new ConflictException("Wallet with the name '" + req.getName() +
@@ -210,8 +209,7 @@ public class WalletCommandServiceImpl implements WalletCommandService {
                   .map(defaultId -> defaultId.equals(saved.getId()))
                   .orElse(false);
       var filtered = MetadataFilter.filter(saved.getMetadata());
-      var dto = mapper.toDetailResponseFromWalletEntity(saved, filtered, isDefault);
-      return dto;
+      return mapper.toDetailResponseFromWalletEntity(saved, filtered, isDefault);
     }
 
   private WalletDeleteResultResponse doDeleteWallet(UUID walletId, UUID actorId) {

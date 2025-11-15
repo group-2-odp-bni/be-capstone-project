@@ -13,6 +13,8 @@ public interface UserLimitsReadRepository extends JpaRepository<UserLimitsRead, 
 
   Optional<UserLimitsRead> findByUserId(UUID userId);
 
+  boolean existsByUserId(UUID userId);
+
   @Transactional @Modifying
   @Query("""
       UPDATE UserLimitsRead u

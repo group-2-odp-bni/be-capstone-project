@@ -30,13 +30,13 @@ public class WalletAfterCommitListener {
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onWalletCreated(WalletCreated e) {
+        log.info("Processing WalletCreated event: walletId={}, userId={}", e.getWalletId(), e.getUserId());
         try {
             readModelProjector.projectNewWallet(e);
+            log.info("Successfully projected wallet to read model: walletId={}", e.getWalletId());
         } catch (Exception ex) {
-            // Log but don't throw - we don't want to break Kafka publishing
-            // Read model can be rebuilt later if needed
-            System.err.println("ERROR: Failed to project wallet to read model: " + e.getWalletId());
-            ex.printStackTrace();
+            log.error("CRITICAL: Failed to project wallet to read model - DATA INCONSISTENCY! " +
+                "walletId={}, userId={}, type={}", e.getWalletId(), e.getUserId(), e.getType(), ex);
         }
 
         var payload = WalletCreatedEvent.newBuilder()
@@ -56,8 +56,14 @@ public class WalletAfterCommitListener {
     }
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onWalletUpdated(WalletUpdated e) {
-        // Synchronously update read model
-        readModelProjector.projectWalletUpdateFromEvent(e);
+        log.info("Processing WalletUpdated event: walletId={}, userId={}", e.getWalletId(), e.getUserId());
+        try {
+            readModelProjector.projectWalletUpdateFromEvent(e);
+            log.info("Successfully projected wallet update to read model: walletId={}", e.getWalletId());
+        } catch (Exception ex) {
+            log.error("CRITICAL: Failed to project wallet update to read model - DATA INCONSISTENCY! " +
+                "walletId={}, userId={}", e.getWalletId(), e.getUserId(), ex);
+        }
 
         // Publish to Kafka for external consumers
         var payload = WalletUpdatedEvent.newBuilder()
@@ -129,8 +135,15 @@ public class WalletAfterCommitListener {
     }
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onWalletMembersCleared(WalletMembersCleared e) {
+        log.info("Processing WalletMembersCleared event: walletId={}", e.getWalletId());
 
-        log.info("DEBUG: WalletMembersCleared AFTER_COMMIT triggered");
+        try {
+            readModelProjector.projectWalletMembersCleared(e);
+            log.info("Successfully projected wallet members cleared to read model: walletId={}", e.getWalletId());
+        } catch (Exception ex) {
+            log.error("CRITICAL: Failed to project wallet members cleared to read model - DATA INCONSISTENCY! " +
+                "walletId={}", e.getWalletId(), ex);
+        }
 
         var payload = WalletMembersClearedEvent.newBuilder()
                 .setWalletId(e.getWalletId().toString())
@@ -141,6 +154,6 @@ public class WalletAfterCommitListener {
                 payload
         );
 
-        log.info("DEBUG: WalletMembersCleared sent to Kafka");
+        log.info("WalletMembersCleared sent to Kafka: walletId={}", e.getWalletId());
     }
 }
