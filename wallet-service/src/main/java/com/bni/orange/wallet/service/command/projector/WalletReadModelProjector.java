@@ -49,6 +49,7 @@ public class WalletReadModelProjector {
             .createdAt(event.getCreatedAt())
             .updatedAt(event.getUpdatedAt())
             .build();
+
         walletReadRepo.save(wr);
         upsertWalletMemberRead(event.getWalletId(), event.getUserId(), WalletMemberRole.OWNER, WalletMemberStatus.ACTIVE);
         UserWalletRead idx = UserWalletRead.builder()
@@ -60,6 +61,9 @@ public class WalletReadModelProjector {
                 .walletName(event.getName())
                 .build();
         userWalletReadRepo.save(idx);
+
+        log.info("user wallet read success update");
+
         if (event.isDefaultForUser()) {
             markAsDefaultReceive(event.getUserId(), event.getWalletId());
         }

@@ -28,10 +28,6 @@ public class TransactionHistoryService {
     private final TransactionMapper transactionMapper;
     private final WalletServiceClient walletServiceClient;
 
-    /**
-     * Get transaction history for a specific wallet or user.
-     * Returns lightweight summary response optimized for list views.
-     */
     @Transactional(readOnly = true)
     public Page<TransactionSummaryResponse> getUserTransactions(
         UUID userId,
@@ -56,10 +52,6 @@ public class TransactionHistoryService {
             .map(transactionMapper::toSummaryResponse);
     }
 
-    /**
-     * Get transaction history across all user's wallets.
-     * Returns lightweight summary response optimized for list views.
-     */
     @Transactional(readOnly = true)
     public Page<TransactionSummaryResponse> getAllWalletTransactions(
         UUID userId,

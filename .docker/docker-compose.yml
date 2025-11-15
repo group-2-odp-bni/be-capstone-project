@@ -289,8 +289,8 @@ services:
       - DB_PASSWORD=mikasa
       - SPRING_DATA_REDIS_HOST=redis
       - JWK_SET_URI=http://authentication-service:8081/oauth2/jwks
-      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - USER_SERVICE_URL=http://user-service:8082
+      - INTERNAL_USER_SERVICE_URL=http://user-service:8082
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
     depends_on:
       cloud-config-server:
         condition: service_healthy
@@ -332,6 +332,7 @@ services:
       - AUTH_SERVICE_JWK_URI=http://authentication-service:8081/oauth2/jwks
       - USER_SERVICE_URL=http://user-service:8082
       - WALLET_SERVICE_URL=http://wallet-service:8083
+      - AUTH_SERVICE_URL=http://authentication-service:8081
     depends_on:
       cloud-config-server:
         condition: service_healthy
@@ -362,7 +363,7 @@ services:
       context: ../notification-worker
     container_name: orange-notification-worker
     ports:
-      - "127.0.0.1:8085:8085"  # Localhost only - for emergency manual access via SSH
+      - "127.0.0.1:8095:8085"  # Localhost only - for emergency manual access via SSH
     environment:
       - SPRING_PROFILES_ACTIVE=prod
       - SPRING_CONFIG_IMPORT=configserver:http://cloud-config-server:8888

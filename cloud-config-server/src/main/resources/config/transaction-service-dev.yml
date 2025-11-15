@@ -19,6 +19,7 @@ spring:
   kafka:
     producer:
       bootstrap-servers: localhost:9092
+
 orange:
   services:
     user-service:

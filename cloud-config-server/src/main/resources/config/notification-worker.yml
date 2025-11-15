@@ -18,7 +18,6 @@ spring:
 
   kafka:
     consumer:
-      group-id: "notification-otp-whatsapp-group"
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
       auto-offset-reset: earliest
@@ -42,6 +41,12 @@ orange:
       otp-whatsapp-dlq: notification.otp.whatsapp.dlq
       otp-email: notification.otp.email
       otp-email-dlq: notification.otp.email.dlq
+    groups:
+      otp-whatsapp: "notification-otp-whatsapp-group"
+      otp-email: "notification-otp-email-group"
+      split-bill: "notification-split-bill-group"
+      payment: "notification-payment-group"
+      invite-link: "notification-invite-link-group"
   waha-client:
     timeout: 30s
     retry:

@@ -21,7 +21,7 @@ public class InviteLinkKafkaConsumer {
 
   @KafkaListener(
       topics = "${orange.kafka.topics.wallet-invite-generated:wallet.events.invite-generated}",
-      groupId = "${spring.kafka.consumer.group-id}",
+      groupId = "${orange.kafka.groups.invite-link}",
       concurrency = "3"
   )
   public void listen(ConsumerRecord<String, byte[]> record, Acknowledgment ack) {

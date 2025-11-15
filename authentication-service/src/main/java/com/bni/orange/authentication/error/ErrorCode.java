@@ -16,6 +16,7 @@ public enum ErrorCode {
     OTP_COOLDOWN(HttpStatus.TOO_MANY_REQUESTS, "AUTH-2001", "Please wait before requesting another OTP."),
     INVALID_OTP(HttpStatus.BAD_REQUEST, "AUTH-2002", "The provided OTP is invalid or has expired."),
     INVALID_CAPTCHA(HttpStatus.BAD_REQUEST, "AUTH-2003", "Invalid or missing CAPTCHA. Please try again."),
+    OTP_COOLDOWN_RESET(HttpStatus.TOO_MANY_REQUESTS, "AUTH-2004", "Please wait before requesting another PIN reset."),
 
     // PIN & Login Flow (3xxx)
     ACCOUNT_LOCKED(HttpStatus.LOCKED, "AUTH-3001", "Account is temporarily locked due to too many failed attempts."),

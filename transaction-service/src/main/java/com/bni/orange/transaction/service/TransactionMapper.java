@@ -41,10 +41,6 @@ public class TransactionMapper {
             .build();
     }
 
-    /**
-     * Maps Transaction entity to lightweight summary response for list views.
-     * This significantly reduces payload size for transaction history endpoints.
-     */
     public TransactionSummaryResponse toSummaryResponse(Transaction transaction) {
         if (transaction == null) {
             return null;

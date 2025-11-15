@@ -330,7 +330,7 @@ class AuthFlowServiceTest {
         @Test
         @DisplayName("Should set PIN, activate user, and return tokens for PIN_SETUP scope")
         void authenticateWithPin_forPinSetup_shouldSucceed() {
-            when(loginAttemptService.isLocked(newUser.getId().toString())).thenReturn(false);
+            when(loginAttemptService.isLocked(newUser.getPhoneNumber())).thenReturn(false);
             when(userRepository.findById(newUser.getId())).thenReturn(Optional.of(newUser));
             doNothing().when(pinValidator).validate(pin);
             when(passwordEncoder.encode(pin)).thenReturn("encodedNewPin");
@@ -348,16 +348,16 @@ class AuthFlowServiceTest {
             assertEquals("access", response.getData().accessToken());
 
             verify(tokenService).consumeStateToken(jti);
-            verify(loginAttemptService).applyProgressiveDelay(newUser.getId().toString());
+            verify(loginAttemptService).applyProgressiveDelay(newUser.getPhoneNumber());
             verify(userRepository).save(any(User.class));
             verify(eventPublisher).publish(eq("user.registered"), eq(newUser.getId().toString()), any());
-            verify(loginAttemptService).loginSucceeded(newUser.getId().toString());
+            verify(loginAttemptService).loginSucceeded(newUser.getPhoneNumber());
         }
 
         @Test
         @DisplayName("Should return tokens for valid PIN with PIN_LOGIN scope")
         void authenticateWithPin_forPinLogin_withValidPin_shouldSucceed() {
-            when(loginAttemptService.isLocked(userId.toString())).thenReturn(false);
+            when(loginAttemptService.isLocked(existingUser.getPhoneNumber())).thenReturn(false);
             when(userRepository.findById(userId)).thenReturn(Optional.of(existingUser));
             when(passwordEncoder.matches(pin, "encodedPin")).thenReturn(true);
 
@@ -370,43 +370,43 @@ class AuthFlowServiceTest {
             assertEquals("Authentication successful", response.getMessage());
 
             verify(tokenService).consumeStateToken(jti);
-            verify(loginAttemptService).loginSucceeded(userId.toString());
+            verify(loginAttemptService).loginSucceeded(existingUser.getPhoneNumber());
             verify(loginAttemptService, never()).loginFailed(anyString());
         }
 
         @Test
         @DisplayName("Should throw exception for invalid PIN with PIN_LOGIN scope")
         void authenticateWithPin_forPinLogin_withInvalidPin_shouldFail() {
-            when(loginAttemptService.isLocked(userId.toString())).thenReturn(false);
+            when(loginAttemptService.isLocked(existingUser.getPhoneNumber())).thenReturn(false);
             when(userRepository.findById(userId)).thenReturn(Optional.of(existingUser));
             when(passwordEncoder.matches("wrong-pin", "encodedPin")).thenReturn(false);
-            when(loginAttemptService.getAttemptsLeft(userId.toString())).thenReturn(4);
+            when(loginAttemptService.getAttemptsLeft(existingUser.getPhoneNumber())).thenReturn(4);
 
             var exception = assertThrows(BusinessException.class, () ->
                 authFlowService.authenticateWithPin(userId, "wrong-pin", TokenScope.PIN_LOGIN.getValue(), jti, servletRequest));
 
             assertEquals(ErrorCode.INVALID_PIN, exception.getErrorCode());
             assertTrue(exception.getMessage().contains("4 attempts left"));
-            verify(loginAttemptService).loginFailed(userId.toString());
+            verify(loginAttemptService).loginFailed(existingUser.getPhoneNumber());
             verify(loginAttemptService, never()).loginSucceeded(anyString());
         }
 
         @Test
         @DisplayName("Should throw exception if account is locked")
         void authenticateWithPin_whenAccountIsLocked_shouldThrowException() {
-            when(loginAttemptService.isLocked(userId.toString())).thenReturn(true);
+            when(userRepository.findById(userId)).thenReturn(Optional.of(existingUser));
+            when(loginAttemptService.isLocked(existingUser.getPhoneNumber())).thenReturn(true);
 
             var exception = assertThrows(BusinessException.class, () ->
                 authFlowService.authenticateWithPin(userId, pin, TokenScope.PIN_LOGIN.getValue(), jti, servletRequest));
 
             assertEquals(ErrorCode.ACCOUNT_LOCKED, exception.getErrorCode());
-            verify(userRepository, never()).findById(any());
         }
 
         @Test
         @DisplayName("Should throw exception for invalid token scope")
         void authenticateWithPin_withInvalidScope_shouldThrowException() {
-            when(loginAttemptService.isLocked(userId.toString())).thenReturn(false);
+            when(loginAttemptService.isLocked(existingUser.getPhoneNumber())).thenReturn(false);
             when(userRepository.findById(userId)).thenReturn(Optional.of(existingUser));
 
             var exception = assertThrows(BusinessException.class, () ->
@@ -418,8 +418,8 @@ class AuthFlowServiceTest {
         @Test
         @DisplayName("Should throw exception if user not found")
         void authenticateWithPin_whenUserNotFound_shouldThrowException() {
-            when(loginAttemptService.isLocked(userId.toString())).thenReturn(false);
             when(userRepository.findById(userId)).thenReturn(Optional.empty());
+            when(loginAttemptService.isLocked(anyString())).thenReturn(false);
 
             var exception = assertThrows(BusinessException.class, () ->
                 authFlowService.authenticateWithPin(userId, pin, TokenScope.PIN_LOGIN.getValue(), jti, servletRequest));

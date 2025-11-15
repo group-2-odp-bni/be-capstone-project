@@ -20,7 +20,7 @@ public class OtpKafkaConsumer {
 
     @KafkaListener(
         topics = "${orange.kafka.topics.otp-whatsapp}",
-        groupId = "${spring.kafka.consumer.group-id}",
+        groupId = "${orange.kafka.groups.otp-whatsapp}",
         concurrency = "3"
     )
     public void listen(ConsumerRecord<String, byte[]> record, Acknowledgment acknowledgment) {
