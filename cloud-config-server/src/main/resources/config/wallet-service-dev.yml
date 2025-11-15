@@ -56,6 +56,11 @@ app:
     delete-wallet-confirm-base-url: ${APP_DELETE_WALLET_CONFIRM_URL:https://app.orangebybni.my.id/wallet/delete-confirm}
   internal-user:
     base-url: http://orange-user-service:8082
+    connect-timeout: 5000
+    read-timeout: 5
+    write-timeout: 5
+    max-connections: 100
+    pending-acquire-timeout: 45
   wallet-delete:
     secret: 9evyY2Iopik4onDHa+ygvSoI97DJnUx+2JEOeO9ROUE=
     ttl-seconds: 86400

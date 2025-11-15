@@ -1,8 +1,8 @@
 spring:
   datasource:
-    url: ${DB_URL}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    url: ${DB_URL:jdbc:postgresql://postgres:5432/orange_db}
+    username: ${DB_USERNAME:mikasa}
+    password: ${DB_PASSWORD:mikasa}
     hikari:
       maximum-pool-size: 10
       minimum-idle: 5
@@ -18,18 +18,30 @@ spring:
           jwk-set-uri: http://authentication-service:8081/oauth2/jwks
   data:
     redis:
-      host: ${REDIS_HOST}
-      port: ${REDIS_PORT}
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
     producer:
-      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
 orange:
   gcp:
     storage:
-      bucket-name: ${GCS_BUCKET_NAME}
-      project-id: ${GCP_PROJECT_ID}
-      service-account-email: ${GCS_SERVICE_ACCOUNT_EMAIL}
+      enabled: ${GCS_ENABLED:false}
+      bucket-name: ${GCS_BUCKET_NAME:orange-wallet-users-profiles}
+      project-id: ${GCP_PROJECT_ID:orange-wallet-project}
+      service-account-email: ${GCS_SERVICE_ACCOUNT_EMAIL:orange-wallet-storage@orange-wallet-project.iam.gserviceaccount.com}
   kafka:
     producer:
-      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+
+logging:
+  level:
+    root: INFO
+    com.bni.orange: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.kafka: DEBUG
+    org.springframework.boot.actuate: ERROR
+    org.springframework.boot.actuate.endpoint.web: ERROR
+    org.springframework.boot.actuate.endpoint: ERROR

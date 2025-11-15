@@ -7,10 +7,7 @@ spring:
             - id: authentication-service-otp
               uri: http://authentication-service:8081
               predicates:
-                - Path=/api/v1/auth/login
-                - Path=/api/v1/auth/register
-                - Path=/api/v1/auth/resend-otp
-                - Path=/api/v1/pin/reset/request
+                - Path=/api/v1/auth/login, /api/v1/auth/register, /api/v1/auth/resend-otp, /api/v1/pin/reset/request
               filters:
                 - name: RequestRateLimiter
                   args:
@@ -26,13 +23,7 @@ spring:
             - id: authentication-service
               uri: http://authentication-service:8081
               predicates:
-                - Path=/api/v1/auth/verify
-                - Path=/api/v1/auth/refresh
-                - Path=/api/v1/auth/logout
-                - Path=/api/v1/auth/pin
-                - Path=/api/v1/pin/**
-                - Path=/api/v1/sessions/**
-                - Path=/oauth2/jwks
+                - Path=/api/v1/auth/verify, /api/v1/auth/refresh, /api/v1/auth/logout, /api/v1/auth/pin, /api/v1/pin/**, /api/v1/sessions/**, /oauth2/jwks4
               filters:
                 - name: CircuitBreaker
                   args:
@@ -42,8 +33,7 @@ spring:
             - id: user-service
               uri: http://user-service:8082
               predicates:
-                - Path=/api/v1/user/**
-                - Path=/api/v1/users/**
+                - Path=/api/v1/user/**, /api/v1/users/**, /api/v1/users/profile/**
               filters:
                 - name: ScopeValidation
                   args:
@@ -56,8 +46,7 @@ spring:
             - id: wallet-service
               uri: http://wallet-service:8083
               predicates:
-                - Path=/api/v1/wallet/**
-                - Path=/api/v1/wallets/**
+                - Path=/api/v1/wallet/**, /api/v1/wallets/**
               filters:
                 - name: ScopeValidation
                   args:
@@ -70,8 +59,7 @@ spring:
             - id: transaction-service-topup-external
               uri: http://transaction-service:8084
               predicates:
-                - Path=/api/v1/topup/inquiry/**
-                - Path=/api/v1/topup/callback/**
+                - Path=/api/v1/topup/inquiry/**, /api/v1/topup/callback/**
               filters:
                 - name: ApiKeyAuth
                 - name: CircuitBreaker
@@ -82,11 +70,7 @@ spring:
             - id: transaction-service
               uri: http://transaction-service:8084
               predicates:
-                - Path=/api/v1/transfers/**
-                - Path=/api/v1/transactions/**
-                - Path=/api/v1/quick-transfers/**
-                - Path=/api/v1/topup/**
-                - Path=/api/v1/contacts/**
+                - Path=/api/v1/transfers/**, /api/v1/transactions/**, /api/v1/quick-transfers/**, /api/v1/topup/**, /api/v1/contacts/**
               filters:
                 - name: RequestRateLimiter
                   args:
@@ -120,6 +104,8 @@ orange:
       - "https://orangebybni.my.id"
       - "https://api.orangebybni.my.id"
       - "https://api-dev.orangebybni.my.id"
+      - "http://localhost:5173"
+      - "https://app-dev.orangebybni.my.id/"
 
   security:
     ip-blocking-enabled: true

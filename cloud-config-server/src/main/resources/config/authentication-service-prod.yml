@@ -1,8 +1,8 @@
 spring:
   datasource:
-    url: ${DB_URL}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    url: ${DB_URL:jdbc:postgresql://postgres:5432/orange_db}
+    username: ${DB_USERNAME:mikasa}
+    password: ${DB_PASSWORD:mikasa}
     hikari:
       maximum-pool-size: 10
       minimum-idle: 5
@@ -13,13 +13,25 @@ spring:
       leak-detection-threshold: 60000
   data:
     redis:
-      host: ${REDIS_HOST}
-      port: ${REDIS_PORT}
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
     producer:
-      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
 orange:
   kafka:
     producer:
-      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+
+# TODO: DELETED ON PRODUCTION
+logging:
+  level:
+    root: INFO
+    com.bni.orange: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.kafka: DEBUG
+    org.springframework.boot.actuate: ERROR
+    org.springframework.boot.actuate.endpoint.web: ERROR
+    org.springframework.boot.actuate.endpoint: ERROR

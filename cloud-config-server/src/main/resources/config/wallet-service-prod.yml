@@ -1,8 +1,8 @@
 spring:
   datasource:
-    url: ${DB_URL}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    url: ${DB_URL:jdbc:postgresql://postgres:5432/orange_db}
+    username: ${DB_USERNAME:mikasa}
+    password: ${DB_PASSWORD:mikasa}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 10
@@ -19,15 +19,15 @@ spring:
           jwk-set-uri: http://authentication-service:8081/oauth2/jwks
   data:
     redis:
-      host: ${REDIS_HOST}
-      port: ${REDIS_PORT}
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
   mail:
     host: ${SMTP_HOST:smtp.gmail.com}
     port: ${SMTP_PORT:587}
-    username: ${SMTP_MAIL}
-    password: ${SMTP_PASSWORD}
+    username: ${SMTP_MAIL:orange.wallet.bni@gmail.com}
+    password: ${SMTP_PASSWORD:sieonmdpjasazdgc}
     properties:
       mail:
         smtp:
@@ -42,3 +42,24 @@ app:
   mail:
     from: ${SMTP_MAIL:orange.wallet.bni@gmail.com}
     delete-wallet-confirm-base-url: ${APP_DELETE_WALLET_CONFIRM_URL:https://app.orangebybni.my.id/wallet/delete-confirm}
+  internal-user:
+    base-url: ${INTERNAL_USER_SERVICE_URL:http://user-service:8082}
+    connect-timeout: 5000
+    read-timeout: 5
+    write-timeout: 5
+    max-connections: 100
+    pending-acquire-timeout: 45
+  wallet-delete:
+    secret: ${WALLET_DELETE_SECRET:9evyY2Iopik4onDHa+ygvSoI97DJnUx+2JEOeO9ROUE=}
+    ttl-seconds: ${WALLET_DELETE_TTL_SECONDS:86400}
+
+logging:
+  level:
+    root: INFO
+    com.bni.orange: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.kafka: DEBUG
+    org.springframework.boot.actuate: ERROR
+    org.springframework.boot.actuate.endpoint.web: ERROR
+    org.springframework.boot.actuate.endpoint: ERROR

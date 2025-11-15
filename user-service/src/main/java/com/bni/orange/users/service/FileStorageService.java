@@ -37,18 +37,17 @@ public class FileStorageService {
 
     private static final long MAX_FILE_SIZE = 2 * 1024 * 1024; // 2 MB
 
-    /**
-     * Upload profile image to GCS and return the GCS path (not signed URL).
-     * The path will be stored in database and signed URL will be generated on-demand.
-     *
-     * @param file MultipartFile to upload
-     * @param userId User ID for file naming
-     * @return GCS path (e.g., "profiles/userId.jpg")
-     */
+
     public String uploadProfileImage(MultipartFile file, UUID userId) {
         validateFile(file);
 
         var fileName = buildFileName(userId, file.getOriginalFilename());
+
+        if (!gcsProperties.enabled()) {
+            log.debug("GCS upload is disabled. Returning mock path for user: {}", userId);
+            return fileName;
+        }
+
         var contentType = file.getContentType();
 
         try {
@@ -68,13 +67,13 @@ public class FileStorageService {
         }
     }
 
-    /**
-     * Delete profile image from GCS.
-     *
-     * @param gcsPath GCS path of the image to delete (e.g., "profiles/userId.jpg")
-     */
     public void deleteProfileImage(String gcsPath) {
         if (gcsPath == null || gcsPath.isBlank()) {
+            return;
+        }
+
+        if (!gcsProperties.enabled()) {
+            log.debug("GCS delete is disabled. Skipping deletion for path: {}", gcsPath);
             return;
         }
 
@@ -89,19 +88,16 @@ public class FileStorageService {
             }
         } catch (Exception e) {
             log.error("Failed to delete profile image at GCS path: {}", gcsPath, e);
-            // Don't throw exception - deletion failure shouldn't block upload
         }
     }
 
 
-    /**
-     * Generate signed URL from GCS path.
-     * This is called on-demand when retrieving user profile to provide fresh, valid URLs.
-     *
-     * @param gcsPath GCS path (e.g., "profiles/userId.jpg")
-     * @return Signed URL with 60-minute expiry
-     */
     public String generateSignedUrl(String gcsPath) {
+//        if (!gcsProperties.enabled()) {
+//            log.debug("GCS signed URL generation is disabled. Returning null for path: {}", gcsPath);
+//            return null;
+//        }
+
         try {
             var blobInfo = BlobInfo.newBuilder(gcsProperties.bucketName(), gcsPath).build();
 

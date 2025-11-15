@@ -110,6 +110,7 @@ orange:
       wallet-member-invited: wallet.events.member-invited
       wallet-invite-generated: wallet.events.invite-generated
       wallet-invite-accepted: wallet.events.invite-accepted
+      wallet-members-cleared: wallet.events.members-cleared
 
 
 logging:

@@ -39,7 +39,7 @@ public class ProfileService {
     @Transactional
     public ProfileUpdateResponse updateProfile(UUID userId, UpdateProfileRequest request) {
         if (request.isEmpty()) {
-            throw new BusinessException(ErrorCode.PROFILE_UPDATE_FAILED, "No fields provided for update");
+            throw new BusinessException(ErrorCode.PROFILE_UPDATE_FAILED, "No fieldNames provided for update");
         }
 
         var profile = profileRepository.findById(userId)
@@ -96,7 +96,7 @@ public class ProfileService {
         var rateLimitReset = verificationService.getRateLimitResetInSeconds(userId, TokenType.EMAIL);
 
         pendingVerifications.put("email", ProfileUpdateResponse.PendingVerification.builder()
-            .field("email")
+            .fieldName("email")
             .value(newEmail)
             .otpSent(true)
             .expiresInSeconds(300L)
@@ -133,7 +133,7 @@ public class ProfileService {
         var rateLimitReset = verificationService.getRateLimitResetInSeconds(userId, TokenType.PHONE);
 
         pendingVerifications.put("phone", ProfileUpdateResponse.PendingVerification.builder()
-            .field("phoneNumber")
+            .fieldName("phoneNumber")
             .value(newPhone)
             .otpSent(true)
             .expiresInSeconds(300L)
@@ -236,7 +236,7 @@ public class ProfileService {
         log.info("Email OTP resent successfully for user: {}. OTP sent to: {}", userId, profile.getPendingEmail());
 
         return ProfileUpdateResponse.PendingVerification.builder()
-            .field("email")
+            .fieldName("email")
             .value(profile.getPendingEmail())
             .otpSent(true)
             .expiresInSeconds(300L)
@@ -265,7 +265,7 @@ public class ProfileService {
         log.info("Phone OTP resent successfully for user: {}. OTP sent to: {}", userId, profile.getPendingPhone());
 
         return ProfileUpdateResponse.PendingVerification.builder()
-            .field("phoneNumber")
+            .fieldName("phoneNumber")
             .value(profile.getPendingPhone())
             .otpSent(true)
             .expiresInSeconds(300L)

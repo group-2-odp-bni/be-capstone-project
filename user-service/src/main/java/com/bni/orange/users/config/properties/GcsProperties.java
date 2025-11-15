@@ -20,6 +20,9 @@ public record GcsProperties(
     Integer signedUrlDurationMinutes,
 
     @DefaultValue("orange-wallet-storage@orange-wallet-project.iam.gserviceaccount.com")
-    String serviceAccountEmail
+    String serviceAccountEmail,
+
+    @DefaultValue("false")
+    Boolean enabled
 ) {
 }

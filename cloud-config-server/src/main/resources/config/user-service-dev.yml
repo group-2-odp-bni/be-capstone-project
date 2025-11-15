@@ -27,6 +27,7 @@ spring:
 orange:
   gcp:
     storage:
+      enabled: false
       bucket-name: orange-wallet-users-profiles
       project-id: orange-wallet-project
       service-account-email: orange-wallet-storage@orange-wallet-project.iam.gserviceaccount.com

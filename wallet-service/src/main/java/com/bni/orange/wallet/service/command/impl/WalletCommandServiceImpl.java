@@ -1,6 +1,6 @@
 package com.bni.orange.wallet.service.command.impl;
 
-import com.bni.orange.wallet.client.InternalUserClient;
+import com.bni.orange.wallet.client.UserClient;
 import com.bni.orange.wallet.domain.DomainEvents;
 import com.bni.orange.wallet.exception.business.ConflictException;
 import com.bni.orange.wallet.exception.business.ResourceNotFoundException;
@@ -71,7 +71,7 @@ public class WalletCommandServiceImpl implements WalletCommandService {
   private final UserReceivePrefsRepository prefsRepo;
 
   private final StringRedisTemplate redis;
-  private final InternalUserClient internalUserClient;
+  private final UserClient userClient;
   private final MailService mailService;
 
   @Value("${app.wallet-delete.secret}")
@@ -95,7 +95,7 @@ public class WalletCommandServiceImpl implements WalletCommandService {
       ApplicationEventPublisher appEvents,
       UserReceivePrefsRepository prefsRepo,
       StringRedisTemplate redis,
-      InternalUserClient internalUserClient,
+      UserClient userClient,
       MailService mailService
   ) {
     this.walletRepo = walletRepo;
@@ -110,7 +110,7 @@ public class WalletCommandServiceImpl implements WalletCommandService {
     this.appEvents = appEvents;
     this.prefsRepo =prefsRepo;
     this.redis = redis;
-    this.internalUserClient = internalUserClient;
+    this.userClient = userClient;
     this.mailService = mailService;
   }
 
@@ -339,7 +339,7 @@ public class WalletCommandServiceImpl implements WalletCommandService {
     if (admins.isEmpty()) {
         return doDeleteWallet(walletId, uid);
     }
-    var ownerProfile = internalUserClient.getUserProfile(uid);
+    var ownerProfile = userClient.getUserProfile(uid);
     if (ownerProfile.getEmail() == null || Boolean.FALSE.equals(ownerProfile.getEmailVerified())) {
         throw new ValidationFailedException("Owner email not available or not verified");
     }
@@ -362,7 +362,7 @@ public class WalletCommandServiceImpl implements WalletCommandService {
     }
     for (WalletMember admin : admins) {
         UUID adminId = admin.getUserId();
-        var adminProfile = internalUserClient.getUserProfile(adminId);
+        var adminProfile = userClient.getUserProfile(adminId);
         if (adminProfile.getEmail() == null || Boolean.FALSE.equals(adminProfile.getEmailVerified())) {
             continue;
         }

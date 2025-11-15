@@ -1,8 +1,8 @@
 spring:
   datasource:
-    url: ${DB_URL}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    url: ${DB_URL:jdbc:postgresql://postgres:5432/orange_db}
+    username: ${DB_USERNAME:mikasa}
+    password: ${DB_PASSWORD:mikasa}
     hikari:
       maximum-pool-size: 15
       minimum-idle: 5
@@ -32,11 +32,11 @@ orange:
       timeout: 5000
   integration:
     bni-va:
-      base-url: ${BNI_VA_BASE_URL}
-      client-id: ${BNI_VA_CLIENT_ID}
-      client-secret: ${BNI_VA_CLIENT_SECRET}
+      base-url: ${BNI_VA_BASE_URL:https://api-sandbox.bni.co.id}
+      client-id: ${BNI_VA_CLIENT_ID:dummy-client-id}
+      client-secret: ${BNI_VA_CLIENT_SECRET:secret-key-for-dev}
       timeout: 30s
-      mock-enabled: ${BNI_VA_MOCK_ENABLED:false}
+      mock-enabled: ${BNI_VA_MOCK_ENABLED:true}
   kafka:
     producer:
       bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}

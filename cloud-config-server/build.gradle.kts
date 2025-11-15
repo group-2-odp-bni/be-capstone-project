@@ -4,9 +4,9 @@ plugins {
 	id("io.spring.dependency-management") version "1.1.7"
 }
 
-group = "com.bni.orange"
-version = "0.0.1-SNAPSHOT"
-description = "cloud-config-server"
+group = property("group") as String
+version = property("version") as String
+description = property("description") as String
 
 java {
 	toolchain {
