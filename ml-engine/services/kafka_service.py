@@ -26,32 +26,43 @@ PAYMENT_STATUS_TOPIC = "payment.status.updated"
 
 producer = None
 
+def _is_ssl_enabled():
+    """Check if SSL configuration is available and valid"""
+    if not all([KAFKA_SSL_CAFILE, KAFKA_SSL_CERTFILE, KAFKA_SSL_KEYFILE]):
+        return False
+    return all(os.path.exists(p) for p in [KAFKA_SSL_CAFILE, KAFKA_SSL_CERTFILE, KAFKA_SSL_KEYFILE])
+
 def _preflight():
-    missing = [k for k, v in {
-        "SPRING_KAFKA_BOOTSTRAP_SERVERS": KAFKA_BOOTSTRAP_SERVERS,
-        "KAFKA_SSL_CAFILE": KAFKA_SSL_CAFILE,
-        "KAFKA_SSL_CERTFILE": KAFKA_SSL_CERTFILE,
-        "KAFKA_SSL_KEYFILE": KAFKA_SSL_KEYFILE,
-    }.items() if not v]
-    if missing:
-        raise RuntimeError(f"ENV belum terisi: {', '.join(missing)}")
-    for p in [KAFKA_SSL_CAFILE, KAFKA_SSL_CERTFILE, KAFKA_SSL_KEYFILE]:
-        if not os.path.exists(p):
-            raise FileNotFoundError(f"File SSL tidak ditemukan: {p}")
+    """Validate Kafka configuration"""
+    if not KAFKA_BOOTSTRAP_SERVERS:
+        raise RuntimeError("SPRING_KAFKA_BOOTSTRAP_SERVERS tidak terisi")
+
+    use_ssl = _is_ssl_enabled()
+    if use_ssl:
+        log.info("Kafka SSL enabled - using mTLS authentication")
+    else:
+        log.info("Kafka SSL disabled - using PLAINTEXT protocol (local/dev mode)")
 
 def _check_topic_exists(topic: str) -> bool:
     try:
-        c = KafkaConsumer(
-            bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
-            security_protocol="SSL",
-            ssl_cafile=KAFKA_SSL_CAFILE,
-            ssl_certfile=KAFKA_SSL_CERTFILE,
-            ssl_keyfile=KAFKA_SSL_KEYFILE,
-            ssl_password=KAFKA_SSL_KEY_PASSWORD,
-            request_timeout_ms=10000,
-            session_timeout_ms=10000,
-            api_version_auto_timeout_ms=10000,
-        )
+        use_ssl = _is_ssl_enabled()
+        config = {
+            "bootstrap_servers": KAFKA_BOOTSTRAP_SERVERS,
+            "request_timeout_ms": 10000,
+            "session_timeout_ms": 10000,
+            "api_version_auto_timeout_ms": 10000,
+        }
+
+        if use_ssl:
+            config.update({
+                "security_protocol": "SSL",
+                "ssl_cafile": KAFKA_SSL_CAFILE,
+                "ssl_certfile": KAFKA_SSL_CERTFILE,
+                "ssl_keyfile": KAFKA_SSL_KEYFILE,
+                "ssl_password": KAFKA_SSL_KEY_PASSWORD,
+            })
+
+        c = KafkaConsumer(**config)
         topics = c.topics()
         c.close()
         return topic in topics
@@ -64,20 +75,29 @@ def get_kafka_producer():
     if producer:
         return producer
     _preflight()
+
+    use_ssl = _is_ssl_enabled()
+    config = {
+        "bootstrap_servers": KAFKA_BOOTSTRAP_SERVERS,
+        "value_serializer": lambda v: json.dumps(v).encode("utf-8"),
+        "key_serializer": lambda k: str(k).encode("utf-8"),
+        "acks": "all",
+        "retries": 3,
+    }
+
+    if use_ssl:
+        config.update({
+            "security_protocol": "SSL",
+            "ssl_cafile": KAFKA_SSL_CAFILE,
+            "ssl_certfile": KAFKA_SSL_CERTFILE,
+            "ssl_keyfile": KAFKA_SSL_KEYFILE,
+            "ssl_password": KAFKA_SSL_KEY_PASSWORD,
+        })
+
     try:
-        producer = KafkaProducer(
-            bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
-            security_protocol="SSL",
-            ssl_cafile=KAFKA_SSL_CAFILE,
-            ssl_certfile=KAFKA_SSL_CERTFILE,
-            ssl_keyfile=KAFKA_SSL_KEYFILE,
-            ssl_password=KAFKA_SSL_KEY_PASSWORD,
-            value_serializer=lambda v: json.dumps(v).encode("utf-8"),
-            key_serializer=lambda k: str(k).encode("utf-8"),
-            acks="all",
-            retries=3,
-        )
-        log.info("KafkaProducer connected to %s (SSL/mTLS)", KAFKA_BOOTSTRAP_SERVERS)
+        producer = KafkaProducer(**config)
+        protocol = "SSL/mTLS" if use_ssl else "PLAINTEXT"
+        log.info("KafkaProducer connected to %s (%s)", KAFKA_BOOTSTRAP_SERVERS, protocol)
         return producer
     except NoBrokersAvailable as e:
         log.error("No brokers available: %s", e, exc_info=True)
@@ -137,25 +157,32 @@ def publish_payment_intent(bill_id, member_id, amount, source_wallet_id, destina
     _send_sync(PAYMENT_INTENT_TOPIC, key=f"{bill_id}:{member_id}", value=payload)
 
 def start_consumer():
+    use_ssl = _is_ssl_enabled()
+    config = {
+        "bootstrap_servers": KAFKA_BOOTSTRAP_SERVERS,
+        "group_id": "split-bill-payment-updater",
+        "value_deserializer": lambda v: json.loads(v.decode("utf-8")),
+        "enable_auto_commit": True,
+        "auto_offset_reset": "latest",
+        "request_timeout_ms": 15000,
+        "session_timeout_ms": 15000,
+        "max_poll_interval_ms": 300000,
+        "api_version_auto_timeout_ms": 10000,
+    }
+
+    if use_ssl:
+        config.update({
+            "security_protocol": "SSL",
+            "ssl_cafile": KAFKA_SSL_CAFILE,
+            "ssl_certfile": KAFKA_SSL_CERTFILE,
+            "ssl_keyfile": KAFKA_SSL_KEYFILE,
+            "ssl_password": KAFKA_SSL_KEY_PASSWORD,
+        })
+
     try:
-        consumer = KafkaConsumer(
-            PAYMENT_STATUS_TOPIC,
-            bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
-            security_protocol="SSL",
-            ssl_cafile=KAFKA_SSL_CAFILE,
-            ssl_certfile=KAFKA_SSL_CERTFILE,
-            ssl_keyfile=KAFKA_SSL_KEYFILE,
-            ssl_password=KAFKA_SSL_KEY_PASSWORD,
-            group_id="split-bill-payment-updater",
-            value_deserializer=lambda v: json.loads(v.decode("utf-8")),
-            enable_auto_commit=True,
-            auto_offset_reset="latest",
-            request_timeout_ms=15000,
-            session_timeout_ms=15000,
-            max_poll_interval_ms=300000,
-            api_version_auto_timeout_ms=10000,
-        )
-        log.info("Consumer ready on topic %s (SSL/mTLS)", PAYMENT_STATUS_TOPIC)
+        consumer = KafkaConsumer(PAYMENT_STATUS_TOPIC, **config)
+        protocol = "SSL/mTLS" if use_ssl else "PLAINTEXT"
+        log.info("Consumer ready on topic %s (%s)", PAYMENT_STATUS_TOPIC, protocol)
     except Exception as e:
         log.error("Start consumer gagal: %s", e, exc_info=True)
         raise

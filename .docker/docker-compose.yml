@@ -3,9 +3,9 @@ services:
     image: postgres:16-alpine
     container_name: orange-postgres
     environment:
-      POSTGRES_DB: orange_db
-      POSTGRES_USER: mikasa
-      POSTGRES_PASSWORD: mikasa
+      POSTGRES_DB: ${POSTGRES_DB:-orange_db}
+      POSTGRES_USER: ${POSTGRES_USER:-mikasa}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mikasa}
     ports:
       - "5432:5432"
     volumes:
@@ -43,6 +43,32 @@ services:
         limits:
           cpus: '0.25'
           memory: 128M
+
+  mongodb:
+    image: mongo:7-jammy
+    container_name: orange-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-useradmin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-supersecretpassword}
+      MONGO_INITDB_DATABASE: split_bill_db
+    volumes:
+      - mongodata:/data/db
+      - mongoconfigdata:/data/configdb
+    networks:
+      - orange-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
 
   kafka:
     image: confluentinc/cp-kafka:7.6.1
@@ -127,7 +153,7 @@ services:
       # Authentication (keeping for backward compatibility, dashboard disabled anyway)
       - WAHA_API_KEY=${WAHA_API_KEY:-f5010a544c324fc483623e2031b2b92f}
       - WAHA_DASHBOARD_USERNAME=admin
-      - WAHA_DASHBOARD_PASSWORD=76a63dc99b9c426999aac835f88bb6dab65e47887a8b706d034ea4ef7c13507a
+      - WAHA_DASHBOARD_PASSWORD=${WAHA_DASHBOARD_PASSWORD:-76a63dc99b9c426999aac835f88bb6dab65e47887a8b706d034ea4ef7c13507a}
     networks:
       - orange-network
     healthcheck:
@@ -158,7 +184,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 30s
     deploy:
       resources:
         limits:
@@ -169,6 +195,7 @@ services:
     build:
       context: ../api-gateway
     container_name: orange-api-gateway
+    restart: on-failure
     ports:
       - "8080:8080"
     environment:
@@ -209,9 +236,9 @@ services:
       - SPRING_PROFILES_ACTIVE=prod
       - SPRING_CONFIG_IMPORT=configserver:http://cloud-config-server:8888
       - SERVER_PORT=8081
-      - DB_URL=jdbc:postgresql://postgres:5432/orange_db
-      - DB_USERNAME=mikasa
-      - DB_PASSWORD=mikasa
+      - DB_URL=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-orange_db}
+      - DB_USERNAME=${POSTGRES_USER:-mikasa}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-mikasa}
       - REDIS_HOST=redis
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
     depends_on:
@@ -245,9 +272,9 @@ services:
       - SPRING_PROFILES_ACTIVE=prod
       - SPRING_CONFIG_IMPORT=configserver:http://cloud-config-server:8888
       - SERVER_PORT=8082
-      - DB_URL=jdbc:postgresql://postgres:5432/orange_db
-      - DB_USERNAME=mikasa
-      - DB_PASSWORD=mikasa
+      - DB_URL=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-orange_db}
+      - DB_USERNAME=${POSTGRES_USER:-mikasa}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-mikasa}
       - REDIS_HOST=redis
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - AUTH_SERVICE_JWK_URI=http://authentication-service:8081/oauth2/jwks
@@ -284,9 +311,9 @@ services:
       - SPRING_PROFILES_ACTIVE=prod
       - SPRING_CONFIG_IMPORT=configserver:http://cloud-config-server:8888
       - SERVER_PORT=8083
-      - DB_URL=jdbc:postgresql://postgres:5432/orange_db
-      - DB_USERNAME=mikasa
-      - DB_PASSWORD=mikasa
+      - DB_URL=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-orange_db}
+      - DB_USERNAME=${POSTGRES_USER:-mikasa}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-mikasa}
       - SPRING_DATA_REDIS_HOST=redis
       - JWK_SET_URI=http://authentication-service:8081/oauth2/jwks
       - INTERNAL_USER_SERVICE_URL=http://user-service:8082
@@ -324,9 +351,9 @@ services:
       - SPRING_PROFILES_ACTIVE=prod
       - SPRING_CONFIG_IMPORT=configserver:http://cloud-config-server:8888
       - SERVER_PORT=8084
-      - DB_URL=jdbc:postgresql://postgres:5432/orange_db
-      - DB_USERNAME=mikasa
-      - DB_PASSWORD=mikasa
+      - DB_URL=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-orange_db}
+      - DB_USERNAME=${POSTGRES_USER:-mikasa}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-mikasa}
       - REDIS_HOST=redis
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - AUTH_SERVICE_JWK_URI=http://authentication-service:8081/oauth2/jwks
@@ -396,6 +423,66 @@ services:
           cpus: '0.25'
           memory: 512M
 
+  ml-engine:
+    build:
+      context: ../ml-engine
+    container_name: orange-ml-engine
+    ports:
+      - "8086:8086"
+    volumes:
+      # Mount service account for Google Cloud access (dev mode)
+      # For production: use secrets management or build-time injection
+      - ../ml-engine/service_account.json:/app/service_account.json:ro
+    environment:
+      # Application config
+      - PORT=8086
+      - LOG_LEVEL=INFO
+
+      # MongoDB connection
+      - MONGO_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME:-useradmin}:${MONGO_INITDB_ROOT_PASSWORD:-supersecretpassword}@mongodb:27017/split_bill_db?authSource=admin
+      - MONGO_DB_NAME=split_bill_db
+
+      # Kafka connection (local)
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+
+      # JWT/Auth config
+      - JWK_SET_URI=http://authentication-service:8081/oauth2/jwks
+      - JWT_ISSUER=auth-service
+      - JWT_CACHE_TTL_SEC=300
+
+      # Google AI config
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-AIzaSyAiACR0gQERFfyUhUKyD5Q82AsNsu_yxp0}
+      - GEMINI_MODEL=models/gemini-2.0-flash-exp
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/service_account.json
+
+      # Short link config
+      - SHORTLINK_SECRET=${SHORTLINK_SECRET:-supersecret-shortlink-prod}
+      - SHORTLINK_TTL_MIN=4320
+      - APP_BASE_URL=http://localhost:5173
+
+      # Wallet webhook
+      - WALLET_WEBHOOK_SECRET=${WALLET_WEBHOOK_SECRET:-wallet-prod-secret}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      authentication-service:
+        condition: service_healthy
+    networks:
+      - orange-network
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:8086/health || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
 networks:
   orange-network:
     driver: bridge
@@ -404,6 +491,8 @@ volumes:
   pgdata:
   redisdata:
   kafkadata:
+  mongodata:
+  mongoconfigdata:
   grafanadata:
   waha_sessions:
   waha_media:

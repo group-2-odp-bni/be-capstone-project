@@ -86,6 +86,36 @@ spring:
                     name: transaction-service
                     fallbackUri: forward:/fallback/transaction
 
+            - id: ml-engine-shortlink
+              uri: http://localhost:8086
+              predicates:
+                - Path=/s/**
+              filters:
+                # No auth required for short link redirection
+                - name: CircuitBreaker
+                  args:
+                    name: ml-engine
+                    fallbackUri: forward:/fallback/ml
+
+            - id: ml-engine-service
+              uri: http://localhost:8086
+              predicates:
+                - Path=/api/v1/split-bill/**, /api/v1/process-receipt, /api/v1/submit-split
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 10
+                    redis-rate-limiter.burstCapacity: 20
+                    redis-rate-limiter.requestedTokens: 1
+                    key-resolver: "#{@userKeyResolver}"
+                - name: ScopeValidation
+                  args:
+                    requiredScope: FULL_ACCESS
+                - name: CircuitBreaker
+                  args:
+                    name: ml-engine
+                    fallbackUri: forward:/fallback/ml
+
   data:
     redis:
       host: localhost
