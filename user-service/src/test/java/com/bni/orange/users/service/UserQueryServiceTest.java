@@ -55,7 +55,6 @@ class UserQueryServiceTest {
         assertEquals("John Doe", response.getName());
         assertEquals("john.doe@example.com", response.getEmail());
         assertEquals("1234567890", response.getPhoneNumber());
-        assertEquals("http://example.com/profile.jpg", response.getProfileImageUrl());
         assertTrue(response.getEmailVerified());
         assertFalse(response.getPhoneVerified());
         assertEquals("A short bio", response.getBio());

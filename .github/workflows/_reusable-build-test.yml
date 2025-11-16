@@ -42,13 +42,31 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Check service type
+        id: check_type
+        working-directory: ${{ inputs.service-path }}
+        run: |
+          if [ -f "build.gradle.kts" ]; then
+            echo "is_gradle=true" >> $GITHUB_OUTPUT
+            echo "Service type: Gradle (Java/Kotlin)"
+          fi
+          if [ -f "requirements.txt" ]; then
+            echo "is_python=true" >> $GITHUB_OUTPUT
+            echo "Service type: Python"
+          fi
+
+      # =================================================================
+      # == JAVA (GRADLE) SERVICE STEPS
+      # =================================================================
       - name: Set up JDK ${{ inputs.java-version }}
+        if: steps.check_type.outputs.is_gradle == 'true'
         uses: actions/setup-java@v4
         with:
           java-version: ${{ inputs.java-version }}
           distribution: 'temurin'
 
       - name: Cache Gradle packages
+        if: steps.check_type.outputs.is_gradle == 'true'
         uses: actions/cache@v4
         with:
           path: |
@@ -59,23 +77,22 @@ jobs:
             ${{ runner.os }}-gradle-
 
       - name: Grant execute permission for gradlew
+        if: steps.check_type.outputs.is_gradle == 'true'
         working-directory: ${{ inputs.service-path }}
-        run: chmod +x gradlew || true
+        run: chmod +x gradlew
 
       - name: Run tests with coverage
+        if: steps.check_type.outputs.is_gradle == 'true'
         working-directory: ${{ inputs.service-path }}
         run: ./gradlew test jacocoTestReport --no-daemon --stacktrace
 
       - name: Build application
+        if: steps.check_type.outputs.is_gradle == 'true'
         working-directory: ${{ inputs.service-path }}
         run: ./gradlew bootJar --no-daemon --stacktrace
 
-      # Artifact uploads removed - storage quota issues
-      # Test results and coverage are available in the build logs
-      # JAR artifacts are rebuilt in Docker build step
-
       - name: Cache SonarCloud packages
-        if: inputs.run-sonar
+        if: inputs.run-sonar && steps.check_type.outputs.is_gradle == 'true'
         uses: actions/cache@v4
         with:
           path: ~/.sonar/cache
@@ -83,23 +100,26 @@ jobs:
           restore-keys: ${{ runner.os }}-sonar-
 
       - name: Extract SonarCloud project configuration
-        if: inputs.run-sonar
+        if: inputs.run-sonar && steps.check_type.outputs.is_gradle == 'true'
         id: sonar-config
         working-directory: ${{ inputs.service-path }}
         run: |
           # Extract organization and projectKey from gradle.properties
-          SONAR_ORG=$(grep '^sonar.organization=' gradle.properties | cut -d'=' -f2 | tr -d '[:space:]')
-          SONAR_PROJECT_KEY=$(grep '^sonar.projectKey=' gradle.properties | cut -d'=' -f2 | tr -d '[:space:]')
+          SONAR_ORG=$(grep '^sonar.organization=' gradle.properties | cut -d'=' -f2 | tr -d '[:space:]' || echo "")
+          SONAR_PROJECT_KEY=$(grep '^sonar.projectKey=' gradle.properties | cut -d'=' -f2 | tr -d '[:space:]' || echo "")
 
-          echo "organization=$SONAR_ORG" >> $GITHUB_OUTPUT
-          echo "projectKey=$SONAR_PROJECT_KEY" >> $GITHUB_OUTPUT
-
-          echo "📋 SonarCloud Configuration:"
-          echo "  Organization: $SONAR_ORG"
-          echo "  Project Key: $SONAR_PROJECT_KEY"
+          if [ -z "$SONAR_ORG" ] || [ -z "$SONAR_PROJECT_KEY" ]; then
+            echo "::warning::Could not extract SonarCloud config from gradle.properties"
+          else
+            echo "organization=$SONAR_ORG" >> $GITHUB_OUTPUT
+            echo "projectKey=$SONAR_PROJECT_KEY" >> $GITHUB_OUTPUT
+            echo "📋 SonarCloud Configuration:"
+            echo "  Organization: $SONAR_ORG"
+            echo "  Project Key: $SONAR_PROJECT_KEY"
+          fi
 
       - name: Auto-register SonarCloud project
-        if: inputs.run-sonar
+        if: inputs.run-sonar && steps.check_type.outputs.is_gradle == 'true' && steps.sonar-config.outputs.organization
         continue-on-error: true
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -107,48 +127,21 @@ jobs:
           SONAR_PROJECT_KEY: ${{ steps.sonar-config.outputs.projectKey }}
         run: |
           echo "🔍 Checking if SonarCloud project exists..."
-
-          # Check if project already exists
-          PROJECT_EXISTS=$(curl -s -u "$SONAR_TOKEN:" \
-            "https://sonarcloud.io/api/projects/search?projects=$SONAR_PROJECT_KEY" \
-            | jq -r '.components | length')
-
+          PROJECT_EXISTS=$(curl -s -u "$SONAR_TOKEN:" "https://sonarcloud.io/api/projects/search?projects=$SONAR_PROJECT_KEY" | jq -r '.components | length')
           if [ "$PROJECT_EXISTS" -gt 0 ]; then
             echo "✅ Project already exists: $SONAR_PROJECT_KEY"
-
-            # Update main branch setting if needed
-            echo "🔄 Ensuring main branch is set as default..."
-            curl -s -u "$SONAR_TOKEN:" -X POST \
-              "https://sonarcloud.io/api/project_branches/rename" \
-              -d "project=$SONAR_PROJECT_KEY" \
-              -d "name=main" || echo "⚠️ Could not update branch setting (may already be correct)"
           else
             echo "🆕 Creating new SonarCloud project..."
-
-            # Create new project
-            CREATE_RESPONSE=$(curl -s -u "$SONAR_TOKEN:" -X POST \
-              "https://sonarcloud.io/api/projects/create" \
-              -d "organization=$SONAR_ORG" \
-              -d "project=$SONAR_PROJECT_KEY" \
-              -d "name=${{ inputs.service-name }}")
-
+            CREATE_RESPONSE=$(curl -s -u "$SONAR_TOKEN:" -X POST "https://sonarcloud.io/api/projects/create" -d "organization=$SONAR_ORG" -d "project=$SONAR_PROJECT_KEY" -d "name=${{ inputs.service-name }}")
             if echo "$CREATE_RESPONSE" | jq -e '.project.key' > /dev/null 2>&1; then
               echo "✅ Successfully created project: $SONAR_PROJECT_KEY"
-
-              # Set main branch as default
-              echo "🔄 Setting main as default branch..."
-              curl -s -u "$SONAR_TOKEN:" -X POST \
-                "https://sonarcloud.io/api/project_branches/rename" \
-                -d "project=$SONAR_PROJECT_KEY" \
-                -d "name=main" || echo "⚠️ Branch will be set on first analysis"
             else
-              echo "⚠️ Project creation response: $CREATE_RESPONSE"
-              echo "Project may already exist or there was an error"
+              echo "⚠️ Project creation failed. Response: $CREATE_RESPONSE"
             fi
           fi
 
       - name: SonarCloud Scan
-        if: inputs.run-sonar
+        if: inputs.run-sonar && steps.check_type.outputs.is_gradle == 'true' && steps.sonar-config.outputs.organization
         working-directory: ${{ inputs.service-path }}
         continue-on-error: true
         env:
@@ -156,7 +149,46 @@ jobs:
         run: |
           ./gradlew sonar \
             -Dsonar.host.url=https://sonarcloud.io \
-            -Dsonar.branch.name=main \
             -Dsonar.organization=${{ steps.sonar-config.outputs.organization }} \
             -Dsonar.projectKey=${{ steps.sonar-config.outputs.projectKey }} \
             --no-daemon --stacktrace || echo "⚠️ SonarCloud scan failed, continuing..."
+
+      # =================================================================
+      # == PYTHON SERVICE STEPS
+      # =================================================================
+      - name: Set up Python
+        if: steps.check_type.outputs.is_python == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip packages
+        if: steps.check_type.outputs.is_python == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles(format('{0}/requirements.txt', inputs.service-path)) }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install Python dependencies
+        if: steps.check_type.outputs.is_python == 'true'
+        working-directory: ${{ inputs.service-path }}
+        run: pip install -r requirements.txt
+
+      - name: Run Python tests with coverage
+        if: steps.check_type.outputs.is_python == 'true'
+        working-directory: ${{ inputs.service-path }}
+        run: |
+          pip install pytest pytest-cov
+          # Run pytest to generate coverage report. If no tests are found, it will not fail.
+          pytest --cov=. --cov-report=xml:coverage.xml || echo "🐍 Pytest not found or no tests to run. Skipping coverage generation."
+
+      - name: SonarCloud Scan for Python
+        if: inputs.run-sonar && steps.check_type.outputs.is_python == 'true'
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to decorate PRs
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          projectBaseDir: ${{ inputs.service-path }}

@@ -77,7 +77,7 @@ public class TransferController {
         @RequestHeader("Idempotency-Key") @NotBlank String idempotencyKey,
         @AuthenticationPrincipal Jwt jwt
     ) {
-        var transaction = transferService.initiateInternalTransfer(request, getUserIdFromJwt(jwt), idempotencyKey, jwt.getTokenValue());
+        var transaction = transferService.initiateInternalTransfer(request, getUserIdFromJwt(jwt), idempotencyKey);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("Internal transfer executed successfully", transaction));
     }
 }
