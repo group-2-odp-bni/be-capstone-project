@@ -184,9 +184,49 @@ jobs:
           # Run pytest to generate coverage report. If no tests are found, it will not fail.
           pytest --cov=. --cov-report=xml:coverage.xml || echo "🐍 Pytest not found or no tests to run. Skipping coverage generation."
 
-      - name: SonarCloud Scan for Python
+      - name: Extract SonarCloud config for Python
         if: inputs.run-sonar && steps.check_type.outputs.is_python == 'true'
-        uses: SonarSource/sonarcloud-github-action@master
+        id: sonar-config-python
+        working-directory: ${{ inputs.service-path }}
+        run: |
+          SONAR_ORG=$(grep '^sonar.organization=' sonar-project.properties | cut -d'=' -f2 | tr -d '[:space:]' || echo "")
+          SONAR_PROJECT_KEY=$(grep '^sonar.projectKey=' sonar-project.properties | cut -d'=' -f2 | tr -d '[:space:]' || echo "")
+
+          if [ -z "$SONAR_ORG" ] || [ -z "$SONAR_PROJECT_KEY" ]; then
+            echo "::warning::Could not extract SonarCloud config from sonar-project.properties"
+          else
+            echo "organization=$SONAR_ORG" >> $GITHUB_OUTPUT
+            echo "projectKey=$SONAR_PROJECT_KEY" >> $GITHUB_OUTPUT
+            echo "📋 SonarCloud Python Configuration:"
+            echo "  Organization: $SONAR_ORG"
+            echo "  Project Key: $SONAR_PROJECT_KEY"
+          fi
+
+      - name: Auto-register SonarCloud project for Python
+        if: inputs.run-sonar && steps.check_type.outputs.is_python == 'true' && steps.sonar-config-python.outputs.organization
+        continue-on-error: true
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_ORG: ${{ steps.sonar-config-python.outputs.organization }}
+          SONAR_PROJECT_KEY: ${{ steps.sonar-config-python.outputs.projectKey }}
+        run: |
+          echo "🔍 Checking if SonarCloud project exists..."
+          PROJECT_EXISTS=$(curl -s -u "$SONAR_TOKEN:" "https://sonarcloud.io/api/projects/search?projects=$SONAR_PROJECT_KEY" | jq -r '.components | length')
+          if [ "$PROJECT_EXISTS" -gt 0 ]; then
+            echo "✅ Project already exists: $SONAR_PROJECT_KEY"
+          else
+            echo "🆕 Creating new SonarCloud project..."
+            CREATE_RESPONSE=$(curl -s -u "$SONAR_TOKEN:" -X POST "https://sonarcloud.io/api/projects/create" -d "organization=$SONAR_ORG" -d "project=$SONAR_PROJECT_KEY" -d "name=${{ inputs.service-name }}")
+            if echo "$CREATE_RESPONSE" | jq -e '.project.key' > /dev/null 2>&1; then
+              echo "✅ Successfully created project: $SONAR_PROJECT_KEY"
+            else
+              echo "⚠️ Project creation failed. Response: $CREATE_RESPONSE"
+            fi
+          fi
+
+      - name: SonarCloud Scan for Python
+        if: inputs.run-sonar && steps.check_type.outputs.is_python == 'true' && steps.sonar-config-python.outputs.organization
+        uses: SonarSource/sonarcloud-github-action@v2.2.0 # Use a specific version
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to decorate PRs
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
