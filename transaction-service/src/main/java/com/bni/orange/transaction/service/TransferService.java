@@ -554,20 +554,46 @@ public class TransferService {
     }
 
     private void publishSplitBillPaymentEvent(Transaction transaction) {
-        var event = PaymentStatusUpdatedEvent.newBuilder()
+        var eventBuilder = PaymentStatusUpdatedEvent.newBuilder()
             .setEventId(UUID.randomUUID().toString())
             .setBillId(transaction.getSplitBillId())
             .setMemberId(transaction.getSplitBillMemberId())
             .setTransactionId(transaction.getId().toString())
             .setTransactionRef(transaction.getTransactionRef())
             .setStatus("CAPTURED")
-            .setAmount(transaction.getAmount().longValue())
-            .setPaidAt(Timestamp.newBuilder().setSeconds(Instant.now().getEpochSecond()).setNanos(Instant.now().getNano()))
-            .build();
+            .setPaidAt(Timestamp.newBuilder().setSeconds(Instant.now().getEpochSecond()).setNanos(Instant.now().getNano()));
 
-        eventPublisher.publish("payment.status.updated", transaction.getSplitBillId(), event);
-        log.info("Published payment.status.updated for Split Bill: billId={}, memberId={}, txnRef={}",
-            transaction.getSplitBillId(), transaction.getSplitBillMemberId(), transaction.getTransactionRef());
+        if (transaction.getAmount() != null) {
+            eventBuilder.setAmount(transaction.getAmount().longValue());
+        }
+
+        var event = eventBuilder.build();
+        var topic = topicProperties.definitions().get("payment-status-updated").name();
+        eventPublisher.publish(topic, transaction.getSplitBillId(), event);
+        log.info("Published {} for Split Bill: billId={}, memberId={}, txnRef={}",
+            topic, transaction.getSplitBillId(), transaction.getSplitBillMemberId(), transaction.getTransactionRef());
+    }
+
+    private void publishSplitBillPaymentFailureEvent(Transaction transaction, String failureReason) {
+        var eventBuilder = PaymentStatusUpdatedEvent.newBuilder()
+            .setEventId(UUID.randomUUID().toString())
+            .setBillId(transaction.getSplitBillId())
+            .setMemberId(transaction.getSplitBillMemberId())
+            .setTransactionId(transaction.getId().toString())
+            .setTransactionRef(transaction.getTransactionRef())
+            .setStatus("FAILED")
+            .setFailureReason(failureReason != null ? failureReason : "Transaction failed");
+
+        if (transaction.getAmount() != null) {
+            eventBuilder.setAmount(transaction.getAmount().longValue());
+        }
+
+        var event = eventBuilder.build();
+        var topic = topicProperties.definitions().get("payment-status-updated").name();
+        eventPublisher.publish(topic, transaction.getSplitBillId(), event);
+        log.warn("Published {} with FAILED status for Split Bill: billId={}, memberId={}, txnRef={}, reason={}",
+            topic, transaction.getSplitBillId(), transaction.getSplitBillMemberId(),
+            transaction.getTransactionRef(), failureReason);
     }
 
     private TransactionResponse finalizeSuccessfulInternalTransfer(
@@ -615,6 +641,8 @@ public class TransferService {
             .counterpartyPhone(senderTransaction.getUserPhone())
             .notes(senderTransaction.getNotes())
             .description("Transfer from " + senderTransaction.getUserName())
+            .splitBillId(senderTransaction.getSplitBillId())
+            .splitBillMemberId(senderTransaction.getSplitBillMemberId())
             .build();
     }
 
@@ -622,9 +650,14 @@ public class TransferService {
         log.error("Transfer failed: {}", transaction.getTransactionRef(), error);
         transaction.markAsFailed(error.getMessage());
         var failedTransaction = transactionRepository.save(transaction);
+
         var event = TransactionEventFactory.createTransactionFailedEvent(failedTransaction);
         var topic = topicProperties.definitions().get("transaction-failed").name();
         eventPublisher.publish(topic, failedTransaction.getId().toString(), event);
+
+        if (failedTransaction.getSplitBillId() != null) {
+            publishSplitBillPaymentFailureEvent(failedTransaction, error.getMessage());
+        }
     }
 
     private void createLedgerEntries(
@@ -712,6 +745,8 @@ public class TransferService {
             .counterpartyPhone(receiverInfo.phoneNumber())
             .notes(request.notes())
             .description("Transfer to " + receiverInfo.name())
+            .splitBillId(request.splitBillId())
+            .splitBillMemberId(request.splitBillMemberId())
             .build();
 
         senderTransaction.calculateTotalAmount();
@@ -764,8 +799,7 @@ public class TransferService {
     public TransactionResponse initiateInternalTransfer(
         InternalTransferRequest request,
         UUID userId,
-        String idempotencyKey,
-        String accessToken
+        String idempotencyKey
     ) {
         log.info("Initiating internal transfer from user {}, from wallet {} to wallet {}, amount: {}",
             userId, request.sourceWalletId(), request.destinationWalletId(), request.amount());

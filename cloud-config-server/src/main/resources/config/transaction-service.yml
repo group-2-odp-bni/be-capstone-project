@@ -63,6 +63,11 @@ orange:
           partitions: 3
           replicas: 1
           compact: false
+        payment-status-updated:
+          name: "payment.status.updated.v1"
+          partitions: 3
+          replicas: 1
+          compact: false
       # Top-Up Event Topics
       topup:
         top-up-initiated: "orange-pay.topup.initiated.v1"

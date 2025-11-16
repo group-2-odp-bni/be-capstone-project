@@ -3,8 +3,6 @@ package com.bni.orange.wallet.config.properties;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
-import java.util.Map;
-
 @ConfigurationProperties(prefix = "orange.kafka.topics")
 public record KafkaTopicProperties(
     @DefaultValue("wallet.events.created")
