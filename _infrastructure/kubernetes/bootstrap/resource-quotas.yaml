@@ -1,0 +1,66 @@
+---
+# =============================================================================
+# ResourceQuota - Namespace Resource Limits
+# =============================================================================
+# Prevents resource exhaustion by limiting resources per namespace
+# =============================================================================
+
+# Database namespace quota (stateful workloads)
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: database-quota
+  namespace: database
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 8Gi
+    limits.cpu: "6"
+    limits.memory: 12Gi
+    persistentvolumeclaims: "10"
+
+---
+# Messaging namespace quota
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: messaging-quota
+  namespace: messaging
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: 4Gi
+    limits.cpu: "3"
+    limits.memory: 6Gi
+    persistentvolumeclaims: "5"
+
+---
+# Application namespace quota
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: orange-wallet-quota
+  namespace: orange-wallet
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 6Gi
+    limits.cpu: "6"
+    limits.memory: 10Gi
+    pods: "50"
+    services: "20"
+
+---
+# Observability namespace quota
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: observability-quota
+  namespace: observability
+spec:
+  hard:
+    requests.cpu: "3"
+    requests.memory: 6Gi
+    limits.cpu: "5"
+    limits.memory: 10Gi
+    persistentvolumeclaims: "15"

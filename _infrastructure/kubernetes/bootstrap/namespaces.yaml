@@ -1,0 +1,79 @@
+---
+# =============================================================================
+# Namespaces - Core Infrastructure
+# =============================================================================
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: argocd
+  labels:
+    name: argocd
+    purpose: gitops
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nginx-ingress
+  labels:
+    name: nginx-ingress
+    purpose: ingress
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cert-manager
+  labels:
+    name: cert-manager
+    purpose: certificates
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: external-secrets
+  labels:
+    name: external-secrets
+    purpose: secrets-management
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: observability
+  labels:
+    name: observability
+    purpose: monitoring
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: database
+  labels:
+    name: database
+    purpose: data-layer
+    workload-type: stateful
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: messaging
+  labels:
+    name: messaging
+    purpose: message-queue
+    workload-type: stateful
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: orange-wallet
+  labels:
+    name: orange-wallet
+    purpose: applications
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: orange-wallet-dev
+  labels:
+    name: orange-wallet-dev
+    purpose: development
+    environment: dev

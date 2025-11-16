@@ -1,0 +1,50 @@
+# =============================================================================
+# Group Variables - K3s Master Nodes
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# K3s Role
+# -----------------------------------------------------------------------------
+k3s_control_node: true
+k3s_server: true
+
+# -----------------------------------------------------------------------------
+# Master Node Configuration
+# -----------------------------------------------------------------------------
+# Taint master to prevent workloads (optional - keeping untainted for now)
+k3s_master_taint: false
+
+# Node labels for master
+k3s_node_labels:
+  - "node-role.kubernetes.io/master=true"
+  - "node-role.kubernetes.io/control-plane=true"
+  - "workload-type=control-plane"
+
+# -----------------------------------------------------------------------------
+# K3s Server Arguments
+# -----------------------------------------------------------------------------
+k3s_server_extra_args:
+  - --disable traefik
+  - --disable servicelb
+  - --write-kubeconfig-mode 644
+  - --tls-san {{ ansible_host }}
+  - --tls-san {{ ansible_default_ipv4.address }}
+  - --node-label node-role.kubernetes.io/master=true
+  - --node-label workload-type=control-plane
+  - --cluster-cidr {{ k3s_cluster_cidr }}
+  - --service-cidr {{ k3s_service_cidr }}
+  - --kube-apiserver-arg enable-admission-plugins=NodeRestriction,PodSecurityPolicy
+
+# -----------------------------------------------------------------------------
+# etcd Configuration (Embedded in K3s)
+# -----------------------------------------------------------------------------
+# K3s uses embedded etcd by default
+# Snapshots are automatically managed
+k3s_etcd_expose_metrics: true
+
+# -----------------------------------------------------------------------------
+# HA Configuration (Future)
+# -----------------------------------------------------------------------------
+# For HA setup with multiple masters:
+# k3s_datastore_endpoint: "https://master-1:2379,https://master-2:2379,https://master-3:2379"
+# k3s_server_init: true  # Only on first master

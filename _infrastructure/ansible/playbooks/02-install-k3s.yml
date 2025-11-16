@@ -1,0 +1,86 @@
+---
+# =============================================================================
+# Playbook: Install K3s Cluster
+# =============================================================================
+# Purpose: Install K3s on master and worker nodes
+# Usage: ansible-playbook playbooks/02-install-k3s.yml
+#
+# This playbook uses the xanmanning.k3s Ansible Galaxy role
+# Install role first: ansible-galaxy install xanmanning.k3s
+# =============================================================================
+
+- name: Install K3s on Master Node
+  hosts: k3s_master
+  become: true
+  gather_facts: true
+  roles:
+    - role: xanmanning.k3s
+      vars:
+        k3s_state: installed
+
+  post_tasks:
+    - name: Wait for K3s API server to be ready
+      ansible.builtin.wait_for:
+        host: "{{ ansible_default_ipv4.address }}"
+        port: 6443
+        timeout: 300
+
+    - name: Verify K3s service is running
+      ansible.builtin.systemd:
+        name: k3s
+        state: started
+        enabled: yes
+
+    - name: Get node token
+      ansible.builtin.slurp:
+        src: /var/lib/rancher/k3s/server/node-token
+      register: k3s_node_token
+
+    - name: Display K3s token (for debugging)
+      ansible.builtin.debug:
+        msg: "K3s token retrieved successfully"
+
+- name: Install K3s on Worker Nodes
+  hosts: k3s_workers
+  become: true
+  gather_facts: true
+  serial: 1  # Install workers one at a time
+  roles:
+    - role: xanmanning.k3s
+      vars:
+        k3s_state: installed
+        k3s_server_url: "https://{{ hostvars[groups['k3s_master'][0]]['ansible_default_ipv4']['address'] }}:6443"
+        k3s_token: "{{ hostvars[groups['k3s_master'][0]]['k3s_node_token']['content'] | b64decode | trim }}"
+
+  post_tasks:
+    - name: Verify K3s agent service is running
+      ansible.builtin.systemd:
+        name: k3s-agent
+        state: started
+        enabled: yes
+
+    - name: Display worker join status
+      ansible.builtin.debug:
+        msg: "Worker {{ inventory_hostname }} joined cluster successfully"
+
+- name: Verify Cluster Status
+  hosts: k3s_master
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Wait for all nodes to be ready
+      ansible.builtin.command: kubectl get nodes
+      register: nodes_status
+      until: nodes_status.stdout.find("NotReady") == -1
+      retries: 30
+      delay: 10
+      changed_when: false
+
+    - name: Display cluster nodes
+      ansible.builtin.command: kubectl get nodes -o wide
+      register: cluster_nodes
+      changed_when: false
+
+    - name: Show cluster status
+      ansible.builtin.debug:
+        var: cluster_nodes.stdout_lines

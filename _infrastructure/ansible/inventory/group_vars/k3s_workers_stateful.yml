@@ -1,0 +1,66 @@
+# =============================================================================
+# Group Variables - K3s Stateful Worker Node
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# K3s Role
+# -----------------------------------------------------------------------------
+k3s_control_node: false
+k3s_agent: true
+
+# -----------------------------------------------------------------------------
+# Node Labels
+# -----------------------------------------------------------------------------
+k3s_node_labels:
+  - "node-role.kubernetes.io/worker=true"
+  - "workload-type=stateful"
+  - "node-type=worker"
+  - "database-node=true"
+
+# -----------------------------------------------------------------------------
+# Node Taints
+# -----------------------------------------------------------------------------
+# Taint to prevent stateless workloads from scheduling here
+k3s_node_taints:
+  - "stateful=true:NoSchedule"
+
+# Only pods with toleration can run on this node:
+# tolerations:
+# - key: "stateful"
+#   operator: "Equal"
+#   value: "true"
+#   effect: "NoSchedule"
+
+# -----------------------------------------------------------------------------
+# K3s Agent Arguments
+# -----------------------------------------------------------------------------
+k3s_agent_extra_args:
+  - --node-label node-role.kubernetes.io/worker=true
+  - --node-label workload-type=stateful
+  - --node-label database-node=true
+  - --node-taint stateful=true:NoSchedule
+
+# -----------------------------------------------------------------------------
+# Workload Configuration
+# -----------------------------------------------------------------------------
+# This node is dedicated to stateful workloads:
+# - PostgreSQL (StatefulSet)
+# - Redis (StatefulSet)
+# - Kafka (StatefulSet)
+# - WAHA (StatefulSet)
+
+# -----------------------------------------------------------------------------
+# Resource Allocation
+# -----------------------------------------------------------------------------
+# Reserve resources for system components
+kubelet_reserved_cpu: 200m
+kubelet_reserved_memory: 1Gi
+
+# Node has e2-standard-2: 2 vCPU, 8GB RAM
+# Available for workloads: ~1.8 vCPU, 7GB RAM
+
+# -----------------------------------------------------------------------------
+# Storage Optimization
+# -----------------------------------------------------------------------------
+# This node will have persistent volumes attached
+# Ensure adequate disk I/O performance

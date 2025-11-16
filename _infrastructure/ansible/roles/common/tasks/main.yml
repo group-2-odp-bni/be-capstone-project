@@ -1,0 +1,16 @@
+---
+# =============================================================================
+# Common Role - Main Tasks
+# =============================================================================
+
+- name: Include package installation tasks
+  ansible.builtin.include_tasks: packages.yml
+  tags:
+    - packages
+    - common
+
+- name: Include security hardening tasks
+  ansible.builtin.include_tasks: security.yml
+  tags:
+    - security
+    - common

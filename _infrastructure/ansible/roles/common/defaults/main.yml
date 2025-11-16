@@ -1,0 +1,28 @@
+---
+# =============================================================================
+# Common Role - Default Variables
+# =============================================================================
+
+# Firewall (disabled - using GCP firewall rules)
+enable_firewall: false
+
+# Timezone
+timezone: Asia/Jakarta
+
+# System packages to install
+common_packages:
+  - curl
+  - wget
+  - git
+  - vim
+  - htop
+  - net-tools
+  - nfs-common
+  - open-iscsi
+  - python3-pip
+
+# Python packages for Kubernetes management
+python_packages:
+  - kubernetes
+  - openshift
+  - pyyaml

@@ -1,0 +1,44 @@
+---
+# =============================================================================
+# Common Role - Package Installation
+# =============================================================================
+
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: yes
+    cache_valid_time: 3600
+  register: apt_update
+  retries: 3
+  delay: 10
+  until: apt_update is success
+
+- name: Upgrade all packages (optional)
+  ansible.builtin.apt:
+    upgrade: dist
+    autoremove: yes
+    autoclean: yes
+  when: perform_full_upgrade | default(false)
+
+- name: Install common packages
+  ansible.builtin.apt:
+    name: "{{ common_packages }}"
+    state: present
+  register: pkg_install
+  retries: 3
+  delay: 10
+  until: pkg_install is success
+
+- name: Install Python3 pip
+  ansible.builtin.apt:
+    name: python3-pip
+    state: present
+
+- name: Install Python packages for Kubernetes
+  ansible.builtin.pip:
+    name: "{{ python_packages }}"
+    state: present
+    executable: pip3
+  register: pip_install
+  retries: 3
+  delay: 10
+  until: pip_install is success
