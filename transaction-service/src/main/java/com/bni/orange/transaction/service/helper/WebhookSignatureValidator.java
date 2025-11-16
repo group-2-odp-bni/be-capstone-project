@@ -1,4 +1,4 @@
-package com.bni.orange.transaction.service;
+package com.bni.orange.transaction.service.helper;
 
 import com.bni.orange.transaction.config.properties.BniVaProperties;
 import com.bni.orange.transaction.error.BusinessException;
@@ -38,7 +38,6 @@ public class WebhookSignatureValidator {
 
 
     private void validateBniSignature(TopUpCallbackRequest request, String providedSignature) {
-        log.info("TEMPORARY DEBUG: Using BNI VA Client Secret: {}", bniVaProperties.clientSecret()); // TODO: REMOVE THIS LINE
         try {
             validateTimestamp(request.paymentTimestamp());
 

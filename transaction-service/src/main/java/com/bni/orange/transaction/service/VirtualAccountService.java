@@ -44,12 +44,14 @@ public class VirtualAccountService {
     }
 
     public VirtualAccount findByVaNumberWithLock(String vaNumber) {
-        return virtualAccountRepository.findByVaNumberWithLock(vaNumber)
+        return this.virtualAccountRepository
+            .findByVaNumberWithLock(vaNumber)
             .orElseThrow(() -> new IllegalArgumentException("Virtual Account not found: " + maskVaNumber(vaNumber)));
     }
 
     public VirtualAccount findByTransactionId(UUID transactionId) {
-        return virtualAccountRepository.findByTransactionId(transactionId)
+        return this.virtualAccountRepository
+            .findByTransactionId(transactionId)
             .orElseThrow(() -> new IllegalArgumentException("Virtual Account not found for transaction: " + transactionId));
     }
 
