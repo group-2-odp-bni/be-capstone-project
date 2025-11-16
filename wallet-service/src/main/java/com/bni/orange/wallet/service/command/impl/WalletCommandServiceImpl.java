@@ -148,6 +148,19 @@ public class WalletCommandServiceImpl implements WalletCommandService {
                                             "' already exists for this user.");
             }
         }
+    if (req.getType() == WalletType.PERSONAL) {
+        long countPersonal = walletReadRepo.countByUserIdAndTypeAndDefaultForUserFalse(uid, WalletType.PERSONAL);
+        if (countPersonal >= 5) {
+            throw new ValidationFailedException("Maximum 5 personal wallet allowed.");
+        }
+    }
+
+    if (req.getType() == WalletType.SHARED) {
+        long countShared = walletReadRepo.countByUserIdAndType(uid, WalletType.SHARED);
+        if (countShared >= 5) {
+            throw new ValidationFailedException("Maximum 5 shared wallet allowed.");
+        }
+    }
     Wallet w = mapper.toEntity(req, uid);
     w.setId(null);
     if (w.getUserId() == null) w.setUserId(uid);
