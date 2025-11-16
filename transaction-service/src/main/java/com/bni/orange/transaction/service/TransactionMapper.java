@@ -61,14 +61,14 @@ public class TransactionMapper {
 
     private String resolveDisplayName(Transaction transaction) {
         return switch (transaction.getType()) {
-            case TRANSFER_OUT, TRANSFER_IN, INTERNAL_TRANSFER_OUT, INTERNAL_TRANSFER_IN, PAYMENT ->
+            case TRANSFER_OUT, TRANSFER_IN, PAYMENT ->
                 transaction.getCounterpartyName() != null ? transaction.getCounterpartyName() : "Unknown";
+            case INTERNAL_TRANSFER_OUT, INTERNAL_TRANSFER_IN ->
+                transaction.getUserName() != null ? transaction.getUserName() : "Unknown";
             case TOP_UP ->
                 transaction.getCounterpartyName() != null ? transaction.getCounterpartyName() : "Top Up";
-            case REFUND ->
-                "Refund";
-            case WITHDRAWAL ->
-                "Withdrawal";
+            case REFUND -> "Refund";
+            case WITHDRAWAL -> "Withdrawal";
         };
     }
 
@@ -76,8 +76,10 @@ public class TransactionMapper {
         return switch (transaction.getType()) {
             case TRANSFER_OUT, TRANSFER_IN ->
                 transaction.getCounterpartyPhone() != null ? transaction.getCounterpartyPhone() : "Transfer";
-            case INTERNAL_TRANSFER_OUT, INTERNAL_TRANSFER_IN ->
-                transaction.getNotes() != null ? transaction.getNotes() : "Internal Transfer";
+            case INTERNAL_TRANSFER_OUT ->
+                "To " + transaction.getCounterpartyName();
+            case INTERNAL_TRANSFER_IN ->
+                "From " + transaction.getCounterpartyName();
             case TOP_UP ->
                 "Top Up";
             case PAYMENT ->
