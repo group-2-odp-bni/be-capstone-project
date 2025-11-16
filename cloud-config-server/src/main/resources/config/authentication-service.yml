@@ -20,14 +20,32 @@ spring:
     user: ${spring.datasource.username}
 
   kafka:
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
+      acks: all
+      enable-idempotence: true
+      retries: 3
+      retry-backoff-ms: 1s
+      compression-type: snappy
+      reliability:
+        max-in-flight-requests-per-connection: 5
+        request-timeout: 30s
+        delivery-timeout: 2m
+      batching:
+        linger-ms: 20
+        batch-size: 32768
     consumer:
       group-id: auth-service-profile-sync
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
       enable-auto-commit: false
-    listener:
-      ack-mode: manual
+      max-poll-records: 100
+      max-poll-interval-ms: 300000
+      session-timeout-ms: 30000
+      heartbeat-interval-ms: 10000
+      concurrency: 3
 
 orange:
   jwt:
@@ -65,21 +83,6 @@ orange:
           partitions: 3
           replicas: 1
           compact: false
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
-      acks: 1
-      idempotence: false
-      retries: 3
-      backoff: 1s
-      compression-type: snappy
-      reliability:
-        max-in-flight-requests-per-connection: 5
-        request-timeout: 30s
-        delivery-timeout: 2m
-      batching:
-        linger-ms: 20
-        batch-size: 32768
 
 server:
   port: ${SERVER_PORT:8081}
