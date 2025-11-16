@@ -24,6 +24,30 @@ spring:
     bootstrap-servers: localhost:9092
     producer:
       bootstrap-servers: localhost:9092
+      acks: all
+      enable-idempotence: true
+      retries: 3
+      retry-backoff-ms: 1s
+      compression-type: snappy
+      reliability:
+        max-in-flight-requests-per-connection: 5
+        request-timeout: 30s
+        delivery-timeout: 2m
+      batching:
+        linger-ms: 20
+        batch-size: 32768
+    consumer:
+      bootstrap-servers: localhost:9092
+      group-id: user-service
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      max-poll-records: 100
+      max-poll-interval-ms: 300000
+      session-timeout-ms: 30000
+      heartbeat-interval-ms: 10000
+      concurrency: 3
+      poll-timeout: 3000
+
 orange:
   gcp:
     storage:
@@ -31,9 +55,6 @@ orange:
       bucket-name: orange-wallet-users-profiles
       project-id: orange-wallet-project
       service-account-email: orange-wallet-storage@orange-wallet-project.iam.gserviceaccount.com
-  kafka:
-    producer:
-      bootstrap-servers: localhost:9092
 
 logging:
   level:
