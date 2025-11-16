@@ -1,11 +1,11 @@
 package com.bni.orange.wallet.messaging;
 
+import com.bni.orange.wallet.config.properties.KafkaTopicProperties;
 import com.bni.orange.wallet.proto.EventEnvelope;
 import com.google.protobuf.Any;
 import com.google.protobuf.util.Timestamps;
 import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
@@ -18,27 +18,9 @@ import java.util.UUID;
 public class WalletEventPublisher {
 
   private final KafkaTemplate<String, byte[]> template;
-
-  @Value("${orange.kafka.topics.wallet-created:wallet.events.created}")
-  private String topicWalletCreated;
-
-  @Value("${orange.kafka.topics.wallet-updated:wallet.events.updated}")
-  private String topicWalletUpdated;
-
-  @Value("${orange.kafka.topics.wallet-member-invited:wallet.events.member-invited}")
-  private String topicMemberInvited;
-
-  @Value("${orange.kafka.topics.wallet-invite-generated:wallet.events.invite-link-generated}")
-  private String topicInviteLinkGenerated;
-
-  @Value("${orange.kafka.topics.wallet-invite-accepted:wallet.events.invite-accepted}")
-  private String topicInviteAccepted;
+  private final KafkaTopicProperties topicProperties;
   
-  @Value("${orange.kafka.topics.wallet-members-cleared:wallet.events.members-cleared}")
-  private String topicWalletMembersCleared;
-  
-  public void publish(String topic, String key, com.google.protobuf.Message payload,
-                      String eventType, int version) {
+  public void publish(String topic, String key, com.google.protobuf.Message payload, String eventType, int version) {
 
   var envelope = EventEnvelope.newBuilder()
         .setEventId(UUID.randomUUID().toString())
@@ -60,22 +42,26 @@ public class WalletEventPublisher {
   }
 
   public void publishWalletCreated(String walletId, com.google.protobuf.Message walletCreatedPayload) {
-    publish(topicWalletCreated, walletId, walletCreatedPayload, "WalletCreated", 1);
+    publish(topicProperties.walletCreated(), walletId, walletCreatedPayload, "WalletCreated", 1);
   }
+
   public void publishWalletUpdated(String walletId, com.google.protobuf.Message walletUpdatedPayload) {
-      publish(topicWalletUpdated, walletId, walletUpdatedPayload, "WalletUpdated", 1);
+    publish(topicProperties.walletUpdated(), walletId, walletUpdatedPayload, "WalletUpdated", 1);
   }
+
   public void publishWalletMemberInvited(String key, com.google.protobuf.Message payload) {
-    publish(topicMemberInvited, key, payload, "WalletMemberInvited", 1);
+    publish(topicProperties.walletMemberInvited(), key, payload, "WalletMemberInvited", 1);
   }
+
   public void publishWalletInviteLinkGenerated(String key, com.google.protobuf.Message payload) {
-    publish(topicInviteLinkGenerated, key, payload, "WalletInviteLinkGenerated", 1);
+    publish(topicProperties.walletInviteGenerated(), key, payload, "WalletInviteLinkGenerated", 1);
   }
 
   public void publishWalletInviteAccepted(String key, com.google.protobuf.Message payload) {
-    publish(topicInviteAccepted, key, payload, "WalletInviteAccepted", 1);
+    publish(topicProperties.walletInviteAccepted(), key, payload, "WalletInviteAccepted", 1);
   }
+
   public void publishWalletMembersCleared(String walletId, com.google.protobuf.Message payload) {
-    publish(topicWalletMembersCleared, walletId, payload, "WalletMembersCleared", 1);
+    publish(topicProperties.walletMembersCleared(), walletId, payload, "WalletMembersCleared", 1);
   }
 }
