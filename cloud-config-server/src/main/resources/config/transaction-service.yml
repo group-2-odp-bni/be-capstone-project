@@ -21,6 +21,23 @@ spring:
     password: ${spring.datasource.password}
     user: ${spring.datasource.username}
 
+  kafka:
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
+      acks: all
+      enable-idempotence: true
+      retries: 3
+      retry-backoff-ms: 1s
+      compression-type: snappy
+      reliability:
+        max-in-flight-requests-per-connection: 5
+        request-timeout: 30s
+        delivery-timeout: 2m
+      batching:
+        linger-ms: 20
+        batch-size: 32768
+
 orange:
   transaction:
     fee:
@@ -53,21 +70,6 @@ orange:
         top-up-failed: "orange-pay.topup.failed.v1"
         top-up-expired: "orange-pay.topup.expired.v1"
         top-up-cancelled: "orange-pay.topup.cancelled.v1"
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
-      acks: all
-      idempotence: true
-      retries: 3
-      backoff: 1s
-      compression-type: snappy
-      reliability:
-        max-in-flight-requests-per-connection: 5
-        request-timeout: 30s
-        delivery-timeout: 2m
-      batching:
-        linger-ms: 20
-        batch-size: 32768
 
 server:
   port: ${SERVER_PORT:8084}

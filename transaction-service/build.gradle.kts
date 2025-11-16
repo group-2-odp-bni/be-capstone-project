@@ -44,6 +44,7 @@ dependencies {
     implementation("org.flywaydb:flyway-database-postgresql")
     implementation("io.github.resilience4j:resilience4j-spring-boot3:2.1.0")
     implementation("io.github.resilience4j:resilience4j-reactor:2.1.0")
+    implementation("org.xerial.snappy:snappy-java:1.1.10.5")
 
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
