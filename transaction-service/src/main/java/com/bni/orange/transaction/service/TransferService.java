@@ -43,6 +43,9 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import com.bni.orange.splitbill.proto.PaymentStatusUpdatedEvent;
+import com.google.protobuf.Timestamp;
+import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
@@ -541,9 +544,30 @@ public class TransferService {
         eventPublisher.publish(topic, savedSenderTxn.getId().toString(), senderEvent);
         eventPublisher.publish(topic, savedReceiverTxn.getId().toString(), receiverEvent);
 
+        if (savedSenderTxn.getSplitBillId() != null) {
+            publishSplitBillPaymentEvent(savedSenderTxn);
+        }
+
         log.info("Transfer completed successfully: ref={} (sender_id: {}, receiver_id: {})",
             savedSenderTxn.getTransactionRef(), savedSenderTxn.getId(), savedReceiverTxn.getId());
         return transactionMapper.toResponse(savedSenderTxn);
+    }
+
+    private void publishSplitBillPaymentEvent(Transaction transaction) {
+        var event = PaymentStatusUpdatedEvent.newBuilder()
+            .setEventId(UUID.randomUUID().toString())
+            .setBillId(transaction.getSplitBillId())
+            .setMemberId(transaction.getSplitBillMemberId())
+            .setTransactionId(transaction.getId().toString())
+            .setTransactionRef(transaction.getTransactionRef())
+            .setStatus("CAPTURED")
+            .setAmount(transaction.getAmount().longValue())
+            .setPaidAt(Timestamp.newBuilder().setSeconds(Instant.now().getEpochSecond()).setNanos(Instant.now().getNano()))
+            .build();
+
+        eventPublisher.publish("payment.status.updated", transaction.getSplitBillId(), event);
+        log.info("Published payment.status.updated for Split Bill: billId={}, memberId={}, txnRef={}",
+            transaction.getSplitBillId(), transaction.getSplitBillMemberId(), transaction.getTransactionRef());
     }
 
     private TransactionResponse finalizeSuccessfulInternalTransfer(

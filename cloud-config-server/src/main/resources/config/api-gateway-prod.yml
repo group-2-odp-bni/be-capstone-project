@@ -127,11 +127,11 @@ spring:
 orange:
   cors:
     allowed-origins:
-      - "https://app.orangebybni.my.id"
+      - "http://localhost:5173"
       - "https://orangebybni.my.id"
       - "https://api.orangebybni.my.id"
       - "https://api-dev.orangebybni.my.id"
-      - "http://localhost:5173"
+      - "https://app.orangebybni.my.id/"
       - "https://app-dev.orangebybni.my.id/"
 
   security:

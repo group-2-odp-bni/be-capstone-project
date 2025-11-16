@@ -96,6 +96,12 @@ public class Transaction {
     @Column(name = "notes", length = 255)
     private String notes;
 
+    @Column(name = "split_bill_id")
+    private String splitBillId;
+
+    @Column(name = "split_bill_member_id")
+    private String splitBillMemberId;
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "metadata", columnDefinition = "jsonb")
     private Map<String, Object> metadata;
