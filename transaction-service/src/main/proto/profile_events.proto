@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package com.bni.orange.users.proto;
+
+option java_package = "com.bni.orange.users.proto";
+option java_multiple_files = true;
+
+// Event: User name has been updated (non-sensitive, no verification needed)
+message UserProfileNameUpdatedEvent {
+  string event_id = 1;
+  string user_id = 2;
+  string name = 3;
+  int64 updated_at = 4;
+}
