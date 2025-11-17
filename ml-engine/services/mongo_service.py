@@ -140,15 +140,29 @@ def get_bill_detail(bill_id: str, viewer_user_id: str) -> Dict[str, Any]:
     doc = bills_collection.find_one({"_id": oid})
     if not doc:
         return {"error": True, "message": "Bill tidak ditemukan", "data": None}
+    owner_id = doc.get("creator_user_id")
+    members_list = doc.get("members") or []
+    member_user_ids = [
+        m.get("user_id") or m.get("member_ref", {}).get("user_id") 
+        for m in members_list
+    ]
+    is_authorized = viewer_user_id == owner_id   
+    if not is_authorized:
+        return {
+            "error": True, 
+            "message": "Akses ditolak. Anda tidak terdaftar di bill ini.", 
+            "data": None
+        }
     totals = _aggregate_totals(doc)
     members = []
-    for m in (doc.get("members") or []):
+    for m in members_list:
         members.append({
             "memberId": m["member_id"],
             "name": m.get("member_ref", {}).get("name") or m.get("member_ref", {}).get("phone") or m.get("member_ref", {}).get("email"),
             "amount": m.get("amount_due"),
             "status": m.get("status"),
             "paid": m.get("paid", 0),
+            "initial": (m.get("member_ref", {}).get("name") or "?")[0].upper()
         })
     unpaid_count = sum(1 for m in members if m.get("status") != "PAID")
     out = {
@@ -158,8 +172,7 @@ def get_bill_detail(bill_id: str, viewer_user_id: str) -> Dict[str, Any]:
         "destinationWalletId": doc.get("destination_wallet_id"),
         "imageUrl": doc.get("receipt_url"),
         "status": doc.get("status"),
-        "items": doc.get("items_norm"),
-        "fees": {
+        "items": doc.get("expanded_items") or doc.get("items_norm"),        "fees": {
             "tax": (doc.get("components") or {}).get("tax_rp", 0),
             "service": (doc.get("components") or {}).get("service_rp", 0),
             "tip": (doc.get("components") or {}).get("tip_rp", 0)
@@ -182,27 +195,59 @@ def get_member_invoice(bill_id: str, member_id: str, viewer_user_id: str) -> Dic
     doc = bills_collection.find_one({"_id": oid})
     if not doc:
         return {"error": True, "message": "Bill tidak ditemukan", "data": None}
-
+    owner_id = doc.get("creator_user_id")
     m = next((m for m in (doc.get("members") or []) if m.get("member_id") == member_id), None)
     if not m:
         return {"error": True, "message": "Member tidak ditemukan", "data": None}
+    member_user_id = m.get("user_id") or m.get("member_ref", {}).get("user_id")
+    is_owner = (viewer_user_id == owner_id)
+    is_the_member = (member_user_id and viewer_user_id == member_user_id)
+    if not (is_owner or is_the_member):
+        return {
+            "error": True, 
+            "message": "Akses ditolak. Invoice ini bukan milik Anda.", 
+            "data": None
+        }
+    member_ref = m.get("member_ref") or {}
+    member_profile = {
+        "name": member_ref.get("name") or member_ref.get("phone") or "Member",
+        "phone": member_ref.get("phone"),
+        "initial": (member_ref.get("name") or "?")[0].upper()
+    }
+    bill_comps = doc.get("components") or {}
+    total_items_subtotal = int(bill_comps.get("items_subtotal_rp") or 0)
+    my_items = m.get("items") or []
+    member_subtotal = 0
+    for it in my_items:
+        val = it.get("line_subtotal_rp") or it.get("total") or it.get("price", 0) * it.get("qty", 1)
+        member_subtotal += int(val)
+    ratio = member_subtotal / total_items_subtotal if total_items_subtotal > 0 else 0
 
-    comps = doc.get("components") or {}
+    fees_share = {
+        "tax": int(round((bill_comps.get("tax_rp") or 0) * ratio)),
+        "service": int(round((bill_comps.get("service_rp") or 0) * ratio)),
+        "other": int(round((bill_comps.get("tip_rp") or 0) * ratio)),
+    }
+
     total_due = int(m.get("amount_due") or 0)
+
     out = {
         "billId": bill_id,
         "memberId": member_id,
         "title": doc.get("title"),
+        "receiptUrl": doc.get("receipt_url"), 
         "payTo": {
             "walletId": doc.get("destination_wallet_id"),
             "userId": doc.get("creator_user_id"),
         },        
         "amount": total_due,
         "status": m.get("status"),
-        "myItems": m.get("items") or [],
-        "feesShare": {}, 
+        "memberProfile": member_profile, 
+        "myItems": my_items,
+        "feesShare": fees_share, 
         "totalDue": total_due,
     }
+
     return {"error": False, "message": "OK", "data": out}
 
 def update_bill_split_data(bill_id: str, split_doc: Dict[str, Any]) -> Dict[str, Any]:
