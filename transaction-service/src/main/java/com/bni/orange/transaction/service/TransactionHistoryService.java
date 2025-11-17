@@ -8,6 +8,7 @@ import com.bni.orange.transaction.model.response.TransactionResponse;
 import com.bni.orange.transaction.model.response.TransactionSummaryResponse;
 import com.bni.orange.transaction.repository.TransactionRepository;
 import com.bni.orange.transaction.repository.specification.TransactionSpecification;
+import com.bni.orange.transaction.service.helper.TransactionMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
