@@ -3,19 +3,19 @@
 # =============================================================================
 #
 # IMPORTANT: Before using this backend:
-# 1. Run bootstrap first: cd ../../bootstrap && terraform apply
-# 2. Ensure bucket "orange-wallet-tf-state" exists
-# 3. Run: terraform init -migrate-state (if migrating from local)
+# 1. Run bootstrap first: cd ../../bootstrap && terraform apply ✅ DONE
+# 2. Ensure bucket exists: orange-wallet-tf-state-275033978165 ✅ DONE
+# 3. Run: terraform init (first time setup)
 #
 # =============================================================================
 
 terraform {
   backend "gcs" {
-    bucket = "orange-wallet-tf-state"
-    prefix = "production/k3s"
+    bucket = "orange-wallet-tf-state-275033978165"
+    prefix = "dev/infrastructure"
 
-    # Optional: Enable state locking (requires additional setup)
-    # See: https://www.terraform.io/language/settings/backends/gcs#configuration-variables
+    # GCS backend provides automatic state locking
+    # No additional configuration needed
   }
 }
 

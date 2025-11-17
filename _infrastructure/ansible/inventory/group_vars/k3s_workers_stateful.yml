@@ -6,39 +6,25 @@
 # K3s Role
 # -----------------------------------------------------------------------------
 k3s_control_node: false
-k3s_agent: true
 
-# -----------------------------------------------------------------------------
-# Node Labels
-# -----------------------------------------------------------------------------
+# K3s agent configuration (must be dict for xanmanning.k3s v3.6+)
+k3s_agent:
+  node-label:
+    - "node-role.kubernetes.io/worker=true"
+    - "workload-type=stateful"
+    - "node-type=worker"
+    - "database-node=true"
+  node-taint:
+    - "stateful=true:NoSchedule"
+
+# Additional node labels
 k3s_node_labels:
-  - "node-role.kubernetes.io/worker=true"
   - "workload-type=stateful"
-  - "node-type=worker"
   - "database-node=true"
 
-# -----------------------------------------------------------------------------
-# Node Taints
-# -----------------------------------------------------------------------------
-# Taint to prevent stateless workloads from scheduling here
-k3s_node_taints:
-  - "stateful=true:NoSchedule"
-
-# Only pods with toleration can run on this node:
-# tolerations:
-# - key: "stateful"
-#   operator: "Equal"
-#   value: "true"
-#   effect: "NoSchedule"
-
-# -----------------------------------------------------------------------------
-# K3s Agent Arguments
-# -----------------------------------------------------------------------------
-k3s_agent_extra_args:
-  - --node-label node-role.kubernetes.io/worker=true
-  - --node-label workload-type=stateful
-  - --node-label database-node=true
-  - --node-taint stateful=true:NoSchedule
+# Node Taints (defined above in k3s_agent)
+# Prevents stateless workloads from scheduling here
+# Pods need toleration to run on this node
 
 # -----------------------------------------------------------------------------
 # Workload Configuration

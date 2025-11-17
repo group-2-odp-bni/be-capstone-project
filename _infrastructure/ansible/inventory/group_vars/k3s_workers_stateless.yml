@@ -6,22 +6,17 @@
 # K3s Role
 # -----------------------------------------------------------------------------
 k3s_control_node: false
-k3s_agent: true
 
-# -----------------------------------------------------------------------------
-# Node Labels
-# -----------------------------------------------------------------------------
+# K3s agent configuration (must be dict for xanmanning.k3s v3.6+)
+k3s_agent:
+  node-label:
+    - "node-role.kubernetes.io/worker=true"
+    - "workload-type=stateless"
+    - "node-type=worker"
+
+# Additional node labels
 k3s_node_labels:
-  - "node-role.kubernetes.io/worker=true"
   - "workload-type=stateless"
-  - "node-type=worker"
-
-# -----------------------------------------------------------------------------
-# K3s Agent Arguments
-# -----------------------------------------------------------------------------
-k3s_agent_extra_args:
-  - --node-label node-role.kubernetes.io/worker=true
-  - --node-label workload-type=stateless
 
 # -----------------------------------------------------------------------------
 # Workload Configuration

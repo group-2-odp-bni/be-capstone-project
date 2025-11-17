@@ -5,6 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
 import java.time.Duration;
+import java.util.List;
 
 @Slf4j
 @ConfigurationProperties(prefix = "orange.security")
@@ -28,7 +29,9 @@ public record SecurityProperties(
     Duration suspiciousDuration,
 
     @DefaultValue("5")
-    int suspiciousThreshold
+    int suspiciousThreshold,
+
+    List<String> whitelistedIps
 ) {
 
 }

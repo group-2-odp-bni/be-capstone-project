@@ -47,56 +47,55 @@
           kubectl get nodes
 
     # -------------------------------------------------------------------------
-    # Label Nodes
+    # Verify Node Labels and Taints (already applied during install)
     # -------------------------------------------------------------------------
-    - name: Label stateless worker nodes
-      ansible.builtin.command: >
-        kubectl label nodes {{ item }}
-        workload-type=stateless
-        --overwrite
-      loop: "{{ groups['k3s_workers_stateless'] }}"
-      changed_when: true
+    # Note: Labels and taints are applied during K3s installation via group_vars
+    # This section just verifies they are present
 
-    - name: Label stateful worker node
-      ansible.builtin.command: >
-        kubectl label nodes {{ item }}
-        workload-type=stateful
-        database-node=true
-        --overwrite
-      loop: "{{ groups['k3s_workers_stateful'] }}"
-      changed_when: true
-
-    # -------------------------------------------------------------------------
-    # Taint Stateful Node
-    # -------------------------------------------------------------------------
-    - name: Taint stateful worker node
-      ansible.builtin.command: >
-        kubectl taint nodes {{ item }}
-        stateful=true:NoSchedule
-        --overwrite
-      loop: "{{ groups['k3s_workers_stateful'] }}"
-      changed_when: true
-
-    # -------------------------------------------------------------------------
-    # Verify Configuration
-    # -------------------------------------------------------------------------
-    - name: Get nodes with labels
+    - name: Verify node labels are present
       ansible.builtin.command: kubectl get nodes --show-labels
-      register: nodes_labels
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: node_labels_check
       changed_when: false
 
-    - name: Display node labels
+    - name: Display current node labels
       ansible.builtin.debug:
-        var: nodes_labels.stdout_lines
+        msg: |
+          Current node labels:
+          {{ node_labels_check.stdout_lines | join('\n') }}
 
-    - name: Get node taints
+    - name: Verify node taints are present
       ansible.builtin.command: kubectl get nodes -o custom-columns=NAME:.metadata.name,TAINTS:.spec.taints
-      register: nodes_taints
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: node_taints_check
       changed_when: false
 
-    - name: Display node taints
+    - name: Display current node taints
       ansible.builtin.debug:
-        var: nodes_taints.stdout_lines
+        msg: |
+          Current node taints:
+          {{ node_taints_check.stdout_lines | join('\n') }}
+
+    # -------------------------------------------------------------------------
+    # Verify Cluster Configuration Summary
+    # -------------------------------------------------------------------------
+    - name: Get final cluster state
+      ansible.builtin.command: kubectl get nodes -o wide
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: final_cluster_state
+      changed_when: false
+
+    - name: Display cluster configuration summary
+      ansible.builtin.debug:
+        msg: |
+          ========================================
+          Cluster Configuration Summary:
+          ========================================
+          {{ final_cluster_state.stdout }}
+          ========================================
 
     # -------------------------------------------------------------------------
     # Create Namespaces

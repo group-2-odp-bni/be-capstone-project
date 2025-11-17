@@ -23,6 +23,5 @@ collections:
 # -----------------------------------------------------------------------------
 roles:
   # K3s installation and management
+  # Install latest version from Ansible Galaxy
   - name: xanmanning.k3s
-    version: ">=3.4.0"
-    src: https://github.com/PyratLabs/ansible-role-k3s.git

@@ -56,9 +56,12 @@ resource "google_storage_bucket" "backup_bucket" {
     }
   )
 
-  # Enable encryption (Google-managed by default)
-  encryption {
-    default_kms_key_name = var.kms_key_name
+  # Enable encryption (Google-managed by default, customer-managed if KMS key provided)
+  dynamic "encryption" {
+    for_each = var.kms_key_name != null ? [1] : []
+    content {
+      default_kms_key_name = var.kms_key_name
+    }
   }
 }
 

@@ -1,10 +1,12 @@
 package com.bni.orange.api.gateway.filter;
 
+import com.bni.orange.api.gateway.config.SecurityProperties;
 import com.bni.orange.api.gateway.service.IpBlockingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.Ordered;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
@@ -19,14 +21,21 @@ import java.util.Optional;
  */
 @Slf4j
 @Component
+@Profile("!load-test")
 @RequiredArgsConstructor
 public class RateLimitViolationFilter implements GlobalFilter, Ordered {
 
     private final IpBlockingService ipBlockingService;
+    private final SecurityProperties securityProperties;
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         String ipAddress = extractIpAddress(exchange);
+
+        if (securityProperties.whitelistedIps() != null && securityProperties.whitelistedIps().contains(ipAddress)) {
+            log.trace("IP {} is whitelisted, skipping rate limit violation check.", ipAddress);
+            return chain.filter(exchange);
+        }
 
         return chain
             .filter(exchange)
