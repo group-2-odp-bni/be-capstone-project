@@ -51,7 +51,7 @@ def create_short_tokens(bill_id: str, owner_user_id: str, members: List[Dict[str
                 "phoneE164": phone
                 })
         docs.append({"token": tok, "type": "member", "bill_id": bill_id,
-                     "member_id": mid, "exp": exp_ts, "created_at": datetime.now(timezone.utc)})
+                     "member_id": mid, "user_id": uid,"exp": exp_ts, "created_at": datetime.now(timezone.utc)})
 
     try:
         shortlinks_collection.insert_many(docs, ordered=False)
