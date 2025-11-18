@@ -41,8 +41,5 @@ public interface WalletReadRepository extends JpaRepository<WalletRead, UUID> {
                             @Param("balance") BigDecimal balance);
     long countByUserIdAndType(UUID userId, WalletType type);
 
-    long countByUserIdAndTypeAndDefaultForUserFalse(
-        UUID userId,
-        WalletType type
-    );
+    long countByUserIdAndTypeAndIsDefaultForUserFalse(UUID userId, WalletType type);
 }

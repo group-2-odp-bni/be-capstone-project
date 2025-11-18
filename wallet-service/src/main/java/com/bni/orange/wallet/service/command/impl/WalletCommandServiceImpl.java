@@ -152,8 +152,9 @@ public class WalletCommandServiceImpl implements WalletCommandService {
                                         "' already exists for this user.");
         }
     }
+
     if (req.getType() == WalletType.PERSONAL) {
-        long countPersonal = walletReadRepo.countByUserIdAndTypeAndDefaultForUserFalse(uid, WalletType.PERSONAL);
+        long countPersonal = walletReadRepo.countByUserIdAndTypeAndIsDefaultForUserFalse(uid, WalletType.PERSONAL);
         if (countPersonal >= 5) {
             throw new ValidationFailedException("Maximum 5 personal wallet allowed.");
         }
