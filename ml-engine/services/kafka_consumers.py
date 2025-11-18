@@ -1,13 +1,14 @@
-import os, json, signal, sys
+import os, signal, sys
 from datetime import datetime
 from bson import ObjectId
 from confluent_kafka import Consumer, KafkaError, KafkaException
 
 from services.mongo_service import bills_collection
+from payment_status_updated_pb2 import PaymentStatusUpdatedEvent
 
 TOPIC = "payment.status.updated.v1"
 GROUP_ID = "split-bill-payment-updater"
-KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP")
+KAFKA_BOOTSTRAP = os.getenv("SPRING_KAFKA_BOOTSTRAP_SERVERS")
 KAFKA_USERNAME = os.getenv("KAFKA_USERNAME")
 KAFKA_PASSWORD = os.getenv("KAFKA_PASSWORD")
 KAFKA_CA = os.getenv("KAFKA_CA")
@@ -102,7 +103,7 @@ def _handle_event(evt: dict):
     if bills_collection is None:
         return
 
-    txid = evt.get("transactionId") or evt.get("transaction_id")
+    txid = evt.get("transaction_id")
     if not txid:
         return
 
@@ -110,11 +111,11 @@ def _handle_event(evt: dict):
     if processed is not None and processed.find_one({"_id": txid}):
         return
 
-    bill_id = evt.get("billId") or evt.get("bill_id")
-    member_id = evt.get("memberId") or evt.get("member_id")
+    bill_id = evt.get("bill_id")
+    member_id = evt.get("member_id")
     amount = int(evt.get("amount") or 0)
     raw_status = (evt.get("status") or "").upper()
-    failure_reason = evt.get("failureReason") or evt.get("failure_reason")
+    failure_reason = evt.get("failure_reason")
 
     if raw_status == "CAPTURED":
         status = "SUCCESS"
@@ -122,30 +123,20 @@ def _handle_event(evt: dict):
         status = "FAILED"
     else:
         if processed is not None:
-            processed.insert_one(
-                {
-                    "_id": txid,
-                    "at": datetime.utcnow(),
-                    "note": f"unknown_status:{raw_status}",
-                }
-            )
+            processed.insert_one({"_id": txid, "at": datetime.utcnow(), "note": f"unknown_status:{raw_status}"})
         return
 
     try:
         bill_oid = ObjectId(bill_id)
     except Exception:
         if processed is not None:
-            processed.insert_one(
-                {"_id": txid, "at": datetime.utcnow(), "note": "invalid_bill_id"}
-            )
+            processed.insert_one({"_id": txid, "at": datetime.utcnow(), "note": "invalid_bill_id"})
         return
 
     doc = bills_collection.find_one({"_id": bill_oid})
     if not doc:
         if processed is not None:
-            processed.insert_one(
-                {"_id": txid, "at": datetime.utcnow(), "note": "bill_not_found"}
-            )
+            processed.insert_one({"_id": txid, "at": datetime.utcnow(), "note": "bill_not_found"})
         return
 
     if status == "SUCCESS":
@@ -181,9 +172,24 @@ def run_consumer():
                 continue
 
             try:
-                payload = json.loads(msg.value().decode("utf-8"))
+                proto_msg = PaymentStatusUpdatedEvent()
+                proto_msg.ParseFromString(msg.value())
+
+                payload = {
+                    "event_id": proto_msg.event_id,
+                    "bill_id": proto_msg.bill_id,
+                    "member_id": proto_msg.member_id,
+                    "transaction_id": proto_msg.transaction_id,
+                    "transaction_ref": proto_msg.transaction_ref,
+                    "status": proto_msg.status,
+                    "amount": proto_msg.amount,
+                    "paid_at": proto_msg.paid_at.ToDatetime() if proto_msg.HasField("paid_at") else None,
+                    "failure_reason": proto_msg.failure_reason,
+                }
+
                 _handle_event(payload)
                 c.commit(msg)
+
             except Exception as e:
                 print(f"[consumer] ERR processing message: {e}", file=sys.stderr)
     finally:
