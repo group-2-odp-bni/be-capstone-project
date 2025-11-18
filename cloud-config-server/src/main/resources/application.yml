@@ -2,11 +2,22 @@ spring:
   application:
     name: cloud-config-server
   profiles:
-    active: native
+    active: git
   cloud:
     config:
       server:
-        native:
-          search-locations: classpath:/config
+        git:
+          uri: https://github.com/group-2-odp-bni/spring-cloud-configmap.git
+          default-label: main
+          clone-on-start: true
+          timeout: 10
+          refresh-rate: 60
+          search-paths: /
 server:
   port: 8888
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: refresh,health,info
