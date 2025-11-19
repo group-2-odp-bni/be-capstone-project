@@ -9,7 +9,7 @@ import com.bni.orange.transaction.model.entity.VirtualAccount;
 import com.bni.orange.transaction.model.enums.PaymentProvider;
 import com.bni.orange.transaction.model.request.internal.BalanceUpdateRequest;
 import com.bni.orange.transaction.repository.TransactionRepository;
-import com.bni.orange.transaction.util.SecurityContextPropagationExecutor;
+import com.bni.orange.transaction.utils.SecurityContextPropagationExecutor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

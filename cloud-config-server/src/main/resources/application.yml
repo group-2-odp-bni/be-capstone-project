@@ -13,6 +13,8 @@ spring:
           timeout: 10
           refresh-rate: 60
           search-paths: /
+      allow-override: true
+
 server:
   port: 8888
 

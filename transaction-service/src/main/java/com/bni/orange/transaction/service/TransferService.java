@@ -20,7 +20,7 @@ import com.bni.orange.transaction.service.helper.TransactionMapper;
 import com.bni.orange.transaction.service.helper.TransferFinalizer;
 import com.bni.orange.transaction.service.helper.TransferOrchestrator;
 import com.bni.orange.transaction.service.helper.TransferValidator;
-import com.bni.orange.transaction.util.SecurityContextPropagationExecutor;
+import com.bni.orange.transaction.utils.SecurityContextPropagationExecutor;
 import com.bni.orange.transaction.utils.PhoneNumberUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

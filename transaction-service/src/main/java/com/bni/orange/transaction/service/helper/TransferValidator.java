@@ -17,7 +17,7 @@ import com.bni.orange.transaction.model.request.internal.ValidateWalletOwnership
 import com.bni.orange.transaction.model.response.UserProfileResponse;
 import com.bni.orange.transaction.model.response.internal.ValidateWalletOwnershipResponse;
 import com.bni.orange.transaction.repository.TransactionRepository;
-import com.bni.orange.transaction.util.SecurityContextPropagationExecutor;
+import com.bni.orange.transaction.utils.SecurityContextPropagationExecutor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
