@@ -62,8 +62,6 @@ data:
     query_frontend:
       search:
         max_duration: 0s
-      trace_by_id:
-        query_timeout: 10s
 
     overrides:
       defaults:
