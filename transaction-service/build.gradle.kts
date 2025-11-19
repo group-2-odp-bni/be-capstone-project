@@ -46,6 +46,10 @@ dependencies {
     implementation("io.github.resilience4j:resilience4j-reactor:2.1.0")
     implementation("org.xerial.snappy:snappy-java:1.1.10.5")
 
+    runtimeOnly("io.micrometer:micrometer-registry-prometheus")
+    implementation("io.micrometer:micrometer-tracing-bridge-otel")
+    implementation("io.opentelemetry:opentelemetry-exporter-otlp")
+
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
     annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
