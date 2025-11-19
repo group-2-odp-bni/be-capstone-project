@@ -15,10 +15,7 @@ import com.bni.orange.authentication.util.SecurityUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.jwt.JwtClaimsSet;
-import org.springframework.security.oauth2.jwt.JwtEncoder;
-import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
+import org.springframework.security.oauth2.jwt.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,12 +34,14 @@ public class TokenService {
 
     private static final SecureRandom secureRandom = new SecureRandom();
     private static final Base64.Encoder base64Encoder = Base64.getUrlEncoder().withoutPadding();
-    private final JwtEncoder jwtEncoder;
     private final RefreshTokenRepository refreshTokenRepository;
     private final BlacklistService blacklistService;
     private final JwtProperties jwtProperties;
     private final StringRedisTemplate redisTemplate;
     private final RedisPrefixProperties redisProperties;
+
+    private final JwtEncoder jwtEncoder;
+    private final JwtDecoder jwtDecoder;
 
     public String generateStateToken(User user, String scope) {
         var now = Instant.now();
@@ -51,16 +50,32 @@ public class TokenService {
         var stateTokenKey = redisProperties.prefix().stateToken() + jti;
         redisTemplate.opsForValue().set(stateTokenKey, "active", jwtProperties.stateTokenDuration());
 
+        String subject;
+        if (TokenScope.PIN_SETUP.getValue().equals(scope)) {
+            subject = user.getPhoneNumber();
+        } else {
+            Objects.requireNonNull(user.getId(), "User ID cannot be null for non-PIN_SETUP scopes");
+            subject = user.getId().toString();
+        }
+
         var claims = JwtClaimsSet.builder()
             .issuer("auth-service")
             .issuedAt(now)
             .expiresAt(now.plus(jwtProperties.stateTokenDuration()))
-            .subject(user.getId().toString())
+            .subject(subject)
             .id(jti)
             .claim("scope", scope)
             .claim("type", "state")
             .build();
         return jwtEncoder.encode(JwtEncoderParameters.from(claims)).getTokenValue();
+    }
+
+    public Jwt decodeStateToken(String tokenValue) {
+        try {
+            return jwtDecoder.decode(tokenValue);
+        } catch (JwtException e) {
+            throw new BusinessException(ErrorCode.INVALID_TOKEN_SCOPE, "Invalid state token: " + e.getMessage());
+        }
     }
 
     public void consumeStateToken(String jti) {
@@ -104,10 +119,6 @@ public class TokenService {
             var tokenResponse = generateTokens(user, ipAddress, userAgent);
             return ResponseBuilder.success("Token refreshed successfully", tokenResponse, request);
         }
-
-        // TODO --- SECURITY ALERT ---
-        // If the active token is not found, check whether this token once existed but has been revoked.
-        // If so, this indicates TOKEN REUSE (potential token theft).
 
         refreshTokenRepository
             .findByTokenHash(oldTokenHash)

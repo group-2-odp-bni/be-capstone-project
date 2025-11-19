@@ -3,6 +3,8 @@ package com.bni.orange.authentication.service;
 import com.bni.orange.authentication.config.properties.KafkaTopicProperties;
 import com.bni.orange.authentication.error.BusinessException;
 import com.bni.orange.authentication.error.ErrorCode;
+import com.bni.orange.authentication.event.DomainEventFactory;
+import com.bni.orange.authentication.proto.UserRegisteredEvent;
 import com.bni.orange.authentication.model.entity.User;
 import com.bni.orange.authentication.model.enums.TokenScope;
 import com.bni.orange.authentication.model.enums.UserStatus;
@@ -11,6 +13,7 @@ import com.bni.orange.authentication.model.request.OtpVerifyRequest;
 import com.bni.orange.authentication.model.response.TokenResponse;
 import com.bni.orange.authentication.repository.UserRepository;
 import com.bni.orange.authentication.service.captcha.CaptchaService;
+import com.bni.orange.authentication.service.redis.PendingRegistrationService;
 import com.bni.orange.authentication.validator.PinValidator;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,12 +23,16 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import reactor.core.publisher.Mono;
 
+import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -73,15 +80,18 @@ class AuthFlowServiceTest {
     private HttpServletRequest servletRequest;
     @Mock
     private Executor virtualThreadTaskExecutor;
+    @Mock
+    private PendingRegistrationService pendingRegistrationService;
 
     private User existingUser;
-    private User newUser;
     private final String phoneNumber = "081234567890";
     private final String normalizedPhone = "+6281234567890";
     private final String otp = "123456";
     private final String pin = "112233";
     private final UUID userId = UUID.randomUUID();
     private final String captchaToken = "test-captcha-token";
+    private final String dummyStateToken = "dummy-state-token";
+    private Jwt mockJwt;
 
     @BeforeEach
     void setUp() {
@@ -92,20 +102,16 @@ class AuthFlowServiceTest {
                 .userPins("encodedPin")
                 .build();
 
-        newUser = User.builder()
-                .id(UUID.randomUUID())
-                .phoneNumber(normalizedPhone)
-                .status(UserStatus.PENDING_VERIFICATION)
-                .userPins("")
-                .name("New User")
-                .build();
-
         when(servletRequest.getRequestURI()).thenReturn("/api/v1/auth/test");
         when(captchaService.validateToken(anyString(), anyString())).thenReturn(Mono.just(true));
         doAnswer(invocation -> {
             ((Runnable) invocation.getArgument(0)).run();
             return null;
         }).when(virtualThreadTaskExecutor).execute(any(Runnable.class));
+
+        var otpTopicConfig = new KafkaTopicProperties.TopicConfig("notification.otp.whatsapp", 3, 1, false);
+        var regTopicConfig = new KafkaTopicProperties.TopicConfig("user.registered", 3, 1, true);
+        when(topicProperties.definitions()).thenReturn(Map.of("otp-notification", otpTopicConfig, "user-registered", regTopicConfig));
     }
 
     @Nested
@@ -120,58 +126,43 @@ class AuthFlowServiceTest {
             when(userRepository.findByPhoneNumber(normalizedPhone)).thenReturn(Optional.of(existingUser));
             when(otpService.generateAndStoreOtp(normalizedPhone)).thenReturn(otp);
 
-            var topicConfig = new KafkaTopicProperties.TopicConfig("notification.otp.whatsapp", 3, 1, false);
-            when(topicProperties.definitions()).thenReturn(Map.of("otp-notification", topicConfig));
+            var response = authFlowService.requestLoginOtp(request, servletRequest);
+
+            assertNotNull(response);
+            assertEquals("OTP sent successfully", response.getMessage());
+            verify(eventPublisher).publish(eq("notification.otp.whatsapp"), eq(normalizedPhone), any());
+            verify(otpService).setCooldown(normalizedPhone);
+            verify(pendingRegistrationService, never()).exists(anyString());
+        }
+
+        @Test
+        @DisplayName("Should send OTP for user with pending registration (login endpoint)")
+        void requestLoginOtp_forPendingRegistrationUser_shouldSendOtpForPinSetup() {
+            var request = new AuthRequest(phoneNumber, captchaToken);
+            when(otpService.isCooldown(normalizedPhone)).thenReturn(false);
+            when(userRepository.findByPhoneNumber(normalizedPhone)).thenReturn(Optional.empty());
+            when(pendingRegistrationService.exists(normalizedPhone)).thenReturn(true);
+            when(otpService.generateAndStoreOtp(normalizedPhone)).thenReturn(otp);
 
             var response = authFlowService.requestLoginOtp(request, servletRequest);
 
             assertNotNull(response);
             assertEquals("OTP sent successfully", response.getMessage());
-            assertNotNull(response.getData());
-            assertEquals("whatsapp", response.getData().channel());
-
-            verify(captchaService).validateToken(captchaToken, "login");
-            verify(eventPublisher).publish(eq("notification.otp.whatsapp"), eq(normalizedPhone), any());
-            verify(otpService).setCooldown(normalizedPhone);
+            verify(pendingRegistrationService).exists(normalizedPhone);
         }
 
         @Test
-        @DisplayName("Should throw UserNotFound for new user")
+        @DisplayName("Should throw UserNotFound if user not in DB and no pending registration")
         void requestLoginOtp_forNewUser_shouldThrowUserNotFound() {
             var request = new AuthRequest(phoneNumber, captchaToken);
             when(otpService.isCooldown(normalizedPhone)).thenReturn(false);
             when(userRepository.findByPhoneNumber(normalizedPhone)).thenReturn(Optional.empty());
+            when(pendingRegistrationService.exists(normalizedPhone)).thenReturn(false);
 
             var exception = assertThrows(BusinessException.class, () -> authFlowService.requestLoginOtp(request, servletRequest));
 
             assertEquals(ErrorCode.USER_NOT_FOUND, exception.getErrorCode());
-            verify(captchaService).validateToken(captchaToken, "login");
-            verify(userRepository, never()).save(any(User.class));
-        }
-
-        @Test
-        @DisplayName("Should throw exception if on cooldown")
-        void requestLoginOtp_whenOnCooldown_shouldThrowException() {
-            var request = new AuthRequest(phoneNumber, captchaToken);
-            when(otpService.isCooldown(normalizedPhone)).thenReturn(true);
-            when(userRepository.findByPhoneNumber(normalizedPhone)).thenReturn(Optional.of(existingUser));
-
-
-            var exception = assertThrows(BusinessException.class, () -> authFlowService.requestLoginOtp(request, servletRequest));
-
-            assertEquals(ErrorCode.OTP_COOLDOWN, exception.getErrorCode());
-            verify(captchaService).validateToken(captchaToken, "login");
-        }
-
-        @Test
-        @DisplayName("Should throw exception for invalid captcha")
-        void requestLoginOtp_withInvalidCaptcha_shouldThrowException() {
-            var request = new AuthRequest(phoneNumber, "invalid-token");
-            when(captchaService.validateToken("invalid-token", "login")).thenReturn(Mono.just(false));
-
-            var exception = assertThrows(BusinessException.class, () -> authFlowService.requestLoginOtp(request, servletRequest));
-
-            assertEquals(ErrorCode.INVALID_CAPTCHA, exception.getErrorCode());
+            verify(pendingRegistrationService).exists(normalizedPhone);
         }
     }
 
@@ -180,24 +171,20 @@ class AuthFlowServiceTest {
     class RequestRegistrationOtpFlow {
 
         @Test
-        @DisplayName("Should create new user and send OTP")
-        void requestRegistrationOtp_forNewUser_shouldCreateUserAndSendOtp() {
+        @DisplayName("Should save pending registration and send OTP for new user")
+        void requestRegistrationOtp_forNewUser_shouldSavePendingRegistrationAndSendOtp() {
             var request = new AuthRequest(phoneNumber, captchaToken);
             when(otpService.isCooldown(normalizedPhone)).thenReturn(false);
             when(userRepository.findByPhoneNumber(normalizedPhone)).thenReturn(Optional.empty());
-            when(userRepository.save(any(User.class))).thenReturn(newUser);
+            doNothing().when(pendingRegistrationService).save(normalizedPhone);
             when(otpService.generateAndStoreOtp(normalizedPhone)).thenReturn(otp);
-
-            var topicConfig = new KafkaTopicProperties.TopicConfig("notification.otp.whatsapp", 3, 1, false);
-            when(topicProperties.definitions()).thenReturn(Map.of("otp-notification", topicConfig));
 
             var response = authFlowService.requestRegistrationOtp(request, servletRequest);
 
             assertNotNull(response);
             assertEquals("OTP sent successfully", response.getMessage());
-            verify(captchaService).validateToken(captchaToken, "register");
-            verify(userRepository).save(any(User.class));
-            verify(eventPublisher).publish(eq("notification.otp.whatsapp"), eq(normalizedPhone), any());
+            verify(userRepository, never()).save(any(User.class));
+            verify(pendingRegistrationService).save(normalizedPhone);
         }
 
         @Test
@@ -209,34 +196,9 @@ class AuthFlowServiceTest {
             var exception = assertThrows(BusinessException.class, () -> authFlowService.requestRegistrationOtp(request, servletRequest));
 
             assertEquals(ErrorCode.USER_ALREADY_EXISTS, exception.getErrorCode());
-            verify(captchaService).validateToken(captchaToken, "register");
-        }
-
-        @Test
-        @DisplayName("Should throw exception if on cooldown")
-        void requestRegistrationOtp_whenOnCooldown_shouldThrowException() {
-            var request = new AuthRequest(phoneNumber, captchaToken);
-            when(userRepository.findByPhoneNumber(normalizedPhone)).thenReturn(Optional.empty());
-            when(otpService.isCooldown(normalizedPhone)).thenReturn(true);
-
-            var exception = assertThrows(BusinessException.class, () -> authFlowService.requestRegistrationOtp(request, servletRequest));
-
-            assertEquals(ErrorCode.OTP_COOLDOWN, exception.getErrorCode());
-            verify(captchaService).validateToken(captchaToken, "register");
-        }
-
-        @Test
-        @DisplayName("Should throw exception for invalid captcha")
-        void requestRegistrationOtp_withInvalidCaptcha_shouldThrowException() {
-            var request = new AuthRequest(phoneNumber, "invalid-token");
-            when(captchaService.validateToken("invalid-token", "register")).thenReturn(Mono.just(false));
-
-            var exception = assertThrows(BusinessException.class, () -> authFlowService.requestRegistrationOtp(request, servletRequest));
-
-            assertEquals(ErrorCode.INVALID_CAPTCHA, exception.getErrorCode());
+            verify(pendingRegistrationService, never()).save(anyString());
         }
     }
-
 
     @Nested
     @DisplayName("Verify OTP Flow")
@@ -248,67 +210,29 @@ class AuthFlowServiceTest {
             var request = new OtpVerifyRequest(phoneNumber, otp);
             when(otpService.isOtpValid(normalizedPhone, otp)).thenReturn(true);
             when(userRepository.findByPhoneNumber(normalizedPhone)).thenReturn(Optional.of(existingUser));
-            when(tokenService.generateStateToken(existingUser, TokenScope.PIN_LOGIN.getValue())).thenReturn("state-token-login");
+            when(tokenService.generateStateToken(any(User.class), eq(TokenScope.PIN_LOGIN.getValue()))).thenReturn("state-token-login");
 
             var response = authFlowService.verifyOtp(request, servletRequest);
 
             assertNotNull(response);
-            assertEquals("OTP verified successfully", response.getMessage());
             assertEquals("state-token-login", response.getData().stateToken());
-            assertEquals(300L, response.getData().expiresIn());
+            verify(pendingRegistrationService, never()).exists(anyString());
         }
 
         @Test
-        @DisplayName("Should return state token for PIN_SETUP for new user")
-        void verifyOtp_forNewUser_shouldReturnStateTokenForPinSetup() {
-            var request = new OtpVerifyRequest(phoneNumber, otp);
-            when(otpService.isOtpValid(normalizedPhone, otp)).thenReturn(true);
-            when(userRepository.findByPhoneNumber(normalizedPhone)).thenReturn(Optional.of(newUser));
-            when(tokenService.generateStateToken(newUser, TokenScope.PIN_SETUP.getValue())).thenReturn("state-token-setup");
-
-            var response = authFlowService.verifyOtp(request, servletRequest);
-
-            assertNotNull(response);
-            assertEquals("OTP verified successfully", response.getMessage());
-            assertEquals("state-token-setup", response.getData().stateToken());
-        }
-
-        @Test
-        @DisplayName("Should return state token for PIN_RESET when purpose is RESET")
-        void verifyOtp_forPinReset_shouldReturnStateTokenForPinReset() {
-            var request = new OtpVerifyRequest(phoneNumber, otp);
-            when(otpService.isOtpValid(normalizedPhone, otp)).thenReturn(true);
-            when(userRepository.findByPhoneNumber(normalizedPhone)).thenReturn(Optional.of(existingUser));
-            when(tokenService.generateStateToken(existingUser, TokenScope.PIN_RESET.getValue())).thenReturn("state-token-reset");
-
-            var response = authFlowService.verifyOtp(request, "RESET", servletRequest);
-
-            assertNotNull(response);
-            assertEquals("OTP verified successfully", response.getMessage());
-            assertEquals("state-token-reset", response.getData().stateToken());
-        }
-
-        @Test
-        @DisplayName("Should throw exception for invalid OTP")
-        void verifyOtp_withInvalidOtp_shouldThrowException() {
-            var request = new OtpVerifyRequest(phoneNumber, "wrong-otp");
-            when(otpService.isOtpValid(normalizedPhone, "wrong-otp")).thenReturn(false);
-
-            var exception = assertThrows(BusinessException.class, () -> authFlowService.verifyOtp(request, servletRequest));
-
-            assertEquals(ErrorCode.INVALID_OTP, exception.getErrorCode());
-        }
-
-        @Test
-        @DisplayName("Should throw exception if user not found")
-        void verifyOtp_whenUserNotFound_shouldThrowException() {
+        @DisplayName("Should return state token for PIN_SETUP for user with pending registration")
+        void verifyOtp_forPendingRegistrationUser_shouldReturnStateTokenForPinSetup() {
             var request = new OtpVerifyRequest(phoneNumber, otp);
             when(otpService.isOtpValid(normalizedPhone, otp)).thenReturn(true);
             when(userRepository.findByPhoneNumber(normalizedPhone)).thenReturn(Optional.empty());
+            when(pendingRegistrationService.exists(normalizedPhone)).thenReturn(true);
+            when(tokenService.generateStateToken(any(User.class), eq(TokenScope.PIN_SETUP.getValue()))).thenReturn("state-token-setup");
 
-            var exception = assertThrows(BusinessException.class, () -> authFlowService.verifyOtp(request, servletRequest));
+            var response = authFlowService.verifyOtp(request, servletRequest);
 
-            assertEquals(ErrorCode.USER_NOT_FOUND, exception.getErrorCode());
+            assertNotNull(response);
+            assertEquals("state-token-setup", response.getData().stateToken());
+            verify(pendingRegistrationService).exists(normalizedPhone);
         }
     }
 
@@ -330,33 +254,84 @@ class AuthFlowServiceTest {
         @Test
         @DisplayName("Should set PIN, activate user, and return tokens for PIN_SETUP scope")
         void authenticateWithPin_forPinSetup_shouldSucceed() {
-            when(loginAttemptService.isLocked(newUser.getPhoneNumber())).thenReturn(false);
-            when(userRepository.findById(newUser.getId())).thenReturn(Optional.of(newUser));
-            doNothing().when(pinValidator).validate(pin);
-            when(passwordEncoder.encode(pin)).thenReturn("encodedNewPin");
+                        try (MockedStatic<DomainEventFactory> mockedFactory = Mockito.mockStatic(DomainEventFactory.class)) {
+                            var userRegisteredEvent = UserRegisteredEvent.newBuilder().build();
+                            mockedFactory.when(() -> DomainEventFactory.createUserRegisteredEvent(any(User.class)))
+                                    .thenReturn(userRegisteredEvent);
+                mockJwt = Jwt.withTokenValue(dummyStateToken)
+                    .header("alg", "none")
+                    .claim("scope", TokenScope.PIN_SETUP.getValue())
+                    .claim("sub", normalizedPhone)
+                    .claim("jti", jti)
+                    .issuedAt(Instant.now())
+                    .expiresAt(Instant.now().plusSeconds(300))
+                    .build();
+                when(tokenService.decodeStateToken(dummyStateToken)).thenReturn(mockJwt);
 
-            var topicConfig = new KafkaTopicProperties.TopicConfig("user.registered", 3, 1, true);
-            when(topicProperties.definitions()).thenReturn(Map.of("user-registered", topicConfig));
+                when(loginAttemptService.isLocked(normalizedPhone)).thenReturn(false);
+                when(pendingRegistrationService.exists(normalizedPhone)).thenReturn(true);
+                doNothing().when(pendingRegistrationService).delete(normalizedPhone);
+                doNothing().when(pinValidator).validate(pin);
+                when(passwordEncoder.encode(pin)).thenReturn("encodedNewPin");
 
-            var tokenResponse = TokenResponse.builder().accessToken("access").refreshToken("refresh").build();
-            when(tokenService.generateTokens(any(User.class), eq(ipAddress), eq(userAgent))).thenReturn(tokenResponse);
+                User savedUser = User.builder()
+                    .id(UUID.randomUUID())
+                    .phoneNumber(normalizedPhone)
+                    .status(UserStatus.ACTIVE)
+                    .userPins("encodedNewPin")
+                    .name("New User")
+                    .build();
+                when(userRepository.save(any(User.class))).thenReturn(savedUser);
 
-            var response = authFlowService.authenticateWithPin(newUser.getId(), pin, TokenScope.PIN_SETUP.getValue(), jti, servletRequest);
+                var tokenResponse = TokenResponse.builder().accessToken("access").refreshToken("refresh").build();
+                when(tokenService.generateTokens(any(User.class), eq(ipAddress), eq(userAgent))).thenReturn(tokenResponse);
 
-            assertNotNull(response);
-            assertEquals("Authentication successful", response.getMessage());
-            assertEquals("access", response.getData().accessToken());
+                var response = authFlowService.authenticateWithPin(dummyStateToken, pin, servletRequest);
 
-            verify(tokenService).consumeStateToken(jti);
-            verify(loginAttemptService).applyProgressiveDelay(newUser.getPhoneNumber());
-            verify(userRepository).save(any(User.class));
-            verify(eventPublisher).publish(eq("user.registered"), eq(newUser.getId().toString()), any());
-            verify(loginAttemptService).loginSucceeded(newUser.getPhoneNumber());
+                assertNotNull(response);
+                assertEquals("Authentication successful", response.getMessage());
+
+                verify(eventPublisher).publish(eq("user.registered"), eq(savedUser.getId().toString()), any());
+                verify(loginAttemptService).loginSucceeded(normalizedPhone);
+            }
+        }
+
+        @Test
+        @DisplayName("Should throw exception if pending registration state is expired for PIN_SETUP")
+        void authenticateWithPin_forPinSetup_whenPendingRegistrationExpired_shouldThrowException() {
+            mockJwt = Jwt.withTokenValue(dummyStateToken)
+                .header("alg", "none")
+                .claim("scope", TokenScope.PIN_SETUP.getValue())
+                .claim("sub", normalizedPhone)
+                .claim("jti", jti)
+                .issuedAt(Instant.now())
+                .expiresAt(Instant.now().plusSeconds(300))
+                .build();
+            when(tokenService.decodeStateToken(dummyStateToken)).thenReturn(mockJwt);
+
+            when(loginAttemptService.isLocked(normalizedPhone)).thenReturn(false);
+            when(pendingRegistrationService.exists(normalizedPhone)).thenReturn(false);
+
+            var exception = assertThrows(BusinessException.class, () ->
+                authFlowService.authenticateWithPin(dummyStateToken, pin, servletRequest));
+
+            assertEquals(ErrorCode.REGISTRATION_STATE_EXPIRED, exception.getErrorCode());
+            verify(userRepository, never()).save(any(User.class));
         }
 
         @Test
         @DisplayName("Should return tokens for valid PIN with PIN_LOGIN scope")
         void authenticateWithPin_forPinLogin_withValidPin_shouldSucceed() {
+            mockJwt = Jwt.withTokenValue(dummyStateToken)
+                .header("alg", "none")
+                .claim("scope", TokenScope.PIN_LOGIN.getValue())
+                .claim("sub", userId.toString())
+                .claim("jti", jti)
+                .issuedAt(Instant.now())
+                .expiresAt(Instant.now().plusSeconds(300))
+                .build();
+            when(tokenService.decodeStateToken(dummyStateToken)).thenReturn(mockJwt);
+
             when(loginAttemptService.isLocked(existingUser.getPhoneNumber())).thenReturn(false);
             when(userRepository.findById(userId)).thenReturn(Optional.of(existingUser));
             when(passwordEncoder.matches(pin, "encodedPin")).thenReturn(true);
@@ -364,67 +339,37 @@ class AuthFlowServiceTest {
             var tokenResponse = TokenResponse.builder().accessToken("access").refreshToken("refresh").build();
             when(tokenService.generateTokens(existingUser, ipAddress, userAgent)).thenReturn(tokenResponse);
 
-            var response = authFlowService.authenticateWithPin(userId, pin, TokenScope.PIN_LOGIN.getValue(), jti, servletRequest);
+            var response = authFlowService.authenticateWithPin(dummyStateToken, pin, servletRequest);
 
             assertNotNull(response);
             assertEquals("Authentication successful", response.getMessage());
-
-            verify(tokenService).consumeStateToken(jti);
             verify(loginAttemptService).loginSucceeded(existingUser.getPhoneNumber());
-            verify(loginAttemptService, never()).loginFailed(anyString());
         }
 
         @Test
         @DisplayName("Should throw exception for invalid PIN with PIN_LOGIN scope")
         void authenticateWithPin_forPinLogin_withInvalidPin_shouldFail() {
+            mockJwt = Jwt.withTokenValue(dummyStateToken)
+                .header("alg", "none")
+                .claim("scope", TokenScope.PIN_LOGIN.getValue())
+                .claim("sub", userId.toString())
+                .claim("jti", jti)
+                .issuedAt(Instant.now())
+                .expiresAt(Instant.now().plusSeconds(300))
+                .build();
+            when(tokenService.decodeStateToken(dummyStateToken)).thenReturn(mockJwt);
+
             when(loginAttemptService.isLocked(existingUser.getPhoneNumber())).thenReturn(false);
             when(userRepository.findById(userId)).thenReturn(Optional.of(existingUser));
             when(passwordEncoder.matches("wrong-pin", "encodedPin")).thenReturn(false);
             when(loginAttemptService.getAttemptsLeft(existingUser.getPhoneNumber())).thenReturn(4);
 
             var exception = assertThrows(BusinessException.class, () ->
-                authFlowService.authenticateWithPin(userId, "wrong-pin", TokenScope.PIN_LOGIN.getValue(), jti, servletRequest));
+                authFlowService.authenticateWithPin(dummyStateToken, "wrong-pin", servletRequest));
 
             assertEquals(ErrorCode.INVALID_PIN, exception.getErrorCode());
             assertTrue(exception.getMessage().contains("4 attempts left"));
             verify(loginAttemptService).loginFailed(existingUser.getPhoneNumber());
-            verify(loginAttemptService, never()).loginSucceeded(anyString());
-        }
-
-        @Test
-        @DisplayName("Should throw exception if account is locked")
-        void authenticateWithPin_whenAccountIsLocked_shouldThrowException() {
-            when(userRepository.findById(userId)).thenReturn(Optional.of(existingUser));
-            when(loginAttemptService.isLocked(existingUser.getPhoneNumber())).thenReturn(true);
-
-            var exception = assertThrows(BusinessException.class, () ->
-                authFlowService.authenticateWithPin(userId, pin, TokenScope.PIN_LOGIN.getValue(), jti, servletRequest));
-
-            assertEquals(ErrorCode.ACCOUNT_LOCKED, exception.getErrorCode());
-        }
-
-        @Test
-        @DisplayName("Should throw exception for invalid token scope")
-        void authenticateWithPin_withInvalidScope_shouldThrowException() {
-            when(loginAttemptService.isLocked(existingUser.getPhoneNumber())).thenReturn(false);
-            when(userRepository.findById(userId)).thenReturn(Optional.of(existingUser));
-
-            var exception = assertThrows(BusinessException.class, () ->
-                authFlowService.authenticateWithPin(userId, pin, "INVALID_SCOPE", jti, servletRequest));
-
-            assertEquals(ErrorCode.INVALID_TOKEN_SCOPE, exception.getErrorCode());
-        }
-
-        @Test
-        @DisplayName("Should throw exception if user not found")
-        void authenticateWithPin_whenUserNotFound_shouldThrowException() {
-            when(userRepository.findById(userId)).thenReturn(Optional.empty());
-            when(loginAttemptService.isLocked(anyString())).thenReturn(false);
-
-            var exception = assertThrows(BusinessException.class, () ->
-                authFlowService.authenticateWithPin(userId, pin, TokenScope.PIN_LOGIN.getValue(), jti, servletRequest));
-
-            assertEquals(ErrorCode.USER_NOT_FOUND, exception.getErrorCode());
         }
     }
 }

@@ -159,7 +159,7 @@ def post_bills():
     destination_wallet_id = payload.get("destinationWalletId")
     items = payload.get("items") or []
     fees = payload.get("fees") or {}
-    assignments = payload.get("assignments") or []  # [{memberRef:{userId?/phone?/email?}, amount?}, ...]
+    assignments = payload.get("assignments") or []
     receipt_url = payload.get("imageUrl")
     tax_strategy = (payload.get("tax_strategy") or "proportional").lower()
 
@@ -315,7 +315,7 @@ def new_pay_intent(bill_id, member_id):
 @app.get("/s/<token>")
 def short_resolver(token):
     try:
-        info = resolve_short_token(token)  # {type:"owner"|"member", billId, memberId?}
+        info = resolve_short_token(token)
     except Exception as e:
         return jsonify({"error": True, "message": f"Token invalid: {e}"}), 403
     base_url = FE_APP_BASE.rstrip("/")

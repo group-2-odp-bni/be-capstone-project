@@ -45,8 +45,6 @@ public class TransferService {
     private final TransferValidator transferValidator;
     private final TransactionFactory transactionFactory;
     private final TransferOrchestrator transferOrchestrator;
-    private final TransferFinalizer transferFinalizer;
-    private final TransferLimitProperties transferLimitProperties;
     private final SecurityContextPropagationExecutor securityContextPropagationExecutor;
 
     public RecipientLookupResponse inquiry(RecipientLookupRequest request, UUID currentUserId, String accessToken) {
