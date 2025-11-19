@@ -24,47 +24,50 @@ public class UserLimitsInitializer {
 
     @Transactional
     public void ensureDefaultsForUser(UUID userId) {
-        if (oltpRepo.existsByUserId(userId)) {
-            return;
+        var oltpExists = oltpRepo.existsByUserId(userId);
+        UserLimits entity;
+
+        if (!oltpExists) {
+            var now = OffsetDateTime.now();
+            entity = UserLimits.builder()
+                .userId(userId)
+                .perTxMinRp(defaults.getPerTxMinRp())
+                .perTxMaxRp(defaults.getPerTxMaxRp())
+                .dailyMaxRp(defaults.getDailyMaxRp())
+                .weeklyMaxRp(defaults.getWeeklyMaxRp())
+                .monthlyMaxRp(defaults.getMonthlyMaxRp())
+                .enforcePerTx(defaults.isEnforcePerTx())
+                .enforceDaily(defaults.isEnforceDaily())
+                .enforceWeekly(defaults.isEnforceWeekly())
+                .enforceMonthly(defaults.isEnforceMonthly())
+                .effectiveFrom(now)
+                .effectiveThrough(null)
+                .timezone(defaults.getTimezone())
+                .build();
+            oltpRepo.save(entity);
+        } else {
+            entity = oltpRepo.findByUserId(userId)
+                .orElseThrow(() -> new IllegalStateException("OLTP data inconsistency"));
         }
 
-        var now = OffsetDateTime.now();
-
-        var entity = UserLimits.builder()
-            .userId(userId)
-            .perTxMinRp(defaults.getPerTxMinRp())
-            .perTxMaxRp(defaults.getPerTxMaxRp())
-            .dailyMaxRp(defaults.getDailyMaxRp())
-            .weeklyMaxRp(defaults.getWeeklyMaxRp())
-            .monthlyMaxRp(defaults.getMonthlyMaxRp())
-            .enforcePerTx(defaults.isEnforcePerTx())
-            .enforceDaily(defaults.isEnforceDaily())
-            .enforceWeekly(defaults.isEnforceWeekly())
-            .enforceMonthly(defaults.isEnforceMonthly())
-            .effectiveFrom(now)
-            .effectiveThrough(null)
-            .timezone(defaults.getTimezone())
-            .build();
-
-        oltpRepo.save(entity);
-        
-        var mirror = UserLimitsRead.builder()
-             .userId(userId)
-             .perTxMaxRp(entity.getPerTxMaxRp())
-             .dailyMaxRp(entity.getDailyMaxRp())
-             .weeklyMaxRp(entity.getWeeklyMaxRp())
-             .monthlyMaxRp(entity.getMonthlyMaxRp())
-             .perTxMinRp(entity.getPerTxMinRp())
-             .enforcePerTx(entity.isEnforcePerTx())
-             .enforceDaily(entity.isEnforceDaily())
-             .enforceWeekly(entity.isEnforceWeekly())
-             .enforceMonthly(entity.isEnforceMonthly())
-             .effectiveFrom(entity.getEffectiveFrom())
-             .effectiveThrough(entity.getEffectiveThrough())
-             .timezone(entity.getTimezone())
-             .build();
-             
-        readRepo.save(mirror);
-
+        var readExists = readRepo.existsByUserId(userId);
+        if (!readExists) {
+            var mirror = UserLimitsRead.builder()
+                .userId(userId)
+                .perTxMaxRp(entity.getPerTxMaxRp())
+                .dailyMaxRp(entity.getDailyMaxRp())
+                .weeklyMaxRp(entity.getWeeklyMaxRp())
+                .monthlyMaxRp(entity.getMonthlyMaxRp())
+                .perTxMinRp(entity.getPerTxMinRp())
+                .enforcePerTx(entity.isEnforcePerTx())
+                .enforceDaily(entity.isEnforceDaily())
+                .enforceWeekly(entity.isEnforceWeekly())
+                .enforceMonthly(entity.isEnforceMonthly())
+                .effectiveFrom(entity.getEffectiveFrom())
+                .effectiveThrough(entity.getEffectiveThrough())
+                .timezone(entity.getTimezone())
+                .build();
+            readRepo.save(mirror);
+        }
     }
 }

@@ -22,6 +22,8 @@ public record TransactionResponse(
     BigDecimal totalAmount,
     String currency,
     UUID userId,
+    String userName,
+    String userPhone,
     UUID walletId,
     UUID counterpartyUserId,
     UUID counterpartyWalletId,

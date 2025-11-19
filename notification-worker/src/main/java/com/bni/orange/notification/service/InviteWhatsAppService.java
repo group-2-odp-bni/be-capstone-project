@@ -16,12 +16,13 @@ import java.time.Instant;
 public class InviteWhatsAppService {
 
     private final WahaApiClient wahaApiClient;
-    private final WahaSessionService wahaSessionService; 
+    private final WahaSessionService wahaSessionService;
+
     public Mono<WahaMessageResponse> sendInviteLink(WalletInviteLinkGeneratedEvent event) {
         final String phone = event.getPhoneE164();
         log.info("Preparing link invite to {}", mask(phone));
 
-        String message = formatLinkInviteMessage(event);
+        var message = formatLinkInviteMessage(event);
 
         return wahaSessionService.waitForSessionReady(5, 3)
             .doOnSuccess(s -> log.info("WhatsApp session ready"))
@@ -33,9 +34,10 @@ public class InviteWhatsAppService {
 
 
     private String formatLinkInviteMessage(WalletInviteLinkGeneratedEvent e) {
-        String codeToShow = (e.getCodePlain() != null && !e.getCodePlain().isBlank())
+        e.getCodePlain();
+        var codeToShow = !e.getCodePlain().isBlank()
             ? e.getCodePlain()
-            : (e.getCodeMasked().isBlank() ? "******" : e.getCodeMasked());
+            : e.getCodeMasked().isBlank() ? "******" : e.getCodeMasked();
 
         return """
             🔸 *Undangan BNI Orange E-Wallet* 🔸

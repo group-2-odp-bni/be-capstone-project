@@ -3,6 +3,7 @@ package com.bni.orange.wallet.controller;
 import com.bni.orange.wallet.model.request.internal.BalanceUpdateRequest;
 import com.bni.orange.wallet.model.request.internal.BalanceValidateRequest;
 import com.bni.orange.wallet.model.request.internal.RoleValidateRequest;
+import com.bni.orange.wallet.model.request.internal.ValidateWalletOwnershipRequest;
 import com.bni.orange.wallet.model.request.wallet.WalletCreateRequest;
 import com.bni.orange.wallet.model.response.ApiResponse;
 import com.bni.orange.wallet.model.response.WalletDetailResponse;
@@ -10,6 +11,7 @@ import com.bni.orange.wallet.model.response.internal.BalanceUpdateResponse;
 import com.bni.orange.wallet.model.response.internal.DefaultWalletResponse;
 import com.bni.orange.wallet.model.response.internal.RoleValidateResponse;
 import com.bni.orange.wallet.model.response.internal.UserWalletsResponse;
+import com.bni.orange.wallet.model.response.internal.ValidateWalletOwnershipResponse;
 import com.bni.orange.wallet.model.response.internal.ValidationResultResponse;
 import com.bni.orange.wallet.service.command.WalletCommandService;
 import com.bni.orange.wallet.service.internal.InternalWalletService;
@@ -40,7 +42,6 @@ public class InternalWalletController {
   private final WalletCommandService command;
 
   @GetMapping("/users/{userId}/wallets")
-  @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
   public ResponseEntity<ApiResponse<UserWalletsResponse>> getUserWallets(
       @PathVariable UUID userId,
       @RequestParam(defaultValue = "true") boolean idsOnly
@@ -50,7 +51,6 @@ public class InternalWalletController {
   }
 
   @PostMapping("/wallets/balance:validate")
-  @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
   public ResponseEntity<ApiResponse<ValidationResultResponse>> validateBalance(
       @RequestBody @Valid BalanceValidateRequest req
   ) {
@@ -59,7 +59,6 @@ public class InternalWalletController {
   }
 
   @PostMapping("/wallets/balance:update")
-  @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
   public ResponseEntity<ApiResponse<BalanceUpdateResponse>> updateBalance(
       @RequestBody @Valid BalanceUpdateRequest req
   ) {
@@ -68,7 +67,6 @@ public class InternalWalletController {
   }
 
   @PostMapping("/wallets/roles:validate")
-  @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
   public ResponseEntity<ApiResponse<RoleValidateResponse>> validateRole(
       @RequestBody @Valid RoleValidateRequest req
   ) {
@@ -77,7 +75,6 @@ public class InternalWalletController {
   }
 
   @GetMapping("/users/{userId}/default-wallet")
-  @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
   public ResponseEntity<ApiResponse<DefaultWalletResponse>> getDefaultWalletByUserId(
       @PathVariable UUID userId
   ) {
@@ -85,7 +82,6 @@ public class InternalWalletController {
     return ResponseEntity.ok(ApiResponse.ok("OK", res));
   }
   @PostMapping("/wallets")
-  @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
   public ResponseEntity<ApiResponse<WalletDetailResponse>> createWallet(
       @RequestHeader(value="Idempotency-Key", required=false) String idemKey,
       @Valid @RequestBody WalletCreateRequest req
@@ -96,4 +92,11 @@ public class InternalWalletController {
         .body(ApiResponse.ok("Wallet created", dto));
   }
 
+  @PostMapping("/wallets/ownership:validate")
+  public ResponseEntity<ApiResponse<ValidateWalletOwnershipResponse>> validateWalletOwnership(
+      @RequestBody @Valid ValidateWalletOwnershipRequest req
+  ) {
+    var res = service.validateWalletOwnership(req);
+    return ResponseEntity.ok(ApiResponse.ok("OK", res));
+  }
 }

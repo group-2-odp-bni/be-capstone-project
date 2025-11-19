@@ -17,7 +17,8 @@ public class ResponseStatusLoggerFilter implements GlobalFilter, Ordered {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        return chain.filter(exchange)
+        return chain
+            .filter(exchange)
             .doFinally(signalType -> {
                 var statusCode = exchange.getResponse().getStatusCode();
                 if (statusCode != null) {

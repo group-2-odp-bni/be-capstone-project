@@ -1,0 +1,30 @@
+spring:
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:orange.wallet.bni@gmail.com}
+    password: ${MAIL_PASSWORD:sieonmdpjasazdgc}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    producer:
+      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+orange:
+  user-service:
+    base-url: http://user-service:8082
+    timeout: 5s
+  waha-client:
+    base-url: ${WAHA_BASE_URL:http://localhost:3000}
+    api-key: ${WAHA_API_KEY:f5010a544c324fc483623e2031b2b92f}
+    session-name: ${WAHA_SESSION_NAME:default}
+
+# TODO: DELETED ON PRODUCTION
+logging:
+  level:
+    root: INFO
+    com.bni.orange: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.kafka: DEBUG
+    org.springframework.boot.actuate: ERROR
+    org.springframework.boot.actuate.endpoint.web: ERROR
+    org.springframework.boot.actuate.endpoint: ERROR

@@ -4,6 +4,7 @@ import com.bni.orange.transaction.model.enums.TransactionStatus;
 import com.bni.orange.transaction.model.response.ApiResponse;
 import com.bni.orange.transaction.model.response.PageResponse;
 import com.bni.orange.transaction.model.response.TransactionResponse;
+import com.bni.orange.transaction.model.response.TransactionSummaryResponse;
 import com.bni.orange.transaction.service.TransactionHistoryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -31,7 +32,7 @@ public class TransactionHistoryController {
 
     @GetMapping
     @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
-    public ResponseEntity<ApiResponse<PageResponse<TransactionResponse>>> getUserTransactions(
+    public ResponseEntity<ApiResponse<PageResponse<TransactionSummaryResponse>>> getUserTransactions(
         @RequestParam(required = false) UUID walletId,
         @RequestParam(defaultValue = "0") int page,
         @RequestParam(defaultValue = "20") int size,
@@ -51,7 +52,7 @@ public class TransactionHistoryController {
 
     @GetMapping("/all-wallets")
     @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
-    public ResponseEntity<ApiResponse<PageResponse<TransactionResponse>>> getAllWalletTransactions(
+    public ResponseEntity<ApiResponse<PageResponse<TransactionSummaryResponse>>> getAllWalletTransactions(
         @RequestParam(defaultValue = "0") int page,
         @RequestParam(defaultValue = "20") int size,
         @RequestParam(defaultValue = "createdAt") String sortBy,

@@ -1,0 +1,118 @@
+name: Reusable - Update GitOps Repository
+
+on:
+  workflow_call:
+    inputs:
+      service-name:
+        description: 'Service name (e.g., authentication-service)'
+        required: true
+        type: string
+      image-tag:
+        description: 'Docker image tag (typically commit SHA)'
+        required: true
+        type: string
+      dockerhub-username:
+        description: 'Docker Hub username'
+        required: true
+        type: string
+    secrets:
+      GITOPS_REPO:
+        required: true
+      GITOPS_TOKEN:
+        required: true
+
+jobs:
+  update-gitops:
+    name: Update ${{ inputs.service-name }} in GitOps
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout GitOps repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ secrets.GITOPS_REPO }}
+          token: ${{ secrets.GITOPS_TOKEN }}
+          path: gitops
+          fetch-depth: 1
+
+      - name: Setup yq (YAML processor)
+        uses: mikefarah/yq@v4
+
+      - name: Update image tag in production overlay
+        working-directory: gitops
+        run: |
+          SERVICE_DIR="production/${{ inputs.service-name }}"
+          KUSTOMIZATION_FILE="${SERVICE_DIR}/kustomization.yaml"
+
+          echo "========================================"
+          echo "Updating GitOps Repository"
+          echo "========================================"
+          echo "Service: ${{ inputs.service-name }}"
+          echo "Image Tag: ${{ inputs.image-tag }}"
+          echo "File: ${KUSTOMIZATION_FILE}"
+          echo ""
+
+          # Update newTag using yq
+          yq eval '.images[0].newTag = "${{ inputs.image-tag }}"' -i "${KUSTOMIZATION_FILE}"
+
+          # Also ensure newName is correct (in case it changed)
+          yq eval '.images[0].newName = "docker.io/${{ inputs.dockerhub-username }}/orange-pay-${{ inputs.service-name }}"' -i "${KUSTOMIZATION_FILE}"
+
+          echo "Updated kustomization.yaml:"
+          echo "---"
+          cat "${KUSTOMIZATION_FILE}"
+          echo "---"
+
+      - name: Commit and push changes
+        working-directory: gitops
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add production/${{ inputs.service-name }}/kustomization.yaml
+
+          # Check if there are changes to commit
+          if git diff --staged --quiet; then
+            echo "ℹ️ No changes to commit (image tag already up to date)"
+            echo "current_tag=${{ inputs.image-tag }}" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Commit with descriptive message using heredoc
+          git commit -m "$(cat <<EOF
+          chore: update ${{ inputs.service-name }} to ${{ inputs.image-tag }}
+
+          Automated update from CI/CD pipeline
+
+          Service: ${{ inputs.service-name }}
+          Image: ${{ inputs.dockerhub-username }}/orange-pay-${{ inputs.service-name }}:${{ inputs.image-tag }}
+          Source Commit: ${{ github.sha }}
+          Workflow: ${{ github.workflow }}
+          Run: ${{ github.run_number }}
+          Actor: ${{ github.actor }}
+          EOF
+          )"
+
+          echo "📤 Pushing to GitOps repository..."
+          git push origin main
+
+          echo "✅ GitOps repository updated successfully"
+          echo "new_tag=${{ inputs.image-tag }}" >> $GITHUB_OUTPUT
+
+      - name: Create deployment summary
+        run: |
+          # Get the latest commit hash from gitops repo
+          GITOPS_COMMIT=$(git -C gitops rev-parse HEAD)
+
+          echo "### ✅ GitOps Repository Updated" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Service:** \`${{ inputs.service-name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** \`docker.io/${{ inputs.dockerhub-username }}/orange-pay-${{ inputs.service-name }}:${{ inputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**GitOps Repository:** \`${{ secrets.GITOPS_REPO }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Source Commit:** \`${{ inputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**GitOps Commit:** [\`${GITOPS_COMMIT:0:7}\`](https://github.com/${{ secrets.GITOPS_REPO }}/commit/${GITOPS_COMMIT})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🔄 **ArgoCD will automatically sync this change within 3 minutes.**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Monitor deployment:**" >> $GITHUB_STEP_SUMMARY
+          echo "- CLI: \`kubectl get pods -n orange-wallet -l app=${{ inputs.service-name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Logs: \`kubectl logs -n orange-wallet -l app=${{ inputs.service-name }} --tail=50\`" >> $GITHUB_STEP_SUMMARY

@@ -6,6 +6,9 @@ Pillow
 cryptography
 requests
 python-jose
-uvicorn
 kafka-python
 google-cloud-storage
+gunicorn
+pyjwt
+confluent-kafka[protobuf]
+protobuf==4.23.4

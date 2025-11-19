@@ -8,7 +8,6 @@ import com.bni.orange.wallet.exception.business.ResourceNotFoundException;
 import com.bni.orange.wallet.exception.business.ValidationFailedException;
 import com.bni.orange.wallet.model.entity.WalletMember;
 import com.bni.orange.wallet.model.entity.read.WalletMemberRead;
-import com.bni.orange.wallet.model.entity.read.WalletRead;
 import com.bni.orange.wallet.model.enums.WalletMemberRole;
 import com.bni.orange.wallet.model.enums.WalletMemberStatus;
 import com.bni.orange.wallet.model.request.member.WalletMemberInviteRequest;
@@ -24,14 +23,15 @@ import com.bni.orange.wallet.repository.read.WalletReadRepository;
 import com.bni.orange.wallet.service.command.MembershipCommandService;
 import com.bni.orange.wallet.service.query.impl.WalletPolicyQueryServiceImpl;
 import com.bni.orange.wallet.utils.security.CurrentUser;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.context.ApplicationEventPublisher;           
+
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.List;
 
 @Service
 @Transactional
@@ -57,7 +57,7 @@ public class MembershipCommandServiceImpl implements MembershipCommandService {
     this.walletPolicyService = walletPolicyService;
     this.walletReadRepo= walletReadRepo;
     this.userWalletReadRepo = userWalletReadRepository;
-    this.appEvents = appEvents; 
+    this.appEvents = appEvents;
   }
 
   @Override

@@ -1,8 +1,11 @@
 package com.bni.orange.wallet.model.request.receive;
 
 import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
 import java.util.UUID;
-import lombok.*;
 
 @Data
 @NoArgsConstructor

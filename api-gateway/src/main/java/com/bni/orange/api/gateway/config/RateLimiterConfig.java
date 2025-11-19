@@ -18,7 +18,8 @@ public class RateLimiterConfig {
     @Primary
     public KeyResolver ipKeyResolver() {
         return exchange -> {
-            String ip = Optional.ofNullable(exchange.getRequest().getHeaders().getFirst("X-Forwarded-For"))
+            var ip = Optional
+                .ofNullable(exchange.getRequest().getHeaders().getFirst("X-Forwarded-For"))
                 .map(forwardedFor -> forwardedFor.split(",")[0].trim())
                 .orElse(Optional.ofNullable(exchange.getRequest().getRemoteAddress())
                     .map(address -> address.getAddress().getHostAddress())
@@ -40,7 +41,8 @@ public class RateLimiterConfig {
             .map(userId -> "user:" + userId)
             .switchIfEmpty(Mono.defer(() -> {
                 // Fallback to IP if not authenticated
-                String ip = Optional.ofNullable(exchange.getRequest().getHeaders().getFirst("X-Forwarded-For"))
+                var ip = Optional
+                    .ofNullable(exchange.getRequest().getHeaders().getFirst("X-Forwarded-For"))
                     .map(forwardedFor -> forwardedFor.split(",")[0].trim())
                     .orElse(Optional.ofNullable(exchange.getRequest().getRemoteAddress())
                         .map(address -> address.getAddress().getHostAddress())
@@ -53,14 +55,14 @@ public class RateLimiterConfig {
     @Bean
     public KeyResolver pathKeyResolver() {
         return exchange -> {
-            String ip = Optional.ofNullable(exchange.getRequest().getHeaders().getFirst("X-Forwarded-For"))
+            var ip = Optional
+                .ofNullable(exchange.getRequest().getHeaders().getFirst("X-Forwarded-For"))
                 .map(forwardedFor -> forwardedFor.split(",")[0].trim())
                 .orElse(Optional.ofNullable(exchange.getRequest().getRemoteAddress())
                     .map(address -> address.getAddress().getHostAddress())
                     .orElse("127.0.0.1"));
 
-            String path = exchange.getRequest().getPath().value();
-
+            var path = exchange.getRequest().getPath().value();
             return Mono.just("path:" + ip + ":" + path);
         };
     }
@@ -84,7 +86,8 @@ public class RateLimiterConfig {
                 return "composite:" + userId + ":" + ip;
             })
             .switchIfEmpty(Mono.defer(() -> {
-                var ip = Optional.ofNullable(exchange.getRequest().getHeaders().getFirst("X-Forwarded-For"))
+                var ip = Optional
+                    .ofNullable(exchange.getRequest().getHeaders().getFirst("X-Forwarded-For"))
                     .map(forwardedFor -> forwardedFor.split(",")[0].trim())
                     .orElse(Optional.ofNullable(exchange.getRequest().getRemoteAddress())
                         .map(address -> address.getAddress().getHostAddress())

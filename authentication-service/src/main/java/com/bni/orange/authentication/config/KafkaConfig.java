@@ -1,5 +1,6 @@
 package com.bni.orange.authentication.config;
 
+import com.bni.orange.authentication.config.properties.KafkaConsumerProperties;
 import com.bni.orange.authentication.config.properties.KafkaProducerProperties;
 import com.bni.orange.authentication.config.properties.KafkaTopicProperties;
 import lombok.RequiredArgsConstructor;
@@ -7,9 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
-import org.apache.kafka.common.serialization.ByteArrayDeserializer;
-import org.apache.kafka.common.serialization.StringDeserializer;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
@@ -25,38 +24,43 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
+@EnableConfigurationProperties({
+    KafkaProducerProperties.class,
+    KafkaTopicProperties.class,
+    KafkaConsumerProperties.class
+})
 public class KafkaConfig {
 
-    private final KafkaProducerProperties kafkaProps;
+    private final KafkaProducerProperties producerProps;
     private final KafkaTopicProperties topicProps;
+    private final KafkaConsumerProperties consumerProps;
 
-    @Value("${spring.kafka.bootstrap-servers:localhost:9092}")
-    private String bootstrapServers;
-
-    @Value("${spring.kafka.consumer.group-id:auth-service-profile-sync}")
-    private String groupId;
-
+    @Bean
     public Map<String, Object> producerConfigs() {
-        var props = new HashMap<String, Object>();
-        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaProps.bootstrapServers());
-        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, kafkaProps.keySerializer());
-        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, kafkaProps.valueSerializer());
-        props.put(ProducerConfig.ACKS_CONFIG, kafkaProps.acks());
-        props.put(ProducerConfig.RETRIES_CONFIG, kafkaProps.retries());
-        props.put(ProducerConfig.RETRY_BACKOFF_MS_CONFIG, (int) kafkaProps.backoff().toMillis());
-        props.put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, kafkaProps.reliability().maxInFlightRequestsPerConnection());
-        props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, kafkaProps.idempotence());
-        props.put(ProducerConfig.LINGER_MS_CONFIG, kafkaProps.batching().lingerMs());
-        props.put(ProducerConfig.BATCH_SIZE_CONFIG, kafkaProps.batching().batchSize());
-        props.put(ProducerConfig.COMPRESSION_TYPE_CONFIG, kafkaProps.compressionType());
-        props.put(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG, (int) kafkaProps.reliability().requestTimeout().toMillis());
-        props.put(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, (int) kafkaProps.reliability().deliveryTimeout().toMillis());
+        Map<String, Object> props = new HashMap<>();
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, producerProps.bootstrapServers());
+        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, producerProps.keySerializer());
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, producerProps.valueSerializer());
+        props.put(ProducerConfig.ACKS_CONFIG, producerProps.acks());
+        props.put(ProducerConfig.RETRIES_CONFIG, producerProps.retries());
+        props.put(ProducerConfig.RETRY_BACKOFF_MS_CONFIG, (int) producerProps.retryBackoffMs().toMillis());
+        props.put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, producerProps.reliability().maxInFlightRequestsPerConnection());
+        props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, producerProps.enableIdempotence());
+        props.put(ProducerConfig.LINGER_MS_CONFIG, producerProps.batching().lingerMs());
+        props.put(ProducerConfig.BATCH_SIZE_CONFIG, producerProps.batching().batchSize());
+        props.put(ProducerConfig.COMPRESSION_TYPE_CONFIG, producerProps.compressionType());
+        props.put(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG, (int) producerProps.reliability().requestTimeout().toMillis());
+        props.put(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, (int) producerProps.reliability().deliveryTimeout().toMillis());
 
+        log.info("Kafka producer configured: bootstrap={}, acks={}, idempotence={}",
+            producerProps.bootstrapServers(), producerProps.acks(), producerProps.enableIdempotence());
         return props;
     }
 
@@ -68,6 +72,11 @@ public class KafkaConfig {
     @Bean
     public KafkaTemplate<String, byte[]> kafkaTemplate() {
         return new KafkaTemplate<>(producerFactory());
+    }
+
+    @Bean(name = "kafkaVirtualThreadExecutor")
+    public Executor kafkaVirtualThreadExecutor() {
+        return Executors.newVirtualThreadPerTaskExecutor();
     }
 
     @Bean
@@ -97,16 +106,19 @@ public class KafkaConfig {
     @Bean
     public Map<String, Object> consumerConfigs() {
         Map<String, Object> props = new HashMap<>();
-        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
-        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ByteArrayDeserializer.class);
-        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
-        props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 100);
-        props.put(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, 300000);
-        props.put(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, 30000);
-        props.put(ConsumerConfig.HEARTBEAT_INTERVAL_MS_CONFIG, 10000);
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, consumerProps.bootstrapServers());
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, consumerProps.groupId());
+        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, consumerProps.keyDeserializer());
+        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, consumerProps.valueDeserializer());
+        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, consumerProps.autoOffsetReset());
+        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, consumerProps.enableAutoCommit());
+        props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, consumerProps.maxPollRecords());
+        props.put(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, consumerProps.maxPollIntervalMs());
+        props.put(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, consumerProps.sessionTimeoutMs());
+        props.put(ConsumerConfig.HEARTBEAT_INTERVAL_MS_CONFIG, consumerProps.heartbeatIntervalMs());
+
+        log.info("Kafka consumer configured: bootstrap={}, groupId={}, autoOffsetReset={}",
+            consumerProps.bootstrapServers(), consumerProps.groupId(), consumerProps.autoOffsetReset());
         return props;
     }
 
@@ -120,10 +132,11 @@ public class KafkaConfig {
         ConcurrentKafkaListenerContainerFactory<String, byte[]> factory =
             new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory());
-        factory.setConcurrency(3);
+        factory.setConcurrency(consumerProps.concurrency());
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL);
 
-        log.info("Kafka consumer factory configured with MANUAL ack mode and concurrency 3");
+        log.info("Kafka consumer factory configured with MANUAL ack mode and concurrency {}",
+            consumerProps.concurrency());
         return factory;
     }
 }

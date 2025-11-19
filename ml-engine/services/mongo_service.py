@@ -88,10 +88,10 @@ def _derive_members_from_assignments(assignments: List[Dict[str, Any]]) -> List[
             "user_id": user_id,            
             "phone_e164": phone_e164,      
             "short_link": None,            
-            "status": "PENDING",
-            "amount_due": amount if amount > 0 else None, 
+            "amount_due": amount if amount > 0 else None,
             "paid": 0,
-            "items": a.get("items") or []  
+            "items": a.get("items") or [],
+            "status" : a.get("status") or "PENDING"
         })
     return members
 

@@ -1,0 +1,115 @@
+spring:
+  threads:
+    virtual:
+      enabled: true
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        default_schema: transaction_oltp
+
+  flyway:
+    enabled: true
+    schemas: transaction_oltp
+    default-schema: transaction_oltp
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    password: ${spring.datasource.password}
+    user: ${spring.datasource.username}
+
+  kafka:
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
+      acks: all
+      enable-idempotence: true
+      retries: 3
+      retry-backoff-ms: 1s
+      compression-type: snappy
+      reliability:
+        max-in-flight-requests-per-connection: 5
+        request-timeout: 30s
+        delivery-timeout: 2m
+      batching:
+        linger-ms: 20
+        batch-size: 32768
+
+orange:
+  transaction:
+    fee:
+      transfer: 0
+    reference:
+      prefix: "TRX"
+      date-format: "yyyyMMdd"
+    limit:
+      transfer:
+        min-amount: 10000
+        max-amount: 10000000
+
+  kafka:
+    topics:
+      definitions:
+        transaction-completed:
+          name: "transaction.completed.v1"
+          partitions: 3
+          replicas: 1
+          compact: false
+        transaction-failed:
+          name: "transaction.failed.v1"
+          partitions: 3
+          replicas: 1
+          compact: false
+        payment-status-updated:
+          name: "payment.status.updated.v1"
+          partitions: 3
+          replicas: 1
+          compact: false
+      # Top-Up Event Topics
+      topup:
+        top-up-initiated: "orange-pay.topup.initiated.v1"
+        top-up-completed: "orange-pay.topup.completed.v1"
+        top-up-failed: "orange-pay.topup.failed.v1"
+        top-up-expired: "orange-pay.topup.expired.v1"
+        top-up-cancelled: "orange-pay.topup.cancelled.v1"
+
+server:
+  port: ${SERVER_PORT:8084}
+
+logging:
+  level:
+    com.bni.orange.transaction: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.kafka: INFO
+    org.springframework.web.reactive.function.client: DEBUG
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+resilience:
+  retry:
+    max-attempts: 3
+    initial-backoff: 500ms
+    multiplier: 2.0
+    max-backoff: 5s
+    fail-after-max-attempts: true
+    retryable-exceptions:
+      - org.springframework.web.reactive.function.client.WebClientResponseException.InternalServerError
+      - org.springframework.web.reactive.function.client.WebClientResponseException.ServiceUnavailable
+      - org.springframework.web.reactive.function.client.WebClientResponseException.GatewayTimeout
+      - org.springframework.web.reactive.function.client.WebClientResponseException.BadGateway
+      - java.util.concurrent.TimeoutException
+      - java.io.IOException
+  circuit-breaker:
+    sliding-window-size: 10
+    minimum-number-of-calls: 5
+    failure-rate-threshold: 50.0
+    wait-duration-in-open-state: 30s
+    permitted-number-of-calls-in-half-open-state: 10
+    automatic-transition-from-open-to-half-open-enabled: true

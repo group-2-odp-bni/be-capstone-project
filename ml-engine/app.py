@@ -365,6 +365,26 @@ def _compat_process_receipt():
 def _compat_submit_split():
     return post_bills()
 
+@app.get("/health")
+def health_check():
+    """Health check endpoint for Docker and load balancers"""
+    return jsonify({
+        "status": "healthy",
+        "service": "ml-engine",
+        "timestamp": _now_iso()
+    }), 200
+
+@app.get("/actuator/health")
+def actuator_health():
+    """Spring Boot style health check for consistency with Java services"""
+    return jsonify({
+        "status": "UP",
+        "components": {
+            "mongoDb": {"status": "UP" if bills_collection is not None else "DOWN"},
+            "kafka": {"status": "UP"}
+        }
+    }), 200
+
 def _recompute_bill_status(doc: dict) -> str:
     statuses = [m.get("status") for m in (doc.get("members") or [])]
     if statuses and all(s == "PAID" for s in statuses):

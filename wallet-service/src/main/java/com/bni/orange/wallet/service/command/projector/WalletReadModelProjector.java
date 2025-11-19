@@ -1,24 +1,31 @@
 package com.bni.orange.wallet.service.command.projector;
-import com.bni.orange.wallet.model.entity.Wallet;
+
+import com.bni.orange.wallet.domain.DomainEvents;
 import com.bni.orange.wallet.model.entity.UserReceivePrefs;
-import com.bni.orange.wallet.model.entity.read.*;
+import com.bni.orange.wallet.model.entity.Wallet;
+import com.bni.orange.wallet.model.entity.read.UserWalletRead;
+import com.bni.orange.wallet.model.entity.read.WalletMemberRead;
+import com.bni.orange.wallet.model.entity.read.WalletRead;
 import com.bni.orange.wallet.model.enums.WalletMemberRole;
 import com.bni.orange.wallet.model.enums.WalletMemberStatus;
 import com.bni.orange.wallet.repository.UserReceivePrefsRepository;
-import com.bni.orange.wallet.repository.read.*;
+import com.bni.orange.wallet.repository.read.UserWalletReadRepository;
+import com.bni.orange.wallet.repository.read.WalletMemberReadRepository;
+import com.bni.orange.wallet.repository.read.WalletReadRepository;
 import com.bni.orange.wallet.service.command.initializer.UserLimitsInitializer;
-
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.bni.orange.wallet.domain.DomainEvents;
+
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
+@Slf4j
 @Service
-@RequiredArgsConstructor
 @Transactional
+@RequiredArgsConstructor
 public class WalletReadModelProjector {
     private final WalletReadRepository walletReadRepo;
     private final WalletMemberReadRepository walletMemberReadRepo;
@@ -27,6 +34,9 @@ public class WalletReadModelProjector {
     private final UserLimitsInitializer limitsInitializer;
 
     public void projectNewWallet(DomainEvents.WalletCreated event) {
+        log.info("Projecting new wallet to read model: walletId={}, userId={}",
+                event.getWalletId(), event.getUserId());
+
         limitsInitializer.ensureDefaultsForUser(event.getUserId());
 
         WalletRead wr = WalletRead.builder()
@@ -38,12 +48,16 @@ public class WalletReadModelProjector {
             .type(event.getType())
             .name(event.getName())
             .membersActive(1)
-            .isDefaultForUser(false) 
+            .isDefaultForUser(false)
             .createdAt(event.getCreatedAt())
             .updatedAt(event.getUpdatedAt())
             .build();
+
         walletReadRepo.save(wr);
+        log.info("WalletRead saved: walletId={}", event.getWalletId());
+
         upsertWalletMemberRead(event.getWalletId(), event.getUserId(), WalletMemberRole.OWNER, WalletMemberStatus.ACTIVE);
+
         UserWalletRead idx = UserWalletRead.builder()
                 .userId(event.getUserId())
                 .walletId(event.getWalletId())
@@ -53,9 +67,13 @@ public class WalletReadModelProjector {
                 .walletName(event.getName())
                 .build();
         userWalletReadRepo.save(idx);
+        log.info("UserWalletRead saved: userId={}, walletId={}", event.getUserId(), event.getWalletId());
+
         if (event.isDefaultForUser()) {
             markAsDefaultReceive(event.getUserId(), event.getWalletId());
         }
+
+        log.info("Successfully completed projection for new wallet: walletId={}", event.getWalletId());
     }
 
     @Transactional
@@ -82,14 +100,23 @@ public class WalletReadModelProjector {
     @Transactional
     public void projectWalletMembersCleared(DomainEvents.WalletMembersCleared event) {
         UUID walletId = event.getWalletId();
+        log.info("Projecting wallet members cleared to read model: walletId={}", walletId);
+
         walletMemberReadRepo.deleteAllByWalletId(walletId);
+        log.info("Deleted all WalletMemberRead for walletId={}", walletId);
+
         userWalletReadRepo.deleteAllByWalletId(walletId);
+        log.info("Deleted all UserWalletRead for walletId={}", walletId);
+
         walletReadRepo.findById(walletId).ifPresent(wr -> {
             wr.setMembersActive(0);
             wr.setDefaultForUser(false);
             wr.setUpdatedAt(OffsetDateTime.now());
             walletReadRepo.save(wr);
+            log.info("Updated WalletRead membersActive=0 for walletId={}", walletId);
         });
+
+        log.info("Successfully completed projection for wallet members cleared: walletId={}", walletId);
     }
 
 
@@ -117,15 +144,26 @@ public class WalletReadModelProjector {
     public void upsertWalletMemberRead(UUID walletId, UUID userId,
                                          WalletMemberRole role, WalletMemberStatus status) {
         var r = walletMemberReadRepo.findByWalletIdAndUserId(walletId, userId)
-                .orElseGet(() -> WalletMemberRead.builder()
-                        .walletId(walletId)
-                        .userId(userId)
-                        .limitCurrency("IDR")
-                        .build());
+                .orElseGet(() -> {
+                    var now = OffsetDateTime.now();
+                    return WalletMemberRead.builder()
+                            .walletId(walletId)
+                            .userId(userId)
+                            .limitCurrency("IDR")
+                            .dailyLimitRp(0L)
+                            .monthlyLimitRp(0L)
+                            .perTxLimitRp(0L)
+                            .weeklyLimitRp(0L)
+                            .joinedAt(now)
+                            .updatedAt(now)
+                            .build();
+                });
         r.setRole(role);
         r.setStatus(status);
         r.setUpdatedAt(OffsetDateTime.now());
         walletMemberReadRepo.save(r);
+        log.info("Successfully upserted WalletMemberRead: walletId={}, userId={}, role={}",
+                walletId, userId, role);
     }
 
     @Transactional

@@ -3,7 +3,11 @@ package com.bni.orange.wallet.model.request.member;
 import com.bni.orange.wallet.model.enums.WalletMemberRole;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.util.Map;
 import java.util.UUID;

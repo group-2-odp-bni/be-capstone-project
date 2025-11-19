@@ -15,6 +15,7 @@ import com.bni.orange.authentication.model.response.StateTokenResponse;
 import com.bni.orange.authentication.model.response.TokenResponse;
 import com.bni.orange.authentication.repository.UserRepository;
 import com.bni.orange.authentication.service.captcha.CaptchaService;
+import com.bni.orange.authentication.service.redis.PendingRegistrationService;
 import com.bni.orange.authentication.util.ResponseBuilder;
 import com.bni.orange.authentication.validator.PinValidator;
 import jakarta.servlet.http.HttpServletRequest;
@@ -48,6 +49,7 @@ public class AuthFlowService {
     private final EventPublisher eventPublisher;
     private final KafkaTopicProperties topicProperties;
     private final CaptchaService captchaService;
+    private final PendingRegistrationService pendingRegistrationService;
 
     private final Executor virtualThreadTaskExecutor;
 
@@ -55,41 +57,55 @@ public class AuthFlowService {
     public ApiResponse<OtpResponse> requestLoginOtp(AuthRequest request, HttpServletRequest servletRequest) {
         var normalizedPhoneNumber = normalizePhoneNumber(request.phoneNumber());
 
-        var captchaValidation = CompletableFuture.runAsync(() ->
-            validateCaptcha(request.captchaToken(), "login"), virtualThreadTaskExecutor);
+        if (loginAttemptService.isLocked(normalizedPhoneNumber)) {
+            throw new BusinessException(ErrorCode.ACCOUNT_LOCKED);
+        }
 
-        var cooldownCheck = CompletableFuture.runAsync(() -> {
-            if (otpService.isCooldown(normalizedPhoneNumber)) {
-                throw new BusinessException(ErrorCode.OTP_COOLDOWN);
+        var captchaValidation = createCaptchaValidationFuture(request.captchaToken(), "login");
+        var cooldownCheck = createCooldownCheckFuture(normalizedPhoneNumber, false);
+
+        joinAllAndHandleExceptions(captchaValidation, cooldownCheck);
+
+        var userOpt = userRepository.findByPhoneNumber(normalizedPhoneNumber);
+
+        if (userOpt.isPresent()) {
+            return processAndSendOtp(userOpt.get().getPhoneNumber(), userOpt.get().getId().toString(), servletRequest, false);
+        } else {
+            if (pendingRegistrationService.exists(normalizedPhoneNumber)) {
+                log.info("User with phone number {} not found in DB, but pending registration exists. Proceeding with PIN setup flow.", normalizedPhoneNumber);
+                return processAndSendOtp(normalizedPhoneNumber, null, servletRequest, false);
+            } else {
+                throw new BusinessException(ErrorCode.USER_NOT_FOUND);
             }
-        }, virtualThreadTaskExecutor);
+        }
+    }
 
+    @Transactional
+    public ApiResponse<OtpResponse> requestPinResetOtp(AuthRequest request, HttpServletRequest servletRequest) {
+        var normalizedPhoneNumber = normalizePhoneNumber(request.phoneNumber());
+
+        var captchaValidation = createCaptchaValidationFuture(request.captchaToken(), "login");
+        var cooldownCheck = createCooldownCheckFuture(normalizedPhoneNumber, true);
         var userFuture = CompletableFuture.supplyAsync(() ->
             userRepository
                 .findByPhoneNumber(normalizedPhoneNumber)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND)), virtualThreadTaskExecutor);
 
-        try {
-            CompletableFuture.allOf(captchaValidation, cooldownCheck, userFuture).join();
-        } catch (CompletionException e) {
-            if (e.getCause() instanceof BusinessException be) {
-                throw be;
-            }
-            log.error("Error during parallel login validation", e);
-            throw new BusinessException(ErrorCode.GENERAL_ERROR, e.getMessage());
-        }
+        joinAllAndHandleExceptions(captchaValidation, cooldownCheck, userFuture);
 
         var user = userFuture.join();
-        return processOtpRequest(user, servletRequest);
+        return processAndSendOtp(user.getPhoneNumber(), user.getId().toString(), servletRequest, true);
     }
 
     @Transactional
     public ApiResponse<OtpResponse> requestRegistrationOtp(AuthRequest request, HttpServletRequest servletRequest) {
         var normalizedPhoneNumber = normalizePhoneNumber(request.phoneNumber());
 
-        var captchaValidation = CompletableFuture.runAsync(() ->
-            validateCaptcha(request.captchaToken(), "register"), virtualThreadTaskExecutor);
+        if (loginAttemptService.isLocked(normalizedPhoneNumber)) {
+            throw new BusinessException(ErrorCode.ACCOUNT_LOCKED);
+        }
 
+        var captchaValidation = createCaptchaValidationFuture(request.captchaToken(), "register");
         var userCheck = CompletableFuture.runAsync(
             () -> userRepository
                 .findByPhoneNumber(normalizedPhoneNumber)
@@ -97,34 +113,14 @@ public class AuthFlowService {
                     throw new BusinessException(ErrorCode.USER_ALREADY_EXISTS);
                 }),
             virtualThreadTaskExecutor);
+        var cooldownCheck = createCooldownCheckFuture(normalizedPhoneNumber, false);
 
-        var cooldownCheck = CompletableFuture.runAsync(
-            () -> {
-                if (otpService.isCooldown(normalizedPhoneNumber)) {
-                    throw new BusinessException(ErrorCode.OTP_COOLDOWN);
-                }
-            },
-            virtualThreadTaskExecutor);
+        joinAllAndHandleExceptions(captchaValidation, userCheck, cooldownCheck);
 
-        try {
-            CompletableFuture.allOf(captchaValidation, userCheck, cooldownCheck).join();
-        } catch (CompletionException e) {
-            if (e.getCause() instanceof BusinessException be) {
-                throw be;
-            }
-            log.error("Error during parallel registration validation", e);
-            throw new BusinessException(ErrorCode.GENERAL_ERROR, e.getMessage());
-        }
+        pendingRegistrationService.save(normalizedPhoneNumber);
+        log.info("Saved pending registration for phone number: {}", normalizedPhoneNumber);
 
-        var newUser = User.builder()
-            .userPins("")
-            .name("New User")
-            .phoneNumber(normalizedPhoneNumber)
-            .status(UserStatus.PENDING_VERIFICATION)
-            .build();
-        var user = userRepository.save(newUser);
-
-        return processOtpRequest(user, servletRequest);
+        return processAndSendOtp(normalizedPhoneNumber, null, servletRequest, false);
     }
 
     private void validateCaptcha(String captchaToken, String expectedAction) {
@@ -134,23 +130,27 @@ public class AuthFlowService {
         }
     }
 
-    private ApiResponse<OtpResponse> processOtpRequest(User user, HttpServletRequest servletRequest) {
-        var otp = otpService.generateAndStoreOtp(user.getPhoneNumber());
+    private ApiResponse<OtpResponse> processAndSendOtp(String phoneNumber, String userId, HttpServletRequest servletRequest, boolean isPinReset) {
+        var otp = otpService.generateAndStoreOtp(phoneNumber);
 
         var otpEvent = DomainEventFactory.createOtpNotificationEvent(
-            user.getPhoneNumber(),
+            phoneNumber,
             otp,
-            user.getId().toString()
+            userId
         );
 
         var topicName = topicProperties.definitions().get("otp-notification").name();
-        eventPublisher.publish(topicName, user.getPhoneNumber(), otpEvent);
+        eventPublisher.publish(topicName, phoneNumber, otpEvent);
 
         if (log.isDebugEnabled()) {
-            log.debug("DEV MODE - OTP for {}: {}", user.getPhoneNumber(), otp);
+            log.debug("DEV MODE - OTP for {}: {}", phoneNumber, otp);
         }
 
-        otpService.setCooldown(user.getPhoneNumber());
+        if (isPinReset) {
+            otpService.setCooldownReset(phoneNumber);
+        } else {
+            otpService.setCooldown(phoneNumber);
+        }
 
         var data = OtpResponse.builder()
             .channel("whatsapp")
@@ -162,16 +162,25 @@ public class AuthFlowService {
 
     @Transactional
     public ApiResponse<StateTokenResponse> verifyOtp(OtpVerifyRequest request, String purpose, HttpServletRequest servletRequest) {
+        return internalVerifyOtp(request, purpose, servletRequest);
+    }
+
+    @Transactional
+    public ApiResponse<StateTokenResponse> verifyOtp(OtpVerifyRequest request, HttpServletRequest servletRequest) {
+        return internalVerifyOtp(request, null, servletRequest);
+    }
+
+    private ApiResponse<StateTokenResponse> internalVerifyOtp(OtpVerifyRequest request, String purpose, HttpServletRequest servletRequest) {
         var normalizedPhoneNumber = normalizePhoneNumber(request.phoneNumber());
         if (!otpService.isOtpValid(normalizedPhoneNumber, request.otp())) {
             throw new BusinessException(ErrorCode.INVALID_OTP);
         }
 
-        var user = userRepository.findByPhoneNumber(normalizedPhoneNumber)
-            .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        Optional<User> userOpt = userRepository.findByPhoneNumber(normalizedPhoneNumber);
+        String scope = determineTokenScope(userOpt, purpose, normalizedPhoneNumber);
 
-        var scope = determineTokenScope(user, purpose);
-        var stateToken = tokenService.generateStateToken(user, scope);
+        User userForToken = userOpt.orElseGet(() -> User.builder().phoneNumber(normalizedPhoneNumber).build());
+        var stateToken = tokenService.generateStateToken(userForToken, scope);
 
         var data = StateTokenResponse.builder()
             .stateToken(stateToken)
@@ -181,53 +190,114 @@ public class AuthFlowService {
         return ResponseBuilder.success("OTP verified successfully", data, servletRequest);
     }
 
-    @Transactional
-    public ApiResponse<StateTokenResponse> verifyOtp(OtpVerifyRequest request, HttpServletRequest servletRequest) {
-        return verifyOtp(request, null, servletRequest);
-    }
-
-    private String determineTokenScope(User user, String purpose) {
+    private String determineTokenScope(Optional<User> userOpt, String purpose, String phoneNumber) {
         if ("RESET".equals(purpose)) {
             return TokenScope.PIN_RESET.getValue();
         }
 
-        return user.getStatus().equals(UserStatus.PENDING_VERIFICATION) ? TokenScope.PIN_SETUP.getValue() : TokenScope.PIN_LOGIN.getValue();
+        return userOpt.map(user -> TokenScope.PIN_LOGIN.getValue())
+            .orElseGet(() -> {
+                if (pendingRegistrationService.exists(phoneNumber)) {
+                    return TokenScope.PIN_SETUP.getValue();
+                }
+                log.error("Cannot determine token scope. User not found in DB and no pending registration in Redis for phone: {}", phoneNumber);
+                throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+            });
+    }
+
+    private CompletableFuture<Void> createCaptchaValidationFuture(String captchaToken, String expectedAction) {
+        return CompletableFuture.runAsync(() ->
+            validateCaptcha(captchaToken, expectedAction), virtualThreadTaskExecutor);
+    }
+
+    private CompletableFuture<Void> createCooldownCheckFuture(String phoneNumber, boolean isReset) {
+        return CompletableFuture.runAsync(() -> {
+            if (isReset) {
+                if (otpService.isCooldownReset(phoneNumber)) {
+                    throw new BusinessException(ErrorCode.OTP_COOLDOWN_RESET);
+                }
+            } else {
+                if (otpService.isCooldown(phoneNumber)) {
+                    throw new BusinessException(ErrorCode.OTP_COOLDOWN);
+                }
+            }
+        }, virtualThreadTaskExecutor);
+    }
+
+    private void joinAllAndHandleExceptions(CompletableFuture<?>... futures) {
+        try {
+            CompletableFuture.allOf(futures).join();
+        } catch (CompletionException e) {
+            if (e.getCause() instanceof BusinessException be) {
+                throw be;
+            }
+            log.error("Error during parallel validation", e);
+            throw new BusinessException(ErrorCode.GENERAL_ERROR, e.getMessage());
+        }
     }
 
     @Transactional
-    public ApiResponse<TokenResponse> authenticateWithPin(UUID userId, String pin, String scope, String jti, HttpServletRequest request) {
-        if (loginAttemptService.isLocked(userId.toString())) {
-            throw new BusinessException(ErrorCode.ACCOUNT_LOCKED);
-        }
+    public ApiResponse<TokenResponse> authenticateWithPin(String stateToken, String pin, HttpServletRequest request) {
+        var jwt = tokenService.decodeStateToken(stateToken);
+        var scope = jwt.getClaimAsString("scope");
+        var subject = jwt.getSubject();
+        var jti = jwt.getId();
 
-        loginAttemptService.applyProgressiveDelay(userId.toString());
+        User user;
+        String phoneNumber;
 
-        var user = userRepository.findById(userId)
-            .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-
-        if (TokenScope.PIN_SETUP.getValue().equals(scope) && user.getStatus() == UserStatus.PENDING_VERIFICATION) {
-            pinValidator.validate(pin);
-
-            user.setUserPins(passwordEncoder.encode(pin));
-            user.setStatus(UserStatus.ACTIVE);
-            user.setPhoneVerified(true);
-            userRepository.save(user);
-
-            var userRegisteredEvent = DomainEventFactory.createUserRegisteredEvent(user);
-            var userRegisteredTopic = topicProperties.definitions().get("user-registered").name();
-            eventPublisher.publish(userRegisteredTopic, user.getId().toString(), userRegisteredEvent);
-        } else if (TokenScope.PIN_LOGIN.getValue().equals(scope) && user.getStatus() == UserStatus.ACTIVE) {
-            if (!passwordEncoder.matches(pin, user.getUserPins())) {
-                loginAttemptService.loginFailed(userId.toString());
-                var attemptsLeft = loginAttemptService.getAttemptsLeft(userId.toString());
-                throw new BusinessException(ErrorCode.INVALID_PIN, String.format("Invalid PIN. You have %d attempts left.", attemptsLeft));
-            }
+        if (TokenScope.PIN_SETUP.getValue().equals(scope)) {
+            phoneNumber = subject;
+            user = User.builder().phoneNumber(phoneNumber).build();
+        } else if (TokenScope.PIN_LOGIN.getValue().equals(scope)) {
+            UUID userId = UUID.fromString(subject);
+            user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+            phoneNumber = user.getPhoneNumber();
         } else {
             throw new BusinessException(ErrorCode.INVALID_TOKEN_SCOPE);
         }
 
-        loginAttemptService.loginSucceeded(userId.toString());
+        if (loginAttemptService.isLocked(phoneNumber)) {
+            throw new BusinessException(ErrorCode.ACCOUNT_LOCKED);
+        }
 
+        loginAttemptService.applyProgressiveDelay(phoneNumber);
+
+        if (TokenScope.PIN_SETUP.getValue().equals(scope)) {
+            pinValidator.validate(pin);
+
+            if (!pendingRegistrationService.exists(phoneNumber)) {
+                log.warn("Attempt to set PIN without a pending registration state for phone: {}", phoneNumber);
+                throw new BusinessException(ErrorCode.REGISTRATION_STATE_EXPIRED);
+            }
+
+            user.setUserPins(passwordEncoder.encode(pin));
+            user.setStatus(UserStatus.ACTIVE);
+            user.setPhoneVerified(true);
+            user.setName("New User");
+            User savedUser = userRepository.save(user);
+            log.info("New user created and saved with ID: {}", savedUser.getId());
+
+            var userRegisteredEvent = DomainEventFactory.createUserRegisteredEvent(savedUser);
+            var topic = topicProperties.definitions().get("user-registered").name();
+            eventPublisher.publish(topic, savedUser.getId().toString(), userRegisteredEvent);
+            log.info("Published user registration event for user ID: {}", savedUser.getId());
+
+            pendingRegistrationService.delete(phoneNumber);
+            log.info("Cleared pending registration state for phone: {}", phoneNumber);
+
+            user = savedUser;
+
+        } else {
+            if (!passwordEncoder.matches(pin, user.getUserPins())) {
+                loginAttemptService.loginFailed(phoneNumber);
+                var attemptsLeft = loginAttemptService.getAttemptsLeft(phoneNumber);
+                throw new BusinessException(ErrorCode.INVALID_PIN, String.format("Invalid PIN. You have %d attempts left.", (Integer) attemptsLeft));
+            }
+        }
+
+        loginAttemptService.loginSucceeded(phoneNumber);
         tokenService.consumeStateToken(jti);
 
         var ipAddress = Optional.ofNullable(request.getHeader("X-FORWARDED-FOR")).orElse(request.getRemoteAddr());

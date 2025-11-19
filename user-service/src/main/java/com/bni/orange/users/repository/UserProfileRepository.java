@@ -2,6 +2,7 @@ package com.bni.orange.users.repository;
 
 import com.bni.orange.users.model.entity.UserProfile;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
@@ -34,4 +35,42 @@ public interface UserProfileRepository extends JpaRepository<UserProfile, UUID> 
     @Query("SELECT CASE WHEN COUNT(u) > 0 THEN true ELSE false END " +
            "FROM UserProfile u WHERE (u.phoneNumber = :phone OR u.pendingPhone = :phone) AND u.id != :userId")
     boolean isPendingPhoneAlreadyInUse(String phone, UUID userId);
+
+    /**
+     * Atomically apply verified email only if pendingEmail matches the expected value.
+     * This prevents race condition where another thread might have updated pendingEmail
+     * between verification and save.
+     *
+     * @param userId User ID
+     * @param verifiedEmail The verified email to set as actual email
+     * @return Number of rows updated (1 if success, 0 if race condition occurred)
+     */
+    @Modifying
+    @Query("UPDATE UserProfile u " +
+           "SET u.email = :verifiedEmail, " +
+           "u.pendingEmail = NULL, " +
+           "u.emailVerifiedAt = CURRENT_TIMESTAMP, " +
+           "u.updatedAt = CURRENT_TIMESTAMP " +
+           "WHERE u.id = :userId " +
+           "AND u.pendingEmail = :verifiedEmail")
+    int applyVerifiedEmailConditionally(UUID userId, String verifiedEmail);
+
+    /**
+     * Atomically apply verified phone only if pendingPhone matches the expected value.
+     * This prevents race condition where another thread might have updated pendingPhone
+     * between verification and save.
+     *
+     * @param userId User ID
+     * @param verifiedPhone The verified phone to set as actual phone
+     * @return Number of rows updated (1 if success, 0 if race condition occurred)
+     */
+    @Modifying
+    @Query("UPDATE UserProfile u " +
+           "SET u.phoneNumber = :verifiedPhone, " +
+           "u.pendingPhone = NULL, " +
+           "u.phoneVerifiedAt = CURRENT_TIMESTAMP, " +
+           "u.updatedAt = CURRENT_TIMESTAMP " +
+           "WHERE u.id = :userId " +
+           "AND u.pendingPhone = :verifiedPhone")
+    int applyVerifiedPhoneConditionally(UUID userId, String verifiedPhone);
 }

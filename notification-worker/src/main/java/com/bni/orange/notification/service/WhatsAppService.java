@@ -22,13 +22,13 @@ public class WhatsAppService {
     public Mono<WahaMessageResponse> sendOtp(OtpNotificationEvent event) {
         log.info("Preparing to send OTP to user {} via phone {}", event.getUserId(), maskPhoneNumber(event.getPhoneNumber()));
 
-        String message = formatOtpMessage(event.getOtpCode());
+        var message = formatOtpMessage(event.getOtpCode());
 
         return wahaSessionService.waitForSessionReady(5, 3)
             .doOnSuccess(session -> log.info("WhatsApp session ready for user {}", event.getUserId()))
             .flatMap(session -> wahaApiClient.sendTextMessage(event.getPhoneNumber(), message))
             .doOnSuccess(response -> {
-                Object timestamp = response.timestamp() != null ? Instant.ofEpochSecond(response.timestamp()) : "N/A";
+                var timestamp = response.timestamp() != null ? Instant.ofEpochSecond(response.timestamp()) : "N/A";
                 log.info("OTP successfully sent to user {}. Message ID: {}, Timestamp: {}",
                     event.getUserId(),
                     response.id(),

@@ -1,24 +1,24 @@
 package com.bni.orange.wallet.messaging.aftercommit;
 
-import com.bni.orange.wallet.messaging.WalletEventPublisher;
-import lombok.extern.slf4j.Slf4j;
-import com.bni.orange.wallet.domain.DomainEvents.WalletUpdated;
 import com.bni.orange.wallet.domain.DomainEvents.WalletCreated;
 import com.bni.orange.wallet.domain.DomainEvents.WalletInviteAccepted;
 import com.bni.orange.wallet.domain.DomainEvents.WalletInviteLinkGenerated;
 import com.bni.orange.wallet.domain.DomainEvents.WalletMemberInvited;
 import com.bni.orange.wallet.domain.DomainEvents.WalletMembersCleared;
-
+import com.bni.orange.wallet.domain.DomainEvents.WalletUpdated;
+import com.bni.orange.wallet.messaging.WalletEventPublisher;
 import com.bni.orange.wallet.proto.WalletCreatedEvent;
-import com.bni.orange.wallet.proto.WalletUpdatedEvent;
+import com.bni.orange.wallet.proto.WalletInviteAcceptedEvent;
+import com.bni.orange.wallet.proto.WalletInviteLinkGeneratedEvent;
 import com.bni.orange.wallet.proto.WalletMemberInvitedEvent;
 import com.bni.orange.wallet.proto.WalletMembersClearedEvent;
-import com.bni.orange.wallet.proto.WalletInviteLinkGeneratedEvent;
-import com.bni.orange.wallet.proto.WalletInviteAcceptedEvent;
+import com.bni.orange.wallet.proto.WalletUpdatedEvent;
+import com.bni.orange.wallet.service.command.projector.WalletReadModelProjector;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 @Slf4j
 @Component
@@ -26,9 +26,18 @@ import org.springframework.transaction.event.TransactionPhase;
 public class WalletAfterCommitListener {
 
     private final WalletEventPublisher publisher;
+    private final WalletReadModelProjector readModelProjector;
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onWalletCreated(WalletCreated e) {
+        log.info("Processing WalletCreated event: walletId={}, userId={}", e.getWalletId(), e.getUserId());
+        try {
+            readModelProjector.projectNewWallet(e);
+            log.info("Successfully projected wallet to read model: walletId={}", e.getWalletId());
+        } catch (Exception ex) {
+            log.error("CRITICAL: Failed to project wallet to read model - DATA INCONSISTENCY! " +
+                "walletId={}, userId={}, type={}", e.getWalletId(), e.getUserId(), e.getType(), ex);
+        }
 
         var payload = WalletCreatedEvent.newBuilder()
                 .setWalletId(e.getWalletId().toString())
@@ -37,19 +46,26 @@ public class WalletAfterCommitListener {
                 .setStatus(e.getStatus().name())
                 .setType(e.getType().name())
                 .setName(e.getName() == null ? "" : e.getName())
-                
                 .setBalanceSnapshot(e.getBalanceSnapshot().toString())
                 .setIsDefaultForUser(e.isDefaultForUser())
                 .setCreatedAt(e.getCreatedAt().toString())
                 .setUpdatedAt(e.getUpdatedAt().toString())
-                
                 .build();
 
         publisher.publishWalletCreated(e.getWalletId().toString(), payload);
     }
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onWalletUpdated(WalletUpdated e) {
+        log.info("Processing WalletUpdated event: walletId={}, userId={}", e.getWalletId(), e.getUserId());
+        try {
+            readModelProjector.projectWalletUpdateFromEvent(e);
+            log.info("Successfully projected wallet update to read model: walletId={}", e.getWalletId());
+        } catch (Exception ex) {
+            log.error("CRITICAL: Failed to project wallet update to read model - DATA INCONSISTENCY! " +
+                "walletId={}, userId={}", e.getWalletId(), e.getUserId(), ex);
+        }
 
+        // Publish to Kafka for external consumers
         var payload = WalletUpdatedEvent.newBuilder()
                 .setWalletId(e.getWalletId().toString())
                 .setUserId(e.getUserId().toString())
@@ -65,7 +81,7 @@ public class WalletAfterCommitListener {
     }
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onWalletMemberInvited(WalletMemberInvited e) {
-            log.info("DEBUG: AFTER_COMMIT listener triggered. Publishing to Kafka...");           
+            log.info("DEBUG: AFTER_COMMIT listener triggered. Publishing to Kafka...");
             var payload = WalletMemberInvitedEvent.newBuilder()
                     .setWalletId(e.getWalletId().toString())
                     .setInviterUserId(e.getInviterUserId().toString())
@@ -119,8 +135,15 @@ public class WalletAfterCommitListener {
     }
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onWalletMembersCleared(WalletMembersCleared e) {
+        log.info("Processing WalletMembersCleared event: walletId={}", e.getWalletId());
 
-        log.info("DEBUG: WalletMembersCleared AFTER_COMMIT triggered");
+        try {
+            readModelProjector.projectWalletMembersCleared(e);
+            log.info("Successfully projected wallet members cleared to read model: walletId={}", e.getWalletId());
+        } catch (Exception ex) {
+            log.error("CRITICAL: Failed to project wallet members cleared to read model - DATA INCONSISTENCY! " +
+                "walletId={}", e.getWalletId(), ex);
+        }
 
         var payload = WalletMembersClearedEvent.newBuilder()
                 .setWalletId(e.getWalletId().toString())
@@ -131,6 +154,6 @@ public class WalletAfterCommitListener {
                 payload
         );
 
-        log.info("DEBUG: WalletMembersCleared sent to Kafka");
+        log.info("WalletMembersCleared sent to Kafka: walletId={}", e.getWalletId());
     }
 }

@@ -72,13 +72,19 @@ public class Transaction {
     @Column(name = "wallet_id", nullable = false)
     private UUID walletId;
 
+    @Column(name = "user_name")
+    private String userName;
+
+    @Column(name = "user_phone", length = 50)
+    private String userPhone;
+
     @Column(name = "counterparty_user_id")
     private UUID counterpartyUserId;
 
     @Column(name = "counterparty_wallet_id")
     private UUID counterpartyWalletId;
 
-    @Column(name = "counterparty_name", length = 255)
+    @Column(name = "counterparty_name")
     private String counterpartyName;
 
     @Column(name = "counterparty_phone", length = 50)
@@ -87,8 +93,14 @@ public class Transaction {
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
-    @Column(name = "notes", length = 255)
+    @Column(name = "notes")
     private String notes;
+
+    @Column(name = "split_bill_id")
+    private String splitBillId;
+
+    @Column(name = "split_bill_member_id")
+    private String splitBillMemberId;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "metadata", columnDefinition = "jsonb")

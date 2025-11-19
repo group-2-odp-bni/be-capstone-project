@@ -1,5 +1,6 @@
 package com.bni.orange.transaction.controller;
 
+import com.bni.orange.transaction.model.request.InternalTransferRequest;
 import com.bni.orange.transaction.model.request.RecipientLookupRequest;
 import com.bni.orange.transaction.model.request.TransferConfirmRequest;
 import com.bni.orange.transaction.model.request.TransferInitiateRequest;
@@ -67,5 +68,16 @@ public class TransferController {
             transactionId, request, getUserIdFromJwt(jwt), jwt.getTokenValue()
         );
         return ResponseEntity.ok(ApiResponse.success("Transfer executed successfully", transaction));
+    }
+
+    @PostMapping("/internal")
+    @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
+    public ResponseEntity<ApiResponse<TransactionResponse>> initiateInternalTransfer(
+        @Valid @RequestBody InternalTransferRequest request,
+        @RequestHeader("Idempotency-Key") @NotBlank String idempotencyKey,
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        var transaction = transferService.initiateInternalTransfer(request, getUserIdFromJwt(jwt), idempotencyKey);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("Internal transfer executed successfully", transaction));
     }
 }

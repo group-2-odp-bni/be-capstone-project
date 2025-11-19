@@ -1,0 +1,123 @@
+spring:
+  threads:
+    virtual:
+      enabled: true
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        default_schema: public
+
+  flyway:
+    enabled: true
+    schemas: public
+    default-schema: public
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    password: ${spring.datasource.password}
+    user: ${spring.datasource.username}
+
+  kafka:
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
+      acks: all
+      enable-idempotence: true
+      retries: 3
+      retry-backoff-ms: 1s
+      compression-type: snappy
+      reliability:
+        max-in-flight-requests-per-connection: 5
+        request-timeout: 30s
+        delivery-timeout: 2m
+      batching:
+        linger-ms: 20
+        batch-size: 32768
+    consumer:
+      group-id: user-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
+      enable-auto-commit: false
+      max-poll-records: 100
+      max-poll-interval-ms: 300000
+      session-timeout-ms: 30000
+      heartbeat-interval-ms: 10000
+      concurrency: 3
+      poll-timeout: 3000
+
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 2MB
+      max-request-size: 2MB
+
+orange:
+  gcp:
+    storage:
+      signed-url-duration-minutes: ${GCS_SIGNED_URL_DURATION:60}
+  redis:
+    prefix:
+      otp-email: "otp:email:"
+      otp-phone: "otp:phone:"
+      otp-email-cooldown: "otp:email:cooldown:"
+      otp-phone-cooldown: "otp:phone:cooldown:"
+      otp-email-fail-count: "otp:email:fail:"
+      otp-phone-fail-count: "otp:phone:fail:"
+      otp-email-locked: "otp:email:locked:"
+      otp-phone-locked: "otp:phone:locked:"
+  kafka:
+    topics:
+      user-registered: "auth.user.registered"
+      definitions:
+        profile-email-verified:
+          name: "user.profile.email-verified"
+          partitions: 3
+          replicas: 1
+          compact: false
+        profile-phone-verified:
+          name: "user.profile.phone-verified"
+          partitions: 3
+          replicas: 1
+          compact: false
+        profile-name-updated:
+          name: "user.profile.name-updated"
+          partitions: 3
+          replicas: 1
+          compact: false
+        otp-email-notification:
+          name: "notification.otp.email"
+          partitions: 3
+          replicas: 1
+          compact: false
+        otp-whatsapp-notification:
+          name: "notification.otp.whatsapp"
+          partitions: 3
+          replicas: 1
+          compact: false
+
+server:
+  port: ${SERVER_PORT:8082}
+
+logging:
+  level:
+    root: INFO
+    com.bni.orange: INFO
+    com.bni.orange.users: INFO
+    org.springframework.web: WARN
+    org.springframework.kafka: WARN
+    org.springframework.security: WARN
+    com.bni.orange.authentication: INFO
+    org.springframework.boot.actuate: ERROR
+    org.springframework.boot.actuate.endpoint.web: ERROR
+    org.springframework.boot.actuate.endpoint: ERROR
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

@@ -1,0 +1,127 @@
+spring:
+  threads:
+    virtual:
+      enabled: true
+
+  mail:
+    default-encoding: UTF-8
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+
+  kafka:
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      properties:
+        spring.json.trusted.packages: "*"
+
+    listener:
+      ack-mode: MANUAL
+      missing-topics-fatal: false
+
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
+      acks: all
+
+orange:
+  kafka:
+    topics:
+      otp-whatsapp: notification.otp.whatsapp
+      otp-whatsapp-dlq: notification.otp.whatsapp.dlq
+      otp-email: notification.otp.email
+      otp-email-dlq: notification.otp.email.dlq
+    groups:
+      otp-whatsapp: "notification-otp-whatsapp-group"
+      otp-email: "notification-otp-email-group"
+      split-bill: "notification-split-bill-group"
+      payment: "notification-payment-group"
+      invite-link: "notification-invite-link-group"
+  waha-client:
+    timeout: 30s
+    retry:
+      max-attempts: 3
+      initial-backoff: 2s
+      max-backoff: 10s
+      multiplier: 2.0
+    health-monitor:
+      enabled: true
+      interval: 300000  # 5 minutes
+      initial-delay: 60000  # 1 minute after startup
+  webhook:
+    hmac-secret: ${WAHA_WEBHOOK_HMAC_SECRET:64eb6963dd30bbe9786cb9193f9eabee6ddac7e9aeb0deb6fc72a1bd065abb52}
+  email:
+    from-address: ${EMAIL_FROM_ADDRESS:noreply@bni-orange.com}
+    from-name: ${EMAIL_FROM_NAME:BNI Orange E-Wallet}
+    retry:
+      max-attempts: 3
+      initial-backoff: 1s
+      max-backoff: 5s
+      multiplier: 2.0
+
+# Resilience4j for annotation-based resilience (WahaSessionService)
+resilience4j:
+  retry:
+    instances:
+      waha-session:
+        maxAttempts: 3
+        waitDuration: 2s
+        exponentialBackoffMultiplier: 2.0
+        enableExponentialBackoff: true
+        retryExceptions:
+          - com.bni.orange.notification.client.WahaApiClient$WahaClientException
+          - com.bni.orange.notification.client.WahaApiClient$WahaServiceException
+          - java.util.concurrent.TimeoutException
+          - org.springframework.web.reactive.function.client.WebClientRequestException
+  circuitbreaker:
+    instances:
+      waha-session:
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        recordExceptions:
+          - com.bni.orange.notification.client.WahaApiClient$WahaClientException
+          - com.bni.orange.notification.client.WahaApiClient$WahaServiceException
+          - java.util.concurrent.TimeoutException
+
+# Custom resilience config for programmatic beans (WahaApiClient)
+resilience:
+  retry:
+    max-attempts: 3
+    initial-backoff: 2s
+    multiplier: 2.0
+    max-backoff: 10s
+    fail-after-max-attempts: true
+    retryable-exceptions:
+      - com.bni.orange.notification.client.WahaApiClient$WahaClientException
+      - com.bni.orange.notification.client.WahaApiClient$WahaServiceException
+      - java.util.concurrent.TimeoutException
+  circuit-breaker:
+    sliding-window-size: 10
+    minimum-number-of-calls: 5
+    failure-rate-threshold: 50
+    wait-duration-in-open-state: 30s
+    permitted-number-of-calls-in-half-open-state: 3
+    automatic-transition-from-open-to-half-open-enabled: true
+
+server:
+  port: 8085
+
+logging:
+  level:
+    com.bni.orange.users: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.kafka: INFO

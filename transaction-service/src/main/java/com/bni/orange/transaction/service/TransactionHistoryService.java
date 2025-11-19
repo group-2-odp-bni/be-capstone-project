@@ -5,8 +5,10 @@ import com.bni.orange.transaction.error.BusinessException;
 import com.bni.orange.transaction.error.ErrorCode;
 import com.bni.orange.transaction.model.enums.TransactionStatus;
 import com.bni.orange.transaction.model.response.TransactionResponse;
+import com.bni.orange.transaction.model.response.TransactionSummaryResponse;
 import com.bni.orange.transaction.repository.TransactionRepository;
 import com.bni.orange.transaction.repository.specification.TransactionSpecification;
+import com.bni.orange.transaction.service.helper.TransactionMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -15,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.Objects;
 import java.util.UUID;
 
 @Slf4j
@@ -27,7 +30,7 @@ public class TransactionHistoryService {
     private final WalletServiceClient walletServiceClient;
 
     @Transactional(readOnly = true)
-    public Page<TransactionResponse> getUserTransactions(
+    public Page<TransactionSummaryResponse> getUserTransactions(
         UUID userId,
         UUID walletId,
         TransactionStatus status,
@@ -37,7 +40,6 @@ public class TransactionHistoryService {
     ) {
         log.debug("Getting transactions for user: {}, walletId: {}", userId, walletId);
 
-        // Security: Validate wallet access if walletId is provided
         if (walletId != null) {
             var userWallets = walletServiceClient.getUserWalletIds(userId).block();
             if (userWallets == null || !userWallets.contains(walletId)) {
@@ -46,14 +48,13 @@ public class TransactionHistoryService {
             }
         }
 
-        return transactionRepository.findAll(
-            TransactionSpecification.buildSpecification(userId, walletId, status, startDate, endDate),
-            pageable
-        ).map(transactionMapper::toResponse);
+        return transactionRepository
+            .findAll(TransactionSpecification.buildSpecification(userId, walletId, status, startDate, endDate), pageable)
+            .map(transactionMapper::toSummaryResponse);
     }
 
     @Transactional(readOnly = true)
-    public Page<TransactionResponse> getAllWalletTransactions(
+    public Page<TransactionSummaryResponse> getAllWalletTransactions(
         UUID userId,
         TransactionStatus status,
         OffsetDateTime startDate,
@@ -64,7 +65,7 @@ public class TransactionHistoryService {
 
         var walletIds = walletServiceClient.getUserWalletIds(userId).block();
 
-        if (walletIds == null || walletIds.isEmpty()) {
+        if (Objects.isNull(walletIds) || walletIds.isEmpty()) {
             log.warn("User {} has no accessible wallets", userId);
             return Page.empty(pageable);
         }
@@ -74,7 +75,7 @@ public class TransactionHistoryService {
         return transactionRepository.findAll(
             TransactionSpecification.buildSpecificationForUserWallets(walletIds, status, startDate, endDate),
             pageable
-        ).map(transactionMapper::toResponse);
+        ).map(transactionMapper::toSummaryResponse);
     }
 
     @Transactional(readOnly = true)
@@ -92,8 +93,6 @@ public class TransactionHistoryService {
 
     @Transactional(readOnly = true)
     public TransactionResponse getTransactionByRef(String transactionRef, UUID userId) {
-        // In dual-record model, transaction_ref is shared between sender and receiver
-        // We need to find the transaction record that belongs to the requesting user
         var transaction = transactionRepository
             .findByTransactionRefAndUserId(transactionRef, userId)
             .orElseThrow(() -> new BusinessException(ErrorCode.TRANSACTION_NOT_FOUND, "Transaction not found: " + transactionRef));

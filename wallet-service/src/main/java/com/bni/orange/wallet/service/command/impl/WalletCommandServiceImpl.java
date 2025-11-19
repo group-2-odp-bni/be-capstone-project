@@ -1,6 +1,6 @@
 package com.bni.orange.wallet.service.command.impl;
 
-import com.bni.orange.wallet.client.InternalUserClient;
+import com.bni.orange.wallet.client.UserClient;
 import com.bni.orange.wallet.domain.DomainEvents;
 import com.bni.orange.wallet.exception.business.ConflictException;
 import com.bni.orange.wallet.exception.business.ResourceNotFoundException;
@@ -8,8 +8,6 @@ import com.bni.orange.wallet.exception.business.ValidationFailedException;
 import com.bni.orange.wallet.model.entity.UserReceivePrefs;
 import com.bni.orange.wallet.model.entity.Wallet;
 import com.bni.orange.wallet.model.entity.WalletMember;
-import com.bni.orange.wallet.model.entity.read.UserWalletRead;
-import com.bni.orange.wallet.model.entity.read.WalletMemberRead;
 import com.bni.orange.wallet.model.entity.read.WalletRead;
 import com.bni.orange.wallet.model.enums.WalletMemberRole;
 import com.bni.orange.wallet.model.enums.WalletMemberStatus;
@@ -37,7 +35,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
-import org.springframework.beans.factory.annotation.Value;          // <-- INI YANG BENAR
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -69,11 +67,11 @@ public class WalletCommandServiceImpl implements WalletCommandService {
   private final ObjectMapper om;
   private final PermissionGuard guard;
   private final IdempotencyService idem;
-  private final ApplicationEventPublisher appEvents;               
+  private final ApplicationEventPublisher appEvents;
   private final UserReceivePrefsRepository prefsRepo;
 
   private final StringRedisTemplate redis;
-  private final InternalUserClient internalUserClient;
+  private final UserClient userClient;
   private final MailService mailService;
 
   @Value("${app.wallet-delete.secret}")
@@ -97,7 +95,7 @@ public class WalletCommandServiceImpl implements WalletCommandService {
       ApplicationEventPublisher appEvents,
       UserReceivePrefsRepository prefsRepo,
       StringRedisTemplate redis,
-      InternalUserClient internalUserClient,
+      UserClient userClient,
       MailService mailService
   ) {
     this.walletRepo = walletRepo;
@@ -109,15 +107,21 @@ public class WalletCommandServiceImpl implements WalletCommandService {
     this.om = om;
     this.guard = guard;
     this.idem = idem;
-    this.appEvents = appEvents;                                        
+    this.appEvents = appEvents;
     this.prefsRepo =prefsRepo;
     this.redis = redis;
-    this.internalUserClient = internalUserClient;
+    this.userClient = userClient;
     this.mailService = mailService;
   }
 
   @Override
   public WalletDetailResponse createWallet(WalletCreateRequest req, String idempotencyKey) {
+    final UUID uid = guard.currentUserOrThrow();
+    return createWalletForUser(uid, req, idempotencyKey);
+  }
+
+  @Override
+  public WalletDetailResponse createWalletForUser(UUID userId, WalletCreateRequest req, String idempotencyKey) {
     final String scope = "wallet:create";
     if (idempotencyKey != null && !idempotencyKey.isBlank()) {
       final var payload = canonicalJson(req);
@@ -128,7 +132,7 @@ public class WalletCommandServiceImpl implements WalletCommandService {
         catch (Exception ignored) {}
       }
       try {
-        var dto = doCreate(req);
+        var dto = doCreateWalletInternal(userId, req);
         idem.complete(scope, idempotencyKey, HttpStatus.CREATED.value(), toJson(dto));
         return dto;
       } catch (RuntimeException ex) {
@@ -136,20 +140,21 @@ public class WalletCommandServiceImpl implements WalletCommandService {
         throw ex;
       }
     }
-    return doCreate(req);
+    return doCreateWalletInternal(userId, req);
   }
-  private WalletDetailResponse doCreate(WalletCreateRequest req) {
-    final UUID uid = guard.currentUserOrThrow();
-    if (req.getName() != null && req.getType() != null) {
-            boolean exists = walletRepo.existsByUserIdAndNameAndType(uid, req.getName(), req.getType());
-            if (exists) {
-                throw new ConflictException("Wallet with the name '" + req.getName() + 
-                                            "' and type '" + req.getType().name() + 
-                                            "' already exists for this user.");
-            }
+
+  private WalletDetailResponse doCreateWalletInternal(UUID uid, WalletCreateRequest req) {
+      if (req.getName() != null && req.getType() != null) {
+        boolean exists = walletRepo.existsByUserIdAndNameAndType(uid, req.getName(), req.getType());
+        if (exists) {
+            throw new ConflictException("Wallet with the name '" + req.getName() +
+                                        "' and type '" + req.getType().name() +
+                                        "' already exists for this user.");
         }
+    }
+
     if (req.getType() == WalletType.PERSONAL) {
-        long countPersonal = walletReadRepo.countByUserIdAndTypeAndDefaultForUserFalse(uid, WalletType.PERSONAL);
+        long countPersonal = walletReadRepo.countByUserIdAndTypeAndIsDefaultForUserFalse(uid, WalletType.PERSONAL);
         if (countPersonal >= 5) {
             throw new ValidationFailedException("Maximum 5 personal wallet allowed.");
         }
@@ -189,9 +194,9 @@ public class WalletCommandServiceImpl implements WalletCommandService {
                     .updatedAt(saved.getUpdatedAt())
                     .build());
       var filtered = MetadataFilter.filter(saved.getMetadata());
-      var dto = mapper.toDetailResponseFromWalletEntity(saved, filtered,isNowDefault);
-      return dto;
+      return mapper.toDetailResponseFromWalletEntity(saved, filtered,isNowDefault);
   }
+
   @Override
   public WalletDetailResponse updateWallet(UUID walletId, WalletUpdateRequest req) {
       final UUID uid = guard.currentUserOrThrow();
@@ -201,7 +206,7 @@ public class WalletCommandServiceImpl implements WalletCommandService {
               .orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
 
       mapper.patch(wl, req);
-      
+
       final Wallet saved = walletRepo.save(wl);
       appEvents.publishEvent(DomainEvents.WalletUpdated.builder()
               .walletId(saved.getId())
@@ -214,13 +219,13 @@ public class WalletCommandServiceImpl implements WalletCommandService {
               .updatedAt(saved.getUpdatedAt())
               .build());
       boolean isDefault = prefsRepo.findById(saved.getUserId())
-                  .map(UserReceivePrefs::getDefaultWalletId) 
-                  .map(defaultId -> defaultId.equals(saved.getId())) 
-                  .orElse(false); 
+                  .map(UserReceivePrefs::getDefaultWalletId)
+                  .map(defaultId -> defaultId.equals(saved.getId()))
+                  .orElse(false);
       var filtered = MetadataFilter.filter(saved.getMetadata());
-      var dto = mapper.toDetailResponseFromWalletEntity(saved, filtered, isDefault);
-      return dto;
+      return mapper.toDetailResponseFromWalletEntity(saved, filtered, isDefault);
     }
+
   private WalletDeleteResultResponse doDeleteWallet(UUID walletId, UUID actorId) {
       Wallet wallet = walletRepo.findById(walletId)
           .orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
@@ -346,7 +351,7 @@ public class WalletCommandServiceImpl implements WalletCommandService {
     if (admins.isEmpty()) {
         return doDeleteWallet(walletId, uid);
     }
-    var ownerProfile = internalUserClient.getUserProfile(uid);
+    var ownerProfile = userClient.getUserProfile(uid);
     if (ownerProfile.getEmail() == null || Boolean.FALSE.equals(ownerProfile.getEmailVerified())) {
         throw new ValidationFailedException("Owner email not available or not verified");
     }
@@ -369,7 +374,7 @@ public class WalletCommandServiceImpl implements WalletCommandService {
     }
     for (WalletMember admin : admins) {
         UUID adminId = admin.getUserId();
-        var adminProfile = internalUserClient.getUserProfile(adminId);
+        var adminProfile = userClient.getUserProfile(adminId);
         if (adminProfile.getEmail() == null || Boolean.FALSE.equals(adminProfile.getEmailVerified())) {
             continue;
         }
@@ -556,15 +561,17 @@ private UUID resolveDestinationWalletForUser(UUID userId, UUID sourceWalletId) {
     try { return om.writeValueAsString(o); }
     catch (Exception e) { throw new RuntimeException(e); }
   }
+
   @Transactional
   private void markAsDefaultReceivePrefsOnly(UUID userId, UUID newDefaultWalletId) {
       var prefs = prefsRepo.findById(userId)
               .orElse(UserReceivePrefs.builder().userId(userId).build());
-    
+
       prefs.setDefaultWalletId(newDefaultWalletId);
       prefs.setUpdatedAt(OffsetDateTime.now());
       prefsRepo.save(prefs);
   }
+
   @Transactional
   private void markAsDefaultReceive(UUID userId, UUID newDefaultWalletId) {
     userWalletReadRepo.findByUserIdAndWalletId(userId, newDefaultWalletId)
@@ -590,6 +597,7 @@ private UUID resolveDestinationWalletForUser(UUID userId, UUID sourceWalletId) {
     newWr.setDefaultForUser(true);
     walletReadRepo.save(newWr);
   }
+
   private void upsertOwnerMembership(UUID walletId, UUID userId) {
     var owner = walletMemberRepo.findByWalletIdAndUserId(walletId, userId)
             .orElseGet(() -> WalletMember.builder()

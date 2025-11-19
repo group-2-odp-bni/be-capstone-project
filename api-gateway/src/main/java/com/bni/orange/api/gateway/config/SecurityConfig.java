@@ -13,11 +13,10 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusReactiveJwtDecoder;
 import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
 import org.springframework.security.web.server.SecurityWebFilterChain;
+import org.springframework.security.web.server.header.XFrameOptionsServerHttpHeadersWriter.Mode;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.reactive.CorsConfigurationSource;
 import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
-
-import org.springframework.security.web.server.header.XFrameOptionsServerHttpHeadersWriter.Mode;
 
 import java.time.Duration;
 import java.util.List;
@@ -54,7 +53,21 @@ public class SecurityConfig {
                 headers.contentTypeOptions(withDefaults());
             })
             .authorizeExchange(exchange -> exchange
-                .pathMatchers("/api/v1/auth/**", "/oauth2/jwks", "/actuator/**", "/api/security/**", "/fallback/**").permitAll()
+                .pathMatchers(
+                    "/api/v1/auth/**",
+                    "/api/v1/pin/reset/request",
+                    "/api/v1/pin/reset/verify",
+                    "/oauth2/jwks",
+                    "/actuator/**",
+                    "/api/security/**",
+                    "/fallback/**"
+                )
+                .permitAll()
+                .pathMatchers(
+                    "/api/v1/topup/inquiry/**",
+                    "/api/v1/topup/callback/**"
+                )
+                .permitAll()
                 .anyExchange().authenticated()
             )
             .oauth2ResourceServer(spec -> spec.jwt(withDefaults()));

@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package com.bni.orange.splitbill.proto;
+
+option java_package = "com.bni.orange.splitbill.proto";
+option java_multiple_files = true;
+
+import "google/protobuf/timestamp.proto";
+
+message PaymentStatusUpdatedEvent {
+  string event_id = 1;
+  string bill_id = 2;
+  string member_id = 3;
+  string transaction_id = 4;
+  string transaction_ref = 5;
+  string status = 6;  // CAPTURED, FAILED
+  int64 amount = 7;
+  google.protobuf.Timestamp paid_at = 8;
+  string failure_reason = 9;
+}

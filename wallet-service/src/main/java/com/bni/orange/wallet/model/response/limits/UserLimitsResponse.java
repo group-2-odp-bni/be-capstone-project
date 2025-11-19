@@ -1,7 +1,11 @@
 package com.bni.orange.wallet.model.response.limits;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
 import java.time.OffsetDateTime;
 
 @Data @Builder @NoArgsConstructor @AllArgsConstructor

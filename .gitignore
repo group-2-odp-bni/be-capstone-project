@@ -38,3 +38,4 @@ out/
 /authentication-service/src/main/resources/keys/
 /_research
 /scripts
+/.docker/.env

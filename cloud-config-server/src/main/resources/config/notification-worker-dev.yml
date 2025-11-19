@@ -1,0 +1,29 @@
+spring:
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: orange.wallet.bni@gmail.com
+    password: sieonmdpjasazdgc
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      bootstrap-servers: localhost:9092
+orange:
+  user-service:
+    base-url: http://localhost:8082
+    timeout: 5s
+  waha-client:
+    base-url: http://localhost:3000
+    api-key: f5010a544c324fc483623e2031b2b92f
+    session-name: default
+
+logging:
+  level:
+    root: INFO
+    com.bni.orange: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.kafka: DEBUG
+    org.springframework.boot.actuate: ERROR
+    org.springframework.boot.actuate.endpoint.web: ERROR
+    org.springframework.boot.actuate.endpoint: ERROR

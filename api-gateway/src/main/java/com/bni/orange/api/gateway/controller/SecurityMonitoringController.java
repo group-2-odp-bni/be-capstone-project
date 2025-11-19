@@ -4,7 +4,13 @@ import com.bni.orange.api.gateway.service.IpBlockingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
 import java.util.Map;
@@ -21,10 +27,6 @@ public class SecurityMonitoringController {
 
     private final IpBlockingService ipBlockingService;
 
-    /**
-     * Check if an IP address is currently blocked
-     * GET /api/security/ip/{ipAddress}/status
-     */
     @GetMapping("/ip/{ipAddress}/status")
     public Mono<ResponseEntity<Map<String, Object>>> checkIpStatus(@PathVariable String ipAddress) {
         log.info("Checking status for IP: {}", ipAddress);
@@ -51,10 +53,6 @@ public class SecurityMonitoringController {
         });
     }
 
-    /**
-     * Manually unblock an IP address (admin operation)
-     * DELETE /api/security/ip/{ipAddress}/block
-     */
     @DeleteMapping("/ip/{ipAddress}/block")
     public Mono<ResponseEntity<Map<String, Object>>> unblockIp(@PathVariable String ipAddress) {
         log.warn("Manual unblock requested for IP: {}", ipAddress);
@@ -77,10 +75,6 @@ public class SecurityMonitoringController {
             });
     }
 
-    /**
-     * Manually block an IP address (admin operation)
-     * POST /api/security/ip/{ipAddress}/block
-     */
     @PostMapping("/ip/{ipAddress}/block")
     public Mono<ResponseEntity<Map<String, Object>>> blockIp(
             @PathVariable String ipAddress,
@@ -97,10 +91,6 @@ public class SecurityMonitoringController {
             ))));
     }
 
-    /**
-     * Health check endpoint
-     * GET /api/security/health
-     */
     @GetMapping("/health")
     public Mono<ResponseEntity<Map<String, Object>>> healthCheck() {
         return Mono.just(ResponseEntity.ok(Map.of(

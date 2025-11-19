@@ -3,8 +3,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import lombok.Data;
 
-@ConfigurationProperties(prefix = "orange.limits.default")
 @Data
+@ConfigurationProperties(prefix = "orange.limits.default")
 public class LimitsDefaultsProperties {
     private long perTxMinRp;
     private long perTxMaxRp;

@@ -41,6 +41,9 @@ public class VirtualAccount {
     @Column(name = "va_number", nullable = false, unique = true, length = 20)
     private String vaNumber;
 
+    @Column(name = "account_name", length = 255)
+    private String accountName;
+
     @Column(name = "transaction_id", nullable = false, unique = true)
     private UUID transactionId;
 

@@ -3,13 +3,16 @@ package com.bni.orange.notification.service;
 import com.bni.orange.notification.client.WahaApiClient;
 import com.bni.orange.notification.model.response.WahaQRCodeResponse;
 import com.bni.orange.notification.model.response.WahaSessionResponse;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
-import reactor.util.retry.Retry;
 
 import java.time.Duration;
+
+import static reactor.util.retry.Retry.backoff;
 
 @Slf4j
 @Service
@@ -26,25 +29,33 @@ public class WahaSessionService {
             );
     }
 
+    @Retry(name = "waha-session", fallbackMethod = "startSessionFallback")
+    @CircuitBreaker(name = "waha-session")
     public Mono<Void> startSession() {
-        log.info("Starting WhatsApp session process...");
+        log.info("🚀 Starting WhatsApp session process...");
         return getSessionStatus()
             .flatMap(session -> {
                 String status = session.status();
                 if ("WORKING".equalsIgnoreCase(status)) {
-                    log.info("Session is already WORKING.");
+                    log.info("✅ Session is already WORKING.");
                     return Mono.empty();
                 }
-                log.warn("Session status is '{}', not 'WORKING'. Attempting to stop and restart.", status);
+                log.warn("⚠️ Session status is '{}', not 'WORKING'. Attempting to stop and restart.", status);
                 return wahaApiClient.stopSession(true)
                     .then(wahaApiClient.startSession());
             })
             .onErrorResume(e -> {
-                log.warn("Could not get or check session status ({}). Proceeding with a fresh start attempt.", e.getMessage());
+                log.warn("⚠️ Could not get or check session status ({}). Proceeding with a fresh start attempt.", e.getMessage());
                 return wahaApiClient.startSession();
             })
-            .doOnSuccess(v -> log.info("Session start request processed successfully."))
+            .doOnSuccess(v -> log.info("✅ Session start request processed successfully."))
             .then();
+    }
+
+    @SuppressWarnings("unused")
+    private Mono<Void> startSessionFallback(Exception e) {
+        log.error("❌ All retry attempts failed to start WAHA session. Health monitor will retry later.", e);
+        return Mono.empty();
     }
 
     public Mono<Void> stopSession(boolean logout) {
@@ -86,7 +97,7 @@ public class WahaSessionService {
         return getSessionStatus()
             .flatMap(session -> {
                 if ("WORKING".equalsIgnoreCase(session.status())) {
-                    log.info("Session is ready!",session);
+                    log.info("Session is ready! {}",session);
                     return Mono.just(session);
                 }
                 if ("FAILED".equalsIgnoreCase(session.status())) {
@@ -96,7 +107,7 @@ public class WahaSessionService {
                 log.info("Session status: {}. Waiting...", session.status());
                 return Mono.error(new SessionNotReadyException(session.status()));
             })
-            .retryWhen(Retry.backoff(maxAttempts, Duration.ofSeconds(delaySeconds))
+            .retryWhen(backoff(maxAttempts, Duration.ofSeconds(delaySeconds))
                 .filter(throwable -> throwable instanceof SessionNotReadyException)
                 .onRetryExhaustedThrow((retryBackoffSpec, retrySignal) ->
                     new IllegalStateException("Session did not become ready after " + maxAttempts + " attempts.", retrySignal.failure())

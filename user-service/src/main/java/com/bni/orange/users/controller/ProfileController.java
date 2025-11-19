@@ -3,8 +3,10 @@ package com.bni.orange.users.controller;
 import com.bni.orange.users.model.request.UpdateProfileRequest;
 import com.bni.orange.users.model.request.VerifyOtpRequest;
 import com.bni.orange.users.model.response.ApiResponse;
+import com.bni.orange.users.model.response.ProfileImageUploadResponse;
 import com.bni.orange.users.model.response.ProfileUpdateResponse;
 import com.bni.orange.users.model.response.VerificationResponse;
+import org.springframework.web.multipart.MultipartFile;
 import com.bni.orange.users.service.ProfileService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
@@ -57,5 +60,51 @@ public class ProfileController {
     ) {
         var response = profileService.verifyPhone(UUID.fromString(jwt.getSubject()), request.getOtpCode());
         return ResponseEntity.ok(ApiResponse.success(response, "Phone number verified successfully"));
+    }
+
+    @PostMapping("/upload-image")
+    @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
+    public ResponseEntity<ApiResponse<ProfileImageUploadResponse>> uploadProfileImage(
+        @AuthenticationPrincipal Jwt jwt,
+        @RequestParam("file") MultipartFile file
+    ) {
+        var response = profileService.uploadProfileImage(UUID.fromString(jwt.getSubject()), file);
+        return ResponseEntity.ok(ApiResponse.success(response, response.getMessage()));
+    }
+
+    @PostMapping("/resend-email-otp")
+    @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
+    public ResponseEntity<ApiResponse<ProfileUpdateResponse.PendingVerification>> resendEmailOtp(
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        var response = profileService.resendEmailOtp(UUID.fromString(jwt.getSubject()));
+        return ResponseEntity.ok(ApiResponse.success(response, "Email OTP resent successfully"));
+    }
+
+    @PostMapping("/resend-phone-otp")
+    @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
+    public ResponseEntity<ApiResponse<ProfileUpdateResponse.PendingVerification>> resendPhoneOtp(
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        var response = profileService.resendPhoneOtp(UUID.fromString(jwt.getSubject()));
+        return ResponseEntity.ok(ApiResponse.success(response, "Phone OTP resent successfully"));
+    }
+
+    @PostMapping("/cancel-pending-email")
+    @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
+    public ResponseEntity<ApiResponse<Void>> cancelPendingEmail(
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        profileService.cancelPendingEmail(UUID.fromString(jwt.getSubject()));
+        return ResponseEntity.ok(ApiResponse.success(null, "Pending email verification canceled successfully"));
+    }
+
+    @PostMapping("/cancel-pending-phone")
+    @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
+    public ResponseEntity<ApiResponse<Void>> cancelPendingPhone(
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        profileService.cancelPendingPhone(UUID.fromString(jwt.getSubject()));
+        return ResponseEntity.ok(ApiResponse.success(null, "Pending phone verification canceled successfully"));
     }
 }

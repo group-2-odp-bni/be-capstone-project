@@ -1,6 +1,7 @@
 package com.bni.orange.notification.config;
 
 import com.bni.orange.notification.config.properties.ResilienceProperties;
+import com.bni.orange.notification.config.properties.UserServiceConfigProperties;
 import com.bni.orange.notification.config.properties.WahaConfigProperties;
 import com.bni.orange.notification.config.properties.WebhookConfigProperties;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
@@ -20,26 +21,49 @@ import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.netty.http.client.HttpClient;
 
+import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
-@EnableConfigurationProperties({WahaConfigProperties.class, WebhookConfigProperties.class, ResilienceProperties.class})
+@EnableConfigurationProperties({
+    WahaConfigProperties.class,
+    WebhookConfigProperties.class,
+    ResilienceProperties.class,
+    UserServiceConfigProperties.class
+})
 public class WebClientConfig {
 
     private final WahaConfigProperties wahaConfig;
+    private final UserServiceConfigProperties userServiceConfig;
     private final ResilienceProperties resilienceProps;
+
+    private HttpClient createHttpClientWithTimeout(Duration timeout) {
+        return HttpClient.create()
+            .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) timeout.toMillis())
+            .doOnConnected(conn -> conn
+                .addHandlerLast(new ReadTimeoutHandler(timeout.toSeconds(), TimeUnit.SECONDS))
+                .addHandlerLast(new WriteTimeoutHandler(timeout.toSeconds(), TimeUnit.SECONDS))
+            );
+    }
+
+    @Bean
+    public WebClient userWebClient() {
+        var httpClient = createHttpClientWithTimeout(userServiceConfig.timeout());
+
+        return WebClient.builder()
+            .baseUrl(userServiceConfig.baseUrl())
+            .defaultHeader("Content-Type", "application/json")
+            .defaultHeader("Accept", "application/json")
+            .clientConnector(new ReactorClientHttpConnector(httpClient))
+            .build();
+    }
 
     @Bean
     public WebClient wahaWebClient() {
-        var httpClient = HttpClient.create()
-            .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) wahaConfig.timeout().toMillis())
-            .doOnConnected(conn -> conn
-                .addHandlerLast(new ReadTimeoutHandler(wahaConfig.timeout().toSeconds(), TimeUnit.SECONDS))
-                .addHandlerLast(new WriteTimeoutHandler(wahaConfig.timeout().toSeconds(), TimeUnit.SECONDS))
-            );
+        var httpClient = createHttpClientWithTimeout(wahaConfig.timeout());
 
         return WebClient.builder()
             .baseUrl(wahaConfig.baseUrl())

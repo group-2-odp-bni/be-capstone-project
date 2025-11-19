@@ -180,11 +180,19 @@ public class VerificationService {
         return (int) Math.max(0, MAX_OTP_ATTEMPTS - attempts);
     }
 
-    private void clearOtpData(UUID userId, TokenType tokenType) {
+    /**
+     * Clear all OTP-related data from Redis for a user.
+     * This includes: OTP code, metadata, failure count, and lock status.
+     *
+     * @param userId User ID
+     * @param tokenType Type of OTP (EMAIL or PHONE)
+     */
+    public void clearOtpData(UUID userId, TokenType tokenType) {
         redisTemplate.delete(getOtpKey(userId, tokenType));
         redisTemplate.delete(getMetaKey(userId, tokenType));
         redisTemplate.delete(getFailCountKey(userId, tokenType));
         redisTemplate.delete(getLockKey(userId, tokenType));
+        log.debug("Cleared OTP data for user: {}, type: {}", userId, tokenType);
     }
 
     private void publishEmailOtpEvent(UUID userId, String email, String otpCode) {
@@ -229,6 +237,38 @@ public class VerificationService {
 
     private String getLockKey(UUID userId, TokenType tokenType) {
         return (tokenType == TokenType.EMAIL ? redisProperties.prefix().otpEmailLocked() : redisProperties.prefix().otpPhoneLocked()) + userId;
+    }
+
+    /**
+     * Get remaining OTP generation attempts within the rate limit window.
+     *
+     * @param userId User ID
+     * @param tokenType Type of OTP (EMAIL or PHONE)
+     * @return Number of remaining attempts (0 to MAX_TOKENS_PER_WINDOW)
+     */
+    public int getRemainingOtpGenerationAttempts(UUID userId, TokenType tokenType) {
+        var rateLimitKey = getRateLimitKey(userId, tokenType);
+        var count = redisTemplate.opsForValue().get(rateLimitKey);
+
+        if (count == null) {
+            return MAX_TOKENS_PER_WINDOW;
+        }
+
+        int used = Integer.parseInt(count);
+        return Math.max(0, MAX_TOKENS_PER_WINDOW - used);
+    }
+
+    /**
+     * Get TTL (time to live) in seconds for the current rate limit window.
+     *
+     * @param userId User ID
+     * @param tokenType Type of OTP (EMAIL or PHONE)
+     * @return TTL in seconds, or 0 if no rate limit is active
+     */
+    public long getRateLimitResetInSeconds(UUID userId, TokenType tokenType) {
+        var rateLimitKey = getRateLimitKey(userId, tokenType);
+        var ttl = redisTemplate.getExpire(rateLimitKey);
+        return ttl != null && ttl > 0 ? ttl : 0;
     }
 
     private String getRateLimitKey(UUID userId, TokenType tokenType) {
