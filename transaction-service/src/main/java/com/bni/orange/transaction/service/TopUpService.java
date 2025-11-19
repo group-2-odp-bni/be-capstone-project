@@ -17,7 +17,7 @@ import com.bni.orange.transaction.service.helper.TopUpFactory;
 import com.bni.orange.transaction.service.helper.TopUpFinalizer;
 import com.bni.orange.transaction.service.helper.TopUpOrchestrator;
 import com.bni.orange.transaction.service.helper.TopUpValidator;
-import com.bni.orange.transaction.util.SecurityContextPropagationExecutor;
+import com.bni.orange.transaction.utils.SecurityContextPropagationExecutor;
 import com.bni.orange.transaction.utils.TransactionRefGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

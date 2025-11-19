@@ -1,4 +1,4 @@
-package com.bni.orange.transaction.util;
+package com.bni.orange.transaction.utils;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContext;

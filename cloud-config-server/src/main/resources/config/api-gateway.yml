@@ -9,7 +9,7 @@ spring:
 
   http:
     codecs:
-      max-in-memory-size: 2MB
+      max-in-memory-size: 10MB
 
 
 server:
@@ -66,4 +66,7 @@ resilience4j.timelimiter:
       cancel-running-future: true
     transaction-service:
       timeout-duration: 20s
+      cancel-running-future: true
+    ml-engine:
+      timeout-duration: 300s
       cancel-running-future: true

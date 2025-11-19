@@ -41,6 +41,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PORT=8086
 
+ENV GUNICORN_CMD_ARGS="--timeout 600 --graceful-timeout 600"
+
 HEALTHCHECK --interval=20s --timeout=5s --retries=5 \
     CMD curl -f http://localhost:${PORT}/health || exit 1
 

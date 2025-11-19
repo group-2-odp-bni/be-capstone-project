@@ -430,8 +430,6 @@ services:
     ports:
       - "8086:8086"
     volumes:
-      # Mount service account for Google Cloud access (dev mode)
-      # For production: use secrets management or build-time injection
       - ../ml-engine/service_account.json:/app/service_account.json:ro
     environment:
       # Application config
@@ -458,7 +456,7 @@ services:
       # Short link config
       - SHORTLINK_SECRET=${SHORTLINK_SECRET:-supersecret-shortlink-prod}
       - SHORTLINK_TTL_MIN=4320
-      - APP_BASE_URL=http://localhost:5173
+      - APP_BASE_URL=https://app.orangebybni.my.id
 
       # Wallet webhook
       - WALLET_WEBHOOK_SECRET=${WALLET_WEBHOOK_SECRET:-wallet-prod-secret}

@@ -1,7 +1,7 @@
 spring:
   cloud:
     gateway:
-      max-in-memory-size: 10MB # Increased for multipart file uploads
+      max-in-memory-size: 10MB
       server:
         webflux:
           routes:
@@ -102,13 +102,6 @@ spring:
               predicates:
                 - Path=/api/v1/split-bill/**, /api/v1/process-receipt, /api/v1/submit-split
               filters:
-                - name: RequestRateLimiter
-                  args:
-                    redis-rate-limiter.replenishRate: 10
-                    redis-rate-limiter.burstCapacity: 20
-                    redis-rate-limiter.requestedTokens: 1
-                    key-resolver: "#{@userKeyResolver}"
-                - name: CircuitBreaker
                   args:
                     name: ml-engine
                     fallbackUri: forward:/fallback/ml
