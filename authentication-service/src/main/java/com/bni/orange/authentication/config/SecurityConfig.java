@@ -40,7 +40,11 @@ public class SecurityConfig {
                     "/oauth2/jwks",
                     "/actuator/health",
                     "/actuator/health/liveness",
-                    "/actuator/health/readiness"
+                    "/actuator/health/readiness",
+                    "/actuator/prometheus",
+                    "/actuator/metrics",
+                    "/actuator/metrics/**",
+                    "/actuator/**"
                 )
                 .permitAll()
                 .anyRequest().authenticated()

@@ -46,9 +46,9 @@ import java.util.Date;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import java.util.List;
+
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class InviteServiceImpl implements InviteService {
 
   private final StringRedisTemplate redis;
@@ -62,17 +62,41 @@ public class InviteServiceImpl implements InviteService {
   private final com.bni.orange.wallet.repository.read.UserWalletReadRepository userWalletReadRepo;
   private final ApplicationEventPublisher appEvents;
 
-  @Value("${spring.security.invite.secret}")
-  String inviteSecret;
+  private final String inviteSecret;
+  private final long ttlSeconds;
+  private final String baseUrl;
 
-  @Value("${app.invite.ttl-seconds:600}")
-  long ttlSeconds;
-
-  @Value("${app.invite.base-url}")
-  String baseUrl;
+  public InviteServiceImpl(
+      StringRedisTemplate redis,
+      ObjectMapper om,
+      WalletPolicyQueryServiceImpl walletPolicyService,
+      WalletMemberRepository memberRepo,
+      WalletMemberReadRepository memberReadRepo,
+      com.bni.orange.wallet.repository.read.WalletReadRepository walletReadRepo,
+      com.bni.orange.wallet.repository.WalletRepository walletRepo,
+      com.bni.orange.wallet.repository.read.UserWalletReadRepository userWalletReadRepo,
+      ApplicationEventPublisher appEvents,
+      @Value("${spring.security.invite.secret}") String inviteSecret,
+      @Value("${app.invite.ttl-seconds:600}") long ttlSeconds,
+      @Value("${app.invite.base-url}") String baseUrl
+  ) {
+    this.redis = redis;
+    this.om = om;
+    this.walletPolicyService = walletPolicyService;
+    this.memberRepo = memberRepo;
+    this.memberReadRepo = memberReadRepo;
+    this.walletReadRepo = walletReadRepo;
+    this.walletRepo = walletRepo;
+    this.userWalletReadRepo = userWalletReadRepo;
+    this.appEvents = appEvents;
+    this.inviteSecret = inviteSecret;
+    this.ttlSeconds = ttlSeconds;
+    this.baseUrl = baseUrl;
+  }
 
   private static final String KEY_FMT = "wallet:invite:%s:%s:%s";
   private static final String INDEX_KEY_FMT  = "wallet:invite:index:%s:%s";
+
   @Override
   @Transactional
   public GeneratedInvite generateInviteLink(UUID walletId, UUID userId, String phoneE164, WalletMemberRole role) {
@@ -178,6 +202,7 @@ public class InviteServiceImpl implements InviteService {
         .code(code)
         .build();
   }
+
   private WalletMember requireAdminOrOwner(UUID walletId) {
     var uid = CurrentUser.userId();
     var me = memberRepo.findByWalletIdAndUserId(walletId, uid)
@@ -191,6 +216,7 @@ public class InviteServiceImpl implements InviteService {
     }
     return me;
   }
+
   @Override
   public InviteInspectResponse inspect(String token) {
     try {
@@ -234,6 +260,7 @@ public class InviteServiceImpl implements InviteService {
       return InviteInspectResponse.builder().status("EXPIRED").build();
     }
   }
+
   @Override
   @Transactional
   public VerifyInviteCodeResponse verifyCode(String token, String code) {
@@ -548,5 +575,4 @@ public class InviteServiceImpl implements InviteService {
         .build();
     memberReadRepo.save(read);
   }
-
 }
