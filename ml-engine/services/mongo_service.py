@@ -115,11 +115,14 @@ def create_bill(bill_doc: Dict[str, Any], assignments: List[Dict[str, Any]]) -> 
     if bills_collection is None:
         return {"error": True, "message": "Mongo tidak siap", "data": None}
     try:
-        members = _derive_members_from_assignments(assignments)
+        creator_user_id = bill_doc.get("creator_user_id")
+        if not creator_user_id:
+            return {"error": True, "message": "creator_user_id wajib ada di bill_doc.", "data": None}
+        members, paid_total = _derive_members_from_assignments(assignments, creator_user_id)
         bill = dict(bill_doc or {})
         bill["members"] = members
         bill["assignments"] = assignments
-        bill["paid_total"] = 0
+        bill["paid_total"] = paid_total
         bill["status"] = bill.get("status") or "SENT"
         bill["created_at"] = datetime.utcnow()
         bill["updated_at"] = datetime.utcnow()
