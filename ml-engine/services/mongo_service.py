@@ -75,25 +75,41 @@ def save_ocr_result(ocr_doc: Dict[str, Any]) -> Dict[str, Any]:
     except PyMongoError as e:
         return {"error": True, "message": "Gagal menyimpan OCR.", "data": {"exception": str(e)}}
 
-def _derive_members_from_assignments(assignments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _derive_members_from_assignments(assignments: List[Dict[str, Any]], creator_user_id: str) -> (List[Dict[str, Any]], int):
     members = []
+    paid_total = 0 
+    
     for a in assignments:
         ref = a.get("memberRef") or {}
         user_id = ref.get("userId")
         phone_e164 = _normalize_e164(ref.get("phone") or ref.get("phoneE164"))
-        amount = int(a.get("amount") or 0)
+        amount_due = int(a.get("amount") or 0)
+        
+        is_owner = user_id and user_id == creator_user_id
+        
+        member_status = "PENDING"
+        member_paid = 0
+        member_method = None
+
+        if is_owner:
+            member_status = "PAID"
+            member_paid = amount_due
+            member_method = "CREATOR_PAID"
+            paid_total += amount_due 
+
         members.append({
             "member_id": str(ObjectId()),
             "member_ref": ref,
-            "user_id": user_id,            
-            "phone_e164": phone_e164,      
-            "short_link": None,            
-            "amount_due": amount if amount > 0 else None,
-            "paid": 0,
-            "items": a.get("items") or [],
-            "status" : a.get("status") or "PENDING"
+            "user_id": user_id, 
+            "phone_e164": phone_e164, 
+            "short_link": None, 
+            "status": member_status,
+            "amount_due": amount_due if amount_due > 0 else None, 
+            "paid": member_paid,
+            "payment_method": member_method,
+            "items": a.get("items") or [] 
         })
-    return members
+    return members, paid_total
 
 def create_bill(bill_doc: Dict[str, Any], assignments: List[Dict[str, Any]]) -> Dict[str, Any]:
     if bills_collection is None:
