@@ -98,8 +98,9 @@ module "loadbalancer" {
 
   network_name = module.network.network_name
 
-  # Worker nodes for backend
-  worker_instance_groups = module.compute.worker_instance_groups
+  # Pass the worker instance self-links and network tag to the LB module
+  worker_instances_self_links = module.compute.worker_instances_self_links
+  worker_nodes_tag            = module.compute.worker_nodes_tag
 
   labels = local.common_labels
 

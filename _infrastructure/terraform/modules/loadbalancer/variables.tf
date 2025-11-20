@@ -22,25 +22,18 @@ variable "network_name" {
   type        = string
 }
 
-variable "worker_instance_groups" {
-  description = "Map of instance groups for backend services"
-  type        = map(string)
+variable "worker_instances_self_links" {
+  description = "List of self_links for the worker compute instances"
+  type        = list(string)
+}
+
+variable "worker_nodes_tag" {
+  description = "The network tag applied to all worker nodes"
+  type        = string
 }
 
 variable "labels" {
   description = "Labels to apply to resources"
   type        = map(string)
   default     = {}
-}
-
-variable "enable_cdn" {
-  description = "Enable Cloud CDN on backend service"
-  type        = bool
-  default     = false
-}
-
-variable "enable_ssl" {
-  description = "Enable HTTPS with SSL certificate"
-  type        = bool
-  default     = false
 }

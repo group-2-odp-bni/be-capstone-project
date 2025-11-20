@@ -55,10 +55,20 @@ output "worker_external_ips" {
 }
 
 output "worker_instance_groups" {
-  description = "Instance groups for load balancer backend"
+  description = "Instance groups for load balancer backend (Deprecated, use worker_instances_self_links)"
   value = {
     workers = google_compute_instance_group.workers.self_link
   }
+}
+
+output "worker_instances_self_links" {
+  description = "List of self_links for all worker compute instances"
+  value       = [for worker in google_compute_instance.worker : worker.self_link]
+}
+
+output "worker_nodes_tag" {
+  description = "The common network tag applied to all worker nodes"
+  value       = "k3s-node"
 }
 
 # -----------------------------------------------------------------------------

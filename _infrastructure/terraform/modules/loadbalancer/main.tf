@@ -1,131 +1,69 @@
 # =============================================================================
-# Load Balancer Module - External HTTP(S) Load Balancer
-# =============================================================================
-#
-# This module creates:
-# - Global external IP address
-# - HTTP(S) load balancer with backend service
-# - Health checks for worker nodes
-# - SSL certificate support (future)
-#
+# Load Balancer Module - L4 External Network Load Balancer using Target Pool
 # =============================================================================
 
 # -----------------------------------------------------------------------------
-# External IP Address
+# External IP Address (Regional, for Network LB)
 # -----------------------------------------------------------------------------
-
-resource "google_compute_global_address" "lb_ip" {
-  name         = "${var.environment}-orange-wallet-lb-ip"
-  address_type = "EXTERNAL"
-  project      = var.project_id
+resource "google_compute_address" "lb_ip" {
+  name    = "${var.environment}-orange-wallet-lb-ip"
+  project = var.project_id
+  region  = var.region
 }
 
 # -----------------------------------------------------------------------------
 # Health Check
 # -----------------------------------------------------------------------------
-
-resource "google_compute_health_check" "http_health_check" {
-  name                = "${var.environment}-orange-wallet-http-health-check"
-  check_interval_sec  = 10
-  timeout_sec         = 5
-  healthy_threshold   = 2
-  unhealthy_threshold = 3
-  project             = var.project_id
-
-  http_health_check {
-    port         = 80
-    request_path = "/healthz"
-  }
-}
-
-# -----------------------------------------------------------------------------
-# Backend Service
-# -----------------------------------------------------------------------------
-
-resource "google_compute_backend_service" "default" {
-  name                  = "${var.environment}-orange-wallet-backend"
-  protocol              = "HTTP"
-  port_name             = "http"
-  timeout_sec           = 30
-  enable_cdn            = false
-  health_checks         = [google_compute_health_check.http_health_check.id]
-  load_balancing_scheme = "EXTERNAL"
-  project               = var.project_id
-
-  backend {
-    group           = var.worker_instance_groups["workers"]
-    balancing_mode  = "UTILIZATION"
-    capacity_scaler = 1.0
-  }
-
-  log_config {
-    enable      = true
-    sample_rate = 1.0
-  }
-}
-
-# -----------------------------------------------------------------------------
-# URL Map
-# -----------------------------------------------------------------------------
-
-resource "google_compute_url_map" "default" {
-  name            = "${var.environment}-orange-wallet-url-map"
-  default_service = google_compute_backend_service.default.id
-  project         = var.project_id
-}
-
-# -----------------------------------------------------------------------------
-# HTTP Proxy
-# -----------------------------------------------------------------------------
-
-resource "google_compute_target_http_proxy" "default" {
-  name    = "${var.environment}-orange-wallet-http-proxy"
-  url_map = google_compute_url_map.default.id
+# Using HTTP health check to NGINX Ingress Controller's internal healthz endpoint.
+# Port 30254 is the NodePort for the metrics/health port (10254) which bypasses
+# Ingress rules and SSL redirects.
+resource "google_compute_http_health_check" "ingress_health_check" {
+  name    = "${var.environment}-ingress-http-health-check"
   project = var.project_id
+
+  port         = 30254 # NGINX Ingress Controller healthz NodePort
+  request_path = "/healthz"
+
+  timeout_sec         = 5
+  check_interval_sec  = 10
+  healthy_threshold   = 2
+  unhealthy_threshold = 2
 }
 
 # -----------------------------------------------------------------------------
-# Forwarding Rule
+# Target Pool (A pool of our worker nodes)
 # -----------------------------------------------------------------------------
+resource "google_compute_target_pool" "ingress_pool" {
+  name    = "${var.environment}-orange-wallet-ingress-pool"
+  project = var.project_id
+  region  = var.region
 
-resource "google_compute_global_forwarding_rule" "http" {
-  name                  = "${var.environment}-orange-wallet-http-forwarding-rule"
-  target                = google_compute_target_http_proxy.default.id
-  port_range            = "80"
-  ip_address            = google_compute_global_address.lb_ip.address
-  load_balancing_scheme = "EXTERNAL"
-  project               = var.project_id
+  instances = var.worker_instances_self_links
+  health_checks = [
+    google_compute_http_health_check.ingress_health_check.self_link,
+  ]
 }
 
 # -----------------------------------------------------------------------------
-# HTTPS Support (Optional - Commented for initial setup)
+# Forwarding Rules (Routes external IP:Port to the Target Pool)
 # -----------------------------------------------------------------------------
+resource "google_compute_forwarding_rule" "http" {
+  name       = "${var.environment}-orange-wallet-http-forwarding-rule"
+  project    = var.project_id
+  region     = var.region
+  ip_protocol = "TCP"
+  port_range = "80"
+  target     = google_compute_target_pool.ingress_pool.self_link
+  ip_address = google_compute_address.lb_ip.address
+}
 
-# Uncomment when you have SSL certificate ready
+resource "google_compute_forwarding_rule" "https" {
+  name       = "${var.environment}-orange-wallet-https-forwarding-rule"
+  project    = var.project_id
+  region     = var.region
+  ip_protocol = "TCP"
+  port_range = "443"
+  target     = google_compute_target_pool.ingress_pool.self_link
+  ip_address = google_compute_address.lb_ip.address
+}
 
-# resource "google_compute_ssl_certificate" "default" {
-#   name_prefix = "${var.environment}-orange-wallet-cert-"
-#   private_key = file("path/to/private.key")
-#   certificate = file("path/to/certificate.crt")
-#   project     = var.project_id
-#
-#   lifecycle {
-#     create_before_destroy = true
-#   }
-# }
-
-# resource "google_compute_target_https_proxy" "default" {
-#   name             = "${var.environment}-orange-wallet-https-proxy"
-#   url_map          = google_compute_url_map.default.id
-#   ssl_certificates = [google_compute_ssl_certificate.default.id]
-#   project          = var.project_id
-# }
-
-# resource "google_compute_global_forwarding_rule" "https" {
-#   name                  = "${var.environment}-orange-wallet-https-forwarding-rule"
-#   target                = google_compute_target_https_proxy.default.id
-#   port_range            = "443"
-#   ip_address            = google_compute_global_address.lb_ip.address
-#   load_balancing_scheme = "EXTERNAL"
-#   project               = var.project_id
-# }

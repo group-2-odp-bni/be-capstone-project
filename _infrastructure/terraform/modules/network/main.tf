@@ -147,7 +147,7 @@ resource "google_compute_firewall" "allow_health_checks" {
 
   allow {
     protocol = "tcp"
-    ports    = ["80", "443", "10256"] # NGINX Ingress health port
+    ports    = ["80", "443", "10256", "30080", "30443", "30254"]
   }
 
   # GCP health check source ranges
