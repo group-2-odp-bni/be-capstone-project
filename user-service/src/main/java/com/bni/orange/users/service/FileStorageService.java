@@ -3,8 +3,6 @@ package com.bni.orange.users.service;
 import com.bni.orange.users.config.properties.GcsProperties;
 import com.bni.orange.users.error.BusinessException;
 import com.bni.orange.users.error.ErrorCode;
-import com.google.auth.oauth2.GoogleCredentials;
-import com.google.auth.oauth2.ImpersonatedCredentials;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.HttpMethod;
@@ -15,7 +13,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -92,51 +89,47 @@ public class FileStorageService {
     }
 
 
+    public String generatePublicUrl(String gcsPath) {
+        if (gcsPath == null || gcsPath.isBlank()) {
+            log.warn("Cannot generate public URL for null or blank GCS path");
+            return null;
+        }
+
+        var publicUrl = String.format("https://storage.googleapis.com/%s/%s",
+            gcsProperties.bucketName(),
+            gcsPath);
+
+        log.debug("Generated public URL for GCS path: {} -> {}", gcsPath, publicUrl);
+        return publicUrl;
+    }
+
     public String generateSignedUrl(String gcsPath) {
-//        if (!gcsProperties.enabled()) {
-//            log.debug("GCS signed URL generation is disabled. Returning null for path: {}", gcsPath);
-//            return null;
-//        }
+        if (!gcsProperties.enabled()) {
+            log.debug("GCS signed URL generation is disabled. Returning public URL for path: {}", gcsPath);
+            return generatePublicUrl(gcsPath);
+        }
 
         try {
             var blobInfo = BlobInfo.newBuilder(gcsProperties.bucketName(), gcsPath).build();
-
-            var sourceCredentials = GoogleCredentials.getApplicationDefault();
-            var impersonatedCredentials = ImpersonatedCredentials.create(
-                sourceCredentials,
-                gcsProperties.serviceAccountEmail(),
-                null,
-                Collections.singletonList("https://www.googleapis.com/auth/cloud-platform"),
-                300
-            );
 
             var url = storage.signUrl(
                 blobInfo,
                 gcsProperties.signedUrlDurationMinutes(),
                 TimeUnit.MINUTES,
                 Storage.SignUrlOption.withV4Signature(),
-                Storage.SignUrlOption.httpMethod(HttpMethod.GET),
-                Storage.SignUrlOption.signWith(impersonatedCredentials)
+                Storage.SignUrlOption.httpMethod(HttpMethod.GET)
             );
 
-            log.debug("Successfully generated signed URL for GCS path: {} using impersonated service account: {}",
-                gcsPath, gcsProperties.serviceAccountEmail());
+            log.debug("Successfully generated signed URL for GCS path: {}", gcsPath);
             return url.toString();
 
         } catch (Exception e) {
-            log.error("""
-                    Failed to generate signed URL for GCS path: {}. \
-                    Error: {}. \
-                    Troubleshooting steps:
-                    1) Run: gcloud auth application-default login
-                    2) Grant impersonation permission:
-                       gcloud iam service-accounts add-iam-policy-binding {} --member="user:YOUR_EMAIL" --role="roles/iam.serviceAccountTokenCreator"
-                    3) Verify service account exists and has Storage Object Admin role""",
-                gcsPath, e.getMessage(), gcsProperties.serviceAccountEmail(), e);
+            log.error("Failed to generate signed URL for GCS path: {}. Error: {}. Troubleshooting: Run 'gcloud auth application-default login'",
+                gcsPath, e.getMessage(), e);
 
             throw new BusinessException(
                 ErrorCode.FILE_URL_GENERATION_FAILED,
-                "Failed to generate signed URL. Check IAM impersonation permissions."
+                "Failed to generate signed URL. Check authentication: gcloud auth application-default login"
             );
         }
     }

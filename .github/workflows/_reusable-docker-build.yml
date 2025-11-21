@@ -56,7 +56,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ inputs.service-name }}
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/orange-wallet-${{ inputs.service-name }}
           tags: |
             type=raw,value=${{ inputs.image-tag }}
             type=raw,value=latest,enable=${{ inputs.environment == 'production' }}
@@ -70,7 +70,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           # Use inline cache (stored in image) - more efficient for GitHub Free
-          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ inputs.service-name }}:latest
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/orange-wallet-${{ inputs.service-name }}:latest
           cache-to: type=inline
           platforms: linux/amd64
           build-args: |
@@ -82,7 +82,7 @@ jobs:
         uses: aquasecurity/trivy-action@0.28.0
         continue-on-error: true
         with:
-          image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ inputs.service-name }}:${{ inputs.image-tag }}
+          image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/orange-wallet-${{ inputs.service-name }}:${{ inputs.image-tag }}
           format: 'table'
           severity: 'CRITICAL,HIGH'
 

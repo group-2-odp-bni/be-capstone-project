@@ -12,10 +12,10 @@
 # - Request/response timeout handling
 #
 # Routes traffic to:
-# - authentication-service (port 8081)
-# - user-service (port 8082)
-# - wallet-service (port 8083)
-# - transaction-service (port 8084)
+# - authentication-service (port 8080)
+# - user-service (port 8080)
+# - wallet-service (port 8080)
+# - transaction-service (port 8080)
 # =============================================================================
 
 apiVersion: apps/v1
@@ -85,16 +85,16 @@ spec:
 
             # Backend Service URLs
             - name: AUTHENTICATION_SERVICE_URL
-              value: "http://authentication-service.orange-wallet.svc.cluster.local:8081"
+              value: "http://authentication-service.orange-wallet.svc.cluster.local:8080"
 
             - name: USER_SERVICE_URL
-              value: "http://user-service.orange-wallet.svc.cluster.local:8082"
+              value: "http://user-service.orange-wallet.svc.cluster.local:8080"
 
             - name: WALLET_SERVICE_URL
-              value: "http://wallet-service.orange-wallet.svc.cluster.local:8083"
+              value: "http://wallet-service.orange-wallet.svc.cluster.local:8080"
 
             - name: TRANSACTION_SERVICE_URL
-              value: "http://transaction-service.orange-wallet.svc.cluster.local:8084"
+              value: "http://transaction-service.orange-wallet.svc.cluster.local:8080"
 
             # Gateway Configuration
             - name: SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_CONNECT_TIMEOUT

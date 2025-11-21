@@ -1,11 +1,8 @@
 package com.bni.orange.wallet.service.invite.impl;
 
-import com.bni.orange.wallet.domain.DomainEvents.WalletInviteAccepted;
-import com.bni.orange.wallet.domain.DomainEvents.WalletInviteLinkGenerated;
 import com.bni.orange.wallet.exception.business.ConflictException;
 import com.bni.orange.wallet.exception.business.ForbiddenOperationException;
 import com.bni.orange.wallet.exception.business.MaxMemberReachException;
-import com.bni.orange.wallet.exception.business.ResourceNotFoundException;
 import com.bni.orange.wallet.exception.business.ValidationFailedException;
 import com.bni.orange.wallet.model.entity.WalletMember;
 import com.bni.orange.wallet.model.entity.read.UserWalletRead;
@@ -29,14 +26,16 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
-import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.bni.orange.wallet.domain.DomainEvents.WalletInviteLinkGenerated;
+import com.bni.orange.wallet.domain.DomainEvents.WalletInviteAccepted;
+import com.bni.orange.wallet.exception.business.ResourceNotFoundException;
 import org.springframework.util.StringUtils;
-
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
@@ -44,55 +43,33 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Date;
-import java.util.List;
 import java.util.UUID;
-
+import lombok.extern.slf4j.Slf4j;
+import java.util.List;
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class InviteServiceImpl implements InviteService {
 
-  private final StringRedisTemplate redis;
-  private final ObjectMapper om;
-  private final WalletPolicyQueryServiceImpl walletPolicyService;
+    private final StringRedisTemplate redis;
+    private final ObjectMapper om;
+    private final WalletPolicyQueryServiceImpl walletPolicyService;
 
-  private final WalletMemberRepository memberRepo;          
-  private final WalletMemberReadRepository memberReadRepo;  
-  private final com.bni.orange.wallet.repository.read.WalletReadRepository walletReadRepo;
-  private final com.bni.orange.wallet.repository.WalletRepository walletRepo;
-  private final com.bni.orange.wallet.repository.read.UserWalletReadRepository userWalletReadRepo;
-  private final ApplicationEventPublisher appEvents;
+    private final WalletMemberRepository memberRepo;
+    private final WalletMemberReadRepository memberReadRepo;
+    private final com.bni.orange.wallet.repository.read.WalletReadRepository walletReadRepo;
+    private final com.bni.orange.wallet.repository.WalletRepository walletRepo;
+    private final com.bni.orange.wallet.repository.read.UserWalletReadRepository userWalletReadRepo;
+    private final ApplicationEventPublisher appEvents;
 
-  private final String inviteSecret;
-  private final long ttlSeconds;
-  private final String baseUrl;
+    @Value("${spring.security.invite.secret}")
+    String inviteSecret;
 
-  public InviteServiceImpl(
-      StringRedisTemplate redis,
-      ObjectMapper om,
-      WalletPolicyQueryServiceImpl walletPolicyService,
-      WalletMemberRepository memberRepo,
-      WalletMemberReadRepository memberReadRepo,
-      com.bni.orange.wallet.repository.read.WalletReadRepository walletReadRepo,
-      com.bni.orange.wallet.repository.WalletRepository walletRepo,
-      com.bni.orange.wallet.repository.read.UserWalletReadRepository userWalletReadRepo,
-      ApplicationEventPublisher appEvents,
-      @Value("${spring.security.invite.secret}") String inviteSecret,
-      @Value("${app.invite.ttl-seconds:600}") long ttlSeconds,
-      @Value("${app.invite.base-url}") String baseUrl
-  ) {
-    this.redis = redis;
-    this.om = om;
-    this.walletPolicyService = walletPolicyService;
-    this.memberRepo = memberRepo;
-    this.memberReadRepo = memberReadRepo;
-    this.walletReadRepo = walletReadRepo;
-    this.walletRepo = walletRepo;
-    this.userWalletReadRepo = userWalletReadRepo;
-    this.appEvents = appEvents;
-    this.inviteSecret = inviteSecret;
-    this.ttlSeconds = ttlSeconds;
-    this.baseUrl = baseUrl;
-  }
+    @Value("${app.invite.ttl-seconds:600}")
+    long ttlSeconds;
+
+    @Value("${app.invite.base-url}")
+    String baseUrl;
 
   private static final String KEY_FMT = "wallet:invite:%s:%s:%s";
   private static final String INDEX_KEY_FMT  = "wallet:invite:index:%s:%s";

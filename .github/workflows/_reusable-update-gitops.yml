@@ -55,7 +55,7 @@ jobs:
           yq eval '.images[0].newTag = "${{ inputs.image-tag }}"' -i "${KUSTOMIZATION_FILE}"
 
           # Also ensure newName is correct (in case it changed)
-          yq eval '.images[0].newName = "docker.io/${{ inputs.dockerhub-username }}/orange-pay-${{ inputs.service-name }}"' -i "${KUSTOMIZATION_FILE}"
+          yq eval '.images[0].newName = "docker.io/${{ inputs.dockerhub-username }}/orange-wallet-${{ inputs.service-name }}"' -i "${KUSTOMIZATION_FILE}"
 
           echo "Updated kustomization.yaml:"
           echo "---"
@@ -84,7 +84,7 @@ jobs:
           Automated update from CI/CD pipeline
 
           Service: ${{ inputs.service-name }}
-          Image: ${{ inputs.dockerhub-username }}/orange-pay-${{ inputs.service-name }}:${{ inputs.image-tag }}
+          Image: ${{ inputs.dockerhub-username }}/orange-wallet-${{ inputs.service-name }}:${{ inputs.image-tag }}
           Source Commit: ${{ github.sha }}
           Workflow: ${{ github.workflow }}
           Run: ${{ github.run_number }}
@@ -106,7 +106,7 @@ jobs:
           echo "### ✅ GitOps Repository Updated" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Service:** \`${{ inputs.service-name }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Image:** \`docker.io/${{ inputs.dockerhub-username }}/orange-pay-${{ inputs.service-name }}:${{ inputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** \`docker.io/${{ inputs.dockerhub-username }}/orange-wallet-${{ inputs.service-name }}:${{ inputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**GitOps Repository:** \`${{ secrets.GITOPS_REPO }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Source Commit:** \`${{ inputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**GitOps Commit:** [\`${GITOPS_COMMIT:0:7}\`](https://github.com/${{ secrets.GITOPS_REPO }}/commit/${GITOPS_COMMIT})" >> $GITHUB_STEP_SUMMARY

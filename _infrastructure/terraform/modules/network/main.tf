@@ -161,6 +161,24 @@ resource "google_compute_firewall" "allow_health_checks" {
   target_tags = ["k3s-worker"]
 }
 
+# Allow OpenVPN access for VPN clients
+resource "google_compute_firewall" "allow_openvpn" {
+  name    = "${var.vpc_name}-allow-openvpn"
+  network = google_compute_network.vpc.name
+  project = var.project_id
+
+  allow {
+    protocol = "udp"
+    ports    = ["31194"] # OpenVPN NodePort
+  }
+
+  source_ranges = ["0.0.0.0/0"] # TODO: Restrict to specific IPs if needed
+
+  priority = 1000
+
+  target_tags = ["k3s-master"] # OpenVPN runs on master node
+}
+
 # -----------------------------------------------------------------------------
 # Cloud NAT (Optional)
 # -----------------------------------------------------------------------------
