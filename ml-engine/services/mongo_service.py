@@ -118,12 +118,15 @@ def create_bill(bill_doc: Dict[str, Any], assignments: List[Dict[str, Any]]) -> 
         creator_user_id = bill_doc.get("creator_user_id")
         if not creator_user_id:
             return {"error": True, "message": "creator_user_id wajib ada di bill_doc.", "data": None}
+        creator_name = bill_doc.get("creator_name")
         members, paid_total = _derive_members_from_assignments(assignments, creator_user_id)
         bill = dict(bill_doc or {})
         bill["members"] = members
         bill["assignments"] = assignments
         bill["paid_total"] = paid_total
         bill["status"] = bill.get("status") or "SENT"
+        if creator_name:
+            bill["creator_name"] = creator_name
         bill["created_at"] = datetime.utcnow()
         bill["updated_at"] = datetime.utcnow()
         res = bills_collection.insert_one(bill)
@@ -414,7 +417,8 @@ def list_history_assigned(user_id: str, filters: Dict[str, Any]) -> Dict[str, An
             "billId": str(d["_id"]),
             "memberId": mine.get("member_id"),
             "title": d.get("title"),
-            "ownerName": d.get("creator_user_id"), 
+            "ownerId": d.get("creator_user_id"), 
+            "ownerName": d.get("creator_name"), 
             "myAmount": int(mine.get("amount_due") or 0),
             "myStatus": mine.get("status"),
             "createdAt": d.get("created_at").isoformat() if d.get("created_at") else None,
