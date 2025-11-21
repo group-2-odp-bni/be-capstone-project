@@ -174,7 +174,7 @@ jobs:
     with:
       service-name: ${{ matrix.name }}
       image-tag: ${{ github.sha }}
-      dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
+      dockerhub-username: teukumunawar
     secrets:
       GITOPS_REPO: ${{ secrets.GITOPS_REPO }}
       GITOPS_TOKEN: ${{ secrets.GITOPS_TOKEN }}
