@@ -1,0 +1,41 @@
+# =============================================================================
+# Group Variables - K3s Stateless Worker Nodes
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# K3s Role
+# -----------------------------------------------------------------------------
+k3s_control_node: false
+
+# K3s agent configuration (must be dict for xanmanning.k3s v3.6+)
+k3s_agent:
+  node-label:
+    - "node-role.kubernetes.io/worker=true"
+    - "workload-type=stateless"
+    - "node-type=worker"
+
+# Additional node labels
+k3s_node_labels:
+  - "workload-type=stateless"
+
+# -----------------------------------------------------------------------------
+# Workload Configuration
+# -----------------------------------------------------------------------------
+# These nodes are optimized for stateless workloads:
+# - Spring Boot applications
+# - NGINX Ingress Controller
+# - ArgoCD
+# - Observability stack (Grafana, etc.)
+
+# No taints - accepts any workload
+k3s_node_taints: []
+
+# -----------------------------------------------------------------------------
+# Resource Allocation
+# -----------------------------------------------------------------------------
+# Reserve resources for system components
+kubelet_reserved_cpu: 200m
+kubelet_reserved_memory: 512Mi
+
+# Node has e2-medium: 2 vCPU, 4GB RAM
+# Available for workloads: ~1.8 vCPU, 3.5GB RAM

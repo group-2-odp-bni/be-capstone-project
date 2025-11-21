@@ -1,0 +1,18 @@
+---
+# =============================================================================
+# Playbook: Ping Test
+# =============================================================================
+# Purpose: Verify Ansible connectivity to all nodes
+# Usage: ansible-playbook playbooks/00-ping.yml
+# =============================================================================
+
+- name: Test Connectivity to All Nodes
+  hosts: k3s_cluster
+  gather_facts: false
+  tasks:
+    - name: Ping all nodes
+      ansible.builtin.ping:
+
+    - name: Display connection info
+      ansible.builtin.debug:
+        msg: "Successfully connected to {{ inventory_hostname }} ({{ ansible_host }})"

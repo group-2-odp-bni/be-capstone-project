@@ -1,0 +1,101 @@
+# =============================================================================
+# Group Variables - All Hosts
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# K3s Version
+# -----------------------------------------------------------------------------
+k3s_release_version: v1.28.5+k3s1
+k3s_version: v1.28.5+k3s1
+
+# Ensure role uses become
+k3s_become: true
+
+# -----------------------------------------------------------------------------
+# Cluster Configuration
+# -----------------------------------------------------------------------------
+k3s_cluster_name: orange-wallet-cluster
+k3s_cluster_domain: cluster.local
+
+# API Server Configuration
+k3s_api_server_port: 6443
+k3s_https_listen_port: 6443
+
+# -----------------------------------------------------------------------------
+# Network Configuration
+# -----------------------------------------------------------------------------
+k3s_service_cidr: 10.2.0.0/16
+k3s_cluster_cidr: 10.1.0.0/16
+k3s_service_node_port_range: 30000-32767
+
+# Flannel backend (vxlan is default and recommended)
+k3s_flannel_backend: vxlan
+k3s_flannel_interface: eth0
+
+# -----------------------------------------------------------------------------
+# Features and Components
+# -----------------------------------------------------------------------------
+# Disable Traefik (we'll use NGINX Ingress)
+k3s_server_disable:
+  - traefik
+  - servicelb  # We'll use GCP load balancer
+
+# Disable local-storage (we'll use GCP persistent disks via CSI)
+k3s_disable_local_storage: false  # Keep enabled for bootstrap
+
+# -----------------------------------------------------------------------------
+# System Configuration
+# -----------------------------------------------------------------------------
+# Timezone
+timezone: Asia/Jakarta
+
+# Firewall configuration (if UFW is used)
+enable_firewall: false  # GCP firewall rules are used instead
+
+# -----------------------------------------------------------------------------
+# Container Runtime
+# -----------------------------------------------------------------------------
+k3s_runtime: containerd
+
+# -----------------------------------------------------------------------------
+# Logging
+# -----------------------------------------------------------------------------
+# K3s logs to journalctl by default
+# View logs: journalctl -u k3s -f
+
+# -----------------------------------------------------------------------------
+# Security
+# -----------------------------------------------------------------------------
+# Enable secrets encryption at rest
+k3s_secrets_encryption: true
+
+# Enable pod security policies
+# (K3s 1.25+ uses Pod Security Standards instead of PSP)
+k3s_enable_psp: false
+
+# -----------------------------------------------------------------------------
+# Backup Configuration
+# -----------------------------------------------------------------------------
+# etcd snapshot configuration (K3s uses embedded etcd)
+k3s_etcd_snapshot_schedule_cron: "0 */12 * * *"  # Every 12 hours
+k3s_etcd_snapshot_retention: 5
+k3s_etcd_snapshot_dir: /var/lib/rancher/k3s/server/db/snapshots
+
+# -----------------------------------------------------------------------------
+# Node Labels (will be applied by playbook)
+# -----------------------------------------------------------------------------
+# Labels are set per node group in group_vars
+
+# -----------------------------------------------------------------------------
+# Kubectl Configuration
+# -----------------------------------------------------------------------------
+# Download kubectl config to local machine
+k3s_download_kubeconfig: true
+k3s_kubeconfig_local_path: "{{ playbook_dir }}/../kubeconfig"
+
+# -----------------------------------------------------------------------------
+# Google Cloud Configuration
+# -----------------------------------------------------------------------------
+gcp_project_id: "{{ lookup('env', 'GCP_PROJECT_ID') | default('orange-wallet-project', true) }}"
+gcp_region: asia-southeast2
+gcp_zone: asia-southeast2-a

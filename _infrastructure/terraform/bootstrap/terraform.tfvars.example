@@ -1,0 +1,31 @@
+# =============================================================================
+# Terraform Bootstrap - Configuration Example
+# =============================================================================
+# Copy this file to terraform.tfvars and fill in your values
+# Command: cp terraform.tfvars.example terraform.tfvars
+# =============================================================================
+
+# GCP Project ID (REQUIRED)
+# Find your project ID: gcloud config get-value project
+project_id = "orange-wallet-project"
+
+# GCS Bucket Name (REQUIRED - must be globally unique)
+# Naming: lowercase, numbers, hyphens only, 3-63 characters
+# If bucket name already exists, add a unique suffix
+bucket_name = "orange-wallet-tf-state"
+
+# GCP Region (OPTIONAL - defaults to asia-southeast2)
+# Use same region as your infrastructure for better performance
+region = "asia-southeast2"
+
+# =============================================================================
+# Optional: Customer-Managed Encryption
+# =============================================================================
+# Uncomment and configure if you want to use KMS encryption
+# kms_key_name = "projects/PROJECT_ID/locations/REGION/keyRings/KEYRING/cryptoKeys/KEY"
+
+# =============================================================================
+# Optional: Service Account
+# =============================================================================
+# Uncomment if using dedicated service account for Terraform
+# terraform_sa_email = "terraform@orange-wallet-project.iam.gserviceaccount.com"

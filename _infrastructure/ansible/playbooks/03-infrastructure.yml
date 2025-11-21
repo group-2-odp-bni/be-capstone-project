@@ -1,0 +1,88 @@
+---
+# =============================================================================
+# Infrastructure Components Playbook
+# =============================================================================
+# This playbook deploys core infrastructure components to the K3s cluster:
+# - Helm (package manager)
+# - NGINX Ingress Controller (ingress)
+# - Cert-Manager (TLS certificates)
+# - Metrics Server (resource metrics)
+# - External Secrets Operator (secrets management)
+#
+# Prerequisites:
+# - K3s cluster must be running
+# - Master node must be accessible
+# - kubectl must be available on master node
+#
+# Usage:
+#   ansible-playbook -i ../inventory/hosts.yml playbooks/03-infrastructure.yml
+# =============================================================================
+
+- name: Deploy Infrastructure Components
+  hosts: k3s_master
+  become: yes
+  gather_facts: yes
+
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+
+  pre_tasks:
+    - name: Verify K3s is running
+      ansible.builtin.systemd:
+        name: k3s
+        state: started
+      register: k3s_status
+      failed_when: k3s_status.status.ActiveState != "active"
+      tags: [always]
+
+    - name: Wait for K3s API server to be ready
+      ansible.builtin.command: kubectl get nodes
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: kubectl_check
+      until: kubectl_check.rc == 0
+      retries: 10
+      delay: 5
+      changed_when: false
+      tags: [always]
+
+  roles:
+    - role: helm
+      tags: [helm, infrastructure]
+
+    - role: nginx-ingress
+      tags: [nginx-ingress, ingress, infrastructure]
+
+    - role: cert-manager
+      tags: [cert-manager, certificates, infrastructure]
+
+    - role: metrics-server
+      tags: [metrics-server, monitoring, infrastructure]
+
+    - role: external-secrets
+      tags: [external-secrets, secrets, infrastructure]
+
+  post_tasks:
+    - name: Display infrastructure deployment summary
+      ansible.builtin.debug:
+        msg: |
+          ========================================
+          Infrastructure Components Deployed!
+          ========================================
+
+          ✓ Helm 3 - Package Manager
+          ✓ NGINX Ingress Controller - HTTP/HTTPS routing (NodePort 30080/30443)
+          ✓ Cert-Manager - TLS certificate management
+          ✓ Metrics Server - Resource metrics for HPA
+          ✓ External Secrets Operator - Secrets from GCP Secret Manager
+
+          Next Steps:
+          1. Deploy ArgoCD: ansible-playbook -i ../inventory/hosts.yml playbooks/04-argocd.yml
+          2. Configure External Secrets with GCP Secret Manager
+          3. Deploy application manifests
+
+          Access NGINX Ingress:
+          - HTTP: http://<MASTER_IP>:30080
+          - HTTPS: http://<MASTER_IP>:30443
+          ========================================
+      tags: [always]

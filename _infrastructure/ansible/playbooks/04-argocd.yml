@@ -1,0 +1,113 @@
+---
+# =============================================================================
+# ArgoCD GitOps Deployment Playbook
+# =============================================================================
+# This playbook deploys ArgoCD for GitOps-based continuous delivery:
+# - Installs ArgoCD via Helm
+# - Configures NodePort access (30081)
+# - Retrieves initial admin password
+# - Displays access information
+#
+# Prerequisites:
+# - K3s cluster must be running
+# - Helm must be installed (run 03-infrastructure.yml first)
+# - kubectl must be available on master node
+#
+# Usage:
+#   ansible-playbook -i ../inventory/hosts.yml playbooks/04-argocd.yml
+#
+# Post-Deployment:
+#   Access ArgoCD UI at http://<MASTER_IP>:30081
+#   Username: admin
+#   Password: (displayed at end of playbook)
+# =============================================================================
+
+- name: Deploy ArgoCD GitOps Platform
+  hosts: k3s_master
+  become: yes
+  gather_facts: yes
+
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+
+  pre_tasks:
+    - name: Verify K3s is running
+      ansible.builtin.systemd:
+        name: k3s
+        state: started
+      register: k3s_status
+      failed_when: k3s_status.status.ActiveState != "active"
+      tags: [always]
+
+    - name: Verify Helm is installed
+      ansible.builtin.command: helm version --short
+      register: helm_check
+      failed_when: helm_check.rc != 0
+      changed_when: false
+      tags: [always]
+
+    - name: Display deployment information
+      ansible.builtin.debug:
+        msg: |
+          ========================================
+          Starting ArgoCD Deployment
+          ========================================
+
+          ArgoCD will be deployed with:
+          - NodePort access on port 30081
+          - HTTP mode (server.insecure=true)
+          - Initial admin credentials
+
+          This may take 5-15 minutes...
+          ========================================
+      tags: [always]
+
+  roles:
+    - role: argocd
+      tags: [argocd, gitops]
+
+  post_tasks:
+    - name: Verify ArgoCD pods are running
+      ansible.builtin.command: kubectl get pods -n argocd
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: argocd_pods
+      changed_when: false
+      tags: [verify]
+
+    - name: Display ArgoCD pod status
+      ansible.builtin.debug:
+        var: argocd_pods.stdout_lines
+      tags: [verify]
+
+    - name: Display ArgoCD CLI installation instructions
+      ansible.builtin.debug:
+        msg: |
+          ========================================
+          ArgoCD Deployment Complete!
+          ========================================
+
+          📦 ArgoCD CLI Installation (Optional):
+
+          Linux/WSL:
+          curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
+          rm argocd-linux-amd64
+
+          macOS:
+          brew install argocd
+
+          Windows:
+          choco install argocd-cli
+
+          🔗 ArgoCD CLI Login:
+          argocd login <MASTER_IP>:30081 --username admin --password <PASSWORD> --insecure
+
+          📚 Next Steps:
+          1. Access ArgoCD UI (credentials shown above)
+          2. Configure Git repository connections
+          3. Create ArgoCD Applications for your services
+          4. Set up automated sync policies
+
+          ========================================
+      tags: [always]

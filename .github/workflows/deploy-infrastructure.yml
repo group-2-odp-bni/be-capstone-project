@@ -1,5 +1,10 @@
 name: Deploy Infrastructure to K3s
 
+# ⚠️ WARNING: This workflow is for INITIAL SETUP ONLY
+# Infrastructure (PostgreSQL, Redis, MongoDB, Kafka) is already deployed and managed by K3s.
+# Secrets are managed within the cluster (database namespace: postgres-credentials, redis-credentials, mongodb-credentials).
+# Only use this workflow if you need to redeploy infrastructure from scratch.
+
 on:
   workflow_dispatch:
     inputs:
@@ -76,21 +81,16 @@ jobs:
       - name: Create namespace if not exists
         run: |
           kubectl create namespace ${{ env.NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
-          echo "✅ Namespace ready"
+          kubectl create namespace database --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create namespace messaging --dry-run=client -o yaml | kubectl apply -f -
+          echo "✅ Namespaces ready"
 
-      - name: Create infrastructure secrets
-        run: |
-          echo "Creating PostgreSQL secret for infrastructure..."
-          # Note: postgres-secret is for PostgreSQL pod itself
-          # Application secrets (app-secrets) are managed by cd-k3s.yml
-          kubectl create secret generic postgres-secret \
-            --from-literal=username="${{ secrets.DB_USERNAME }}" \
-            --from-literal=password="${{ secrets.DB_PASSWORD }}" \
-            --from-literal=database="${{ secrets.DB_NAME }}" \
-            --namespace=${{ env.NAMESPACE }} \
-            --dry-run=client -o yaml | kubectl apply -f -
-
-          echo "✅ Infrastructure secrets created"
+      # NOTE: Database secrets are managed by Helm charts or K3s manifests
+      # Secrets already exist in cluster:
+      #   - database/postgres-credentials
+      #   - database/redis-credentials
+      #   - database/mongodb-credentials
+      # No GitHub secrets needed: DB_USERNAME, DB_PASSWORD, DB_NAME
 
       - name: Determine components to deploy
         id: components
@@ -131,7 +131,7 @@ jobs:
           echo "=========================================="
 
           helm upgrade --install postgres .k8s/charts/infrastructure/postgresql \
-            --namespace ${{ env.NAMESPACE }} \
+            --namespace database \
             --wait \
             --timeout 10m \
             --create-namespace
@@ -140,8 +140,8 @@ jobs:
           echo "✅ PostgreSQL deployed"
 
           echo "Waiting for PostgreSQL to be ready..."
-          kubectl wait --for=condition=ready pod -l app=postgres \
-            -n ${{ env.NAMESPACE }} \
+          kubectl wait --for=condition=ready pod -l app=postgresql \
+            -n database \
             --timeout=300s
 
           echo "✅ PostgreSQL is ready"
@@ -154,7 +154,7 @@ jobs:
           echo "=========================================="
 
           helm upgrade --install redis .k8s/charts/infrastructure/redis \
-            --namespace ${{ env.NAMESPACE }} \
+            --namespace database \
             --wait \
             --timeout 10m \
             --create-namespace
@@ -164,7 +164,7 @@ jobs:
 
           echo "Waiting for Redis to be ready..."
           kubectl wait --for=condition=ready pod -l app=redis \
-            -n ${{ env.NAMESPACE }} \
+            -n database \
             --timeout=300s
 
           echo "✅ Redis is ready"
@@ -177,7 +177,7 @@ jobs:
           echo "=========================================="
 
           helm upgrade --install kafka .k8s/charts/infrastructure/kafka \
-            --namespace ${{ env.NAMESPACE }} \
+            --namespace messaging \
             --wait \
             --timeout 10m \
             --create-namespace
@@ -186,8 +186,8 @@ jobs:
           echo "✅ Kafka deployed"
 
           echo "Waiting for Kafka to be ready..."
-          kubectl wait --for=condition=ready pod -l app=kafka \
-            -n ${{ env.NAMESPACE }} \
+          kubectl wait --for=condition=ready pod -l app=kafka,component=messaging \
+            -n messaging \
             --timeout=300s
 
           echo "✅ Kafka is ready"
@@ -199,16 +199,28 @@ jobs:
           echo "=========================================="
           echo ""
 
-          echo "=== Pods ==="
-          kubectl get pods -n ${{ env.NAMESPACE }} -l tier=infrastructure
+          echo "=== Database Pods ==="
+          kubectl get pods -n database
           echo ""
 
-          echo "=== Services ==="
-          kubectl get svc -n ${{ env.NAMESPACE }} -l tier=infrastructure
+          echo "=== Messaging Pods ==="
+          kubectl get pods -n messaging
           echo ""
 
-          echo "=== Persistent Volume Claims ==="
-          kubectl get pvc -n ${{ env.NAMESPACE }}
+          echo "=== Database Services ==="
+          kubectl get svc -n database
+          echo ""
+
+          echo "=== Messaging Services ==="
+          kubectl get svc -n messaging
+          echo ""
+
+          echo "=== Database Persistent Volume Claims ==="
+          kubectl get pvc -n database
+          echo ""
+
+          echo "=== Database Secrets ==="
+          kubectl get secrets -n database
           echo ""
 
       - name: Deployment summary
@@ -231,7 +243,14 @@ jobs:
           echo ""
           echo "⚠️  IMPORTANT NOTES:"
           echo "  - Infrastructure is now running"
-          echo "  - Data is persistent via PVCs"
-          echo "  - To remove, use: helm uninstall <component> -n ${{ env.NAMESPACE }}"
+          echo "  - Data is persistent via PVCs in database/messaging namespaces"
+          echo "  - Secrets are managed in cluster (postgres-credentials, redis-credentials, etc)"
+          echo "  - To remove, use: helm uninstall <component> -n <namespace>"
+          echo "    Example: helm uninstall postgres -n database"
           echo "  - Deleting PVCs will DELETE ALL DATA!"
+          echo ""
+          echo "📋 Next Steps:"
+          echo "  1. Verify secrets: kubectl get secrets -n database"
+          echo "  2. Deploy applications via CD pipeline (push to main branch)"
+          echo "  3. Monitor ArgoCD for application sync"
           echo ""

@@ -9,13 +9,12 @@ RUN gradle --no-daemon dependencies || true
 COPY src ./src
 RUN gradle --no-daemon bootJar -x test
 
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:21-jre-alpine
 
 WORKDIR /app
 
-RUN groupadd -r spring && useradd -r -g spring spring \
-    && apt-get update && apt-get install -y --no-install-recommends tini curl \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN addgroup -S spring && adduser -S spring -G spring \
+    && apk add --no-cache tini gcompat curl
 
 COPY --from=build --chown=spring:spring /app/build/libs/*.jar app.jar
 
@@ -23,7 +22,7 @@ USER spring
 
 EXPOSE 8080
 
-ENTRYPOINT ["/usr/bin/tini", "--"]
+ENTRYPOINT ["/sbin/tini", "--"]
 
 CMD ["java", \
     "-XX:+UseContainerSupport", \
@@ -34,5 +33,6 @@ CMD ["java", \
     "-XX:+UseG1GC", \
     "-XX:MaxMetaspaceSize=128m", \
     "-Dspring.jmx.enabled=false", \
+    "-Dspring.main.lazy-initialization=true", \
     "-jar", \
     "app.jar"]

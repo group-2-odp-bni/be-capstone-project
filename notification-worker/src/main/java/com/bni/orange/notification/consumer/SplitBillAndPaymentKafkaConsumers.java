@@ -31,7 +31,7 @@ public class SplitBillAndPaymentKafkaConsumers {
   @KafkaListener(
       topics = "${orange.kafka.topics.splitbill-created:splitbill.events.created}",
       groupId = "${orange.kafka.groups.split-bill}",
-      concurrency = "3"
+      concurrency = "2"
   )
   public void onSplitBillCreated(ConsumerRecord<String, byte[]> record, Acknowledgment ack) {
     try {

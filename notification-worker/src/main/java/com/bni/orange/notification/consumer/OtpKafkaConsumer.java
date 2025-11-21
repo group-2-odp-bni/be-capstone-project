@@ -21,7 +21,7 @@ public class OtpKafkaConsumer {
     @KafkaListener(
         topics = "${orange.kafka.topics.otp-whatsapp}",
         groupId = "${orange.kafka.groups.otp-whatsapp}",
-        concurrency = "3"
+        concurrency = "2"
     )
     public void listen(ConsumerRecord<String, byte[]> record, Acknowledgment acknowledgment) {
         OtpNotificationEvent event = null;

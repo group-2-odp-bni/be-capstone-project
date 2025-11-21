@@ -1,0 +1,59 @@
+---
+# =============================================================================
+# NGINX Ingress Controller Role
+# =============================================================================
+
+- name: Add NGINX Ingress Helm repository
+  kubernetes.core.helm_repository:
+    name: ingress-nginx
+    repo_url: https://kubernetes.github.io/ingress-nginx
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+- name: Create nginx-ingress namespace
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: nginx-ingress
+
+- name: Install NGINX Ingress Controller
+  kubernetes.core.helm:
+    name: nginx-ingress
+    chart_ref: ingress-nginx/ingress-nginx
+    release_namespace: nginx-ingress
+    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    create_namespace: false
+    values:
+      controller:
+        kind: DaemonSet
+        service:
+          type: NodePort
+          nodePorts:
+            http: 30080
+            https: 30443
+        ingressClassResource:
+          default: true
+        metrics:
+          enabled: true
+        podAnnotations:
+          prometheus.io/scrape: "true"
+          prometheus.io/port: "10254"
+    wait: yes
+    timeout: 10m0s
+
+- name: Wait for NGINX Ingress pods to be ready
+  kubernetes.core.k8s_info:
+    kind: Pod
+    namespace: nginx-ingress
+    label_selectors:
+      - app.kubernetes.io/name=ingress-nginx
+    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    wait: yes
+    wait_condition:
+      type: Ready
+      status: "True"
+    wait_timeout: 300

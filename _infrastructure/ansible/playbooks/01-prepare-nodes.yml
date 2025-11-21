@@ -1,0 +1,117 @@
+---
+# =============================================================================
+# Playbook: Prepare Nodes for K3s Installation
+# =============================================================================
+# Purpose: Configure system settings and install prerequisites
+# Usage: ansible-playbook playbooks/01-prepare-nodes.yml
+# =============================================================================
+
+- name: Prepare All Nodes for K3s
+  hosts: k3s_cluster
+  become: true
+  gather_facts: true
+
+  tasks:
+    # -------------------------------------------------------------------------
+    # System Updates
+    # -------------------------------------------------------------------------
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Upgrade all packages
+      ansible.builtin.apt:
+        upgrade: dist
+        autoremove: yes
+        autoclean: yes
+      when: perform_system_upgrade | default(false)
+
+    # -------------------------------------------------------------------------
+    # Install Required Packages
+    # -------------------------------------------------------------------------
+    - name: Install prerequisite packages
+      ansible.builtin.apt:
+        name:
+          - curl
+          - wget
+          - git
+          - vim
+          - htop
+          - net-tools
+          - jq
+          - ca-certificates
+          - gnupg
+          - software-properties-common
+          - apt-transport-https
+          - open-iscsi  # For persistent volumes
+          - nfs-common  # For NFS volumes
+        state: present
+
+    # -------------------------------------------------------------------------
+    # Disable Swap (Required for Kubernetes)
+    # -------------------------------------------------------------------------
+    - name: Disable swap immediately
+      ansible.builtin.command: swapoff -a
+      changed_when: false
+
+    - name: Disable swap permanently
+      ansible.builtin.replace:
+        path: /etc/fstab
+        regexp: '^([^#].*?\sswap\s+sw\s+.*)$'
+        replace: '# \1'
+
+    # -------------------------------------------------------------------------
+    # Load Kernel Modules
+    # -------------------------------------------------------------------------
+    - name: Load required kernel modules
+      community.general.modprobe:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - br_netfilter
+        - overlay
+
+    - name: Persist kernel modules
+      ansible.builtin.copy:
+        dest: /etc/modules-load.d/k8s.conf
+        content: |
+          br_netfilter
+          overlay
+        mode: '0644'
+
+    # -------------------------------------------------------------------------
+    # Configure Sysctl
+    # -------------------------------------------------------------------------
+    - name: Configure sysctl for Kubernetes
+      ansible.posix.sysctl:
+        name: "{{ item.name }}"
+        value: "{{ item.value }}"
+        state: present
+        reload: yes
+        sysctl_file: /etc/sysctl.d/99-kubernetes.conf
+      loop:
+        - { name: 'net.bridge.bridge-nf-call-iptables', value: '1' }
+        - { name: 'net.bridge.bridge-nf-call-ip6tables', value: '1' }
+        - { name: 'net.ipv4.ip_forward', value: '1' }
+        - { name: 'vm.swappiness', value: '0' }
+
+    # -------------------------------------------------------------------------
+    # Configure Timezone
+    # -------------------------------------------------------------------------
+    - name: Set timezone
+      community.general.timezone:
+        name: "{{ timezone | default('Asia/Jakarta') }}"
+
+    # -------------------------------------------------------------------------
+    # Verify Prerequisites
+    # -------------------------------------------------------------------------
+    - name: Verify swap is disabled
+      ansible.builtin.command: swapon --show
+      register: swap_status
+      changed_when: false
+      failed_when: swap_status.stdout != ""
+
+    - name: Display preparation complete message
+      ansible.builtin.debug:
+        msg: "Node {{ inventory_hostname }} is prepared for K3s installation"

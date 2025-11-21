@@ -1,0 +1,63 @@
+---
+# =============================================================================
+# ArgoCD Application - Orange Wallet (App of Apps)
+# =============================================================================
+# This is the root Application that deploys all other Orange Wallet applications.
+# Using the "App of Apps" pattern for centralized management.
+#
+# Deploy this first:
+#   kubectl apply -f infrastructure/kubernetes/argocd/applications/orange-wallet-apps.yaml
+#
+# This will automatically deploy all child applications:
+# - authentication-service
+# - user-service
+# - transaction-service
+# - wallet-service
+# - api-gateway
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: orange-wallet-apps
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: orange-wallet
+    app.kubernetes.io/part-of: orange-wallet
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/your-org/orange-wallet-gitops.git  # TODO: Update with actual GitOps repo
+    targetRevision: main
+    path: argocd/applications  # Path containing all Application manifests
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+  # Sync waves for ordered deployment
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true
+
+  revisionHistoryLimit: 10

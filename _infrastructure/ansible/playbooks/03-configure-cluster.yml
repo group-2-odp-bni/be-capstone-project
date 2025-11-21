@@ -1,0 +1,130 @@
+---
+# =============================================================================
+# Playbook: Configure K3s Cluster Post-Installation
+# =============================================================================
+# Purpose: Apply additional configurations after K3s installation
+# Usage: ansible-playbook playbooks/03-configure-cluster.yml
+# =============================================================================
+
+- name: Configure K3s Cluster
+  hosts: k3s_master
+  become: true
+  gather_facts: true
+
+  tasks:
+    # -------------------------------------------------------------------------
+    # Download Kubeconfig
+    # -------------------------------------------------------------------------
+    - name: Create local kubeconfig directory
+      ansible.builtin.file:
+        path: "{{ k3s_kubeconfig_local_path | dirname }}"
+        state: directory
+        mode: '0755'
+      delegate_to: localhost
+      become: false
+
+    - name: Fetch kubeconfig from master
+      ansible.builtin.fetch:
+        src: /etc/rancher/k3s/k3s.yaml
+        dest: "{{ k3s_kubeconfig_local_path }}"
+        flat: yes
+
+    - name: Update kubeconfig server address
+      ansible.builtin.replace:
+        path: "{{ k3s_kubeconfig_local_path }}"
+        regexp: 'https://127.0.0.1:6443'
+        replace: "https://{{ ansible_host }}:6443"
+      delegate_to: localhost
+      become: false
+
+    - name: Display kubeconfig location
+      ansible.builtin.debug:
+        msg: |
+          Kubeconfig downloaded to: {{ k3s_kubeconfig_local_path }}
+
+          To use it:
+          export KUBECONFIG={{ k3s_kubeconfig_local_path }}
+          kubectl get nodes
+
+    # -------------------------------------------------------------------------
+    # Verify Node Labels and Taints (already applied during install)
+    # -------------------------------------------------------------------------
+    # Note: Labels and taints are applied during K3s installation via group_vars
+    # This section just verifies they are present
+
+    - name: Verify node labels are present
+      ansible.builtin.command: kubectl get nodes --show-labels
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: node_labels_check
+      changed_when: false
+
+    - name: Display current node labels
+      ansible.builtin.debug:
+        msg: |
+          Current node labels:
+          {{ node_labels_check.stdout_lines | join('\n') }}
+
+    - name: Verify node taints are present
+      ansible.builtin.command: kubectl get nodes -o custom-columns=NAME:.metadata.name,TAINTS:.spec.taints
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: node_taints_check
+      changed_when: false
+
+    - name: Display current node taints
+      ansible.builtin.debug:
+        msg: |
+          Current node taints:
+          {{ node_taints_check.stdout_lines | join('\n') }}
+
+    # -------------------------------------------------------------------------
+    # Verify Cluster Configuration Summary
+    # -------------------------------------------------------------------------
+    - name: Get final cluster state
+      ansible.builtin.command: kubectl get nodes -o wide
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: final_cluster_state
+      changed_when: false
+
+    - name: Display cluster configuration summary
+      ansible.builtin.debug:
+        msg: |
+          ========================================
+          Cluster Configuration Summary:
+          ========================================
+          {{ final_cluster_state.stdout }}
+          ========================================
+
+    # -------------------------------------------------------------------------
+    # Create Namespaces
+    # -------------------------------------------------------------------------
+    - name: Create infrastructure namespaces
+      kubernetes.core.k8s:
+        name: "{{ item }}"
+        api_version: v1
+        kind: Namespace
+        state: present
+      loop:
+        - argocd
+        - nginx-ingress
+        - cert-manager
+        - external-secrets
+        - observability
+        - database
+        - messaging
+
+    - name: Display configuration complete message
+      ansible.builtin.debug:
+        msg: |
+          ========================================
+          K3s Cluster Configuration Complete!
+          ========================================
+
+          Cluster is ready for GitOps deployment with ArgoCD.
+
+          Next steps:
+          1. Install ArgoCD: kubectl apply -n argocd -f argocd-install.yaml
+          2. Deploy infrastructure components via ArgoCD
+          3. Deploy application services

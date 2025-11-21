@@ -1,0 +1,67 @@
+---
+# =============================================================================
+# Common Role - Security Hardening
+# =============================================================================
+
+- name: Check if swap is enabled
+  ansible.builtin.command: swapon --show
+  register: swap_status
+  changed_when: false
+  failed_when: false
+
+- name: Disable swap immediately
+  ansible.builtin.command: swapoff -a
+  when: swap_status.stdout != ""
+  changed_when: swap_status.stdout != ""
+
+- name: Disable swap permanently in fstab
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '^([^#].*?\sswap\s+.*)$'
+    replace: '# \1'
+  register: fstab_swap
+
+- name: Set timezone
+  community.general.timezone:
+    name: "{{ timezone }}"
+
+- name: Load kernel modules required for Kubernetes
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - br_netfilter
+    - overlay
+
+- name: Ensure kernel modules load on boot
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/k8s.conf
+    content: |
+      br_netfilter
+      overlay
+    mode: '0644'
+
+- name: Configure sysctl for Kubernetes
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: yes
+    sysctl_file: /etc/sysctl.d/99-kubernetes.conf
+  loop:
+    - { name: 'net.bridge.bridge-nf-call-iptables', value: '1' }
+    - { name: 'net.bridge.bridge-nf-call-ip6tables', value: '1' }
+    - { name: 'net.ipv4.ip_forward', value: '1' }
+    - { name: 'vm.swappiness', value: '0' }
+
+- name: Enable and start open-iscsi service
+  ansible.builtin.systemd:
+    name: open-iscsi
+    enabled: yes
+    state: started
+
+- name: Enable and start iscsid service
+  ansible.builtin.systemd:
+    name: iscsid
+    enabled: yes
+    state: started

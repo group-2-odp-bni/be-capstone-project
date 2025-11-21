@@ -1,0 +1,362 @@
+---
+# =============================================================================
+# Infrastructure Validation Playbook
+# =============================================================================
+# This playbook validates the entire infrastructure stack:
+# - K3s cluster health (nodes, API server)
+# - Node configuration (labels, taints)
+# - Infrastructure components (NGINX, Cert-Manager, Metrics Server, ESO)
+# - ArgoCD deployment
+# - Network connectivity
+# - Resource availability
+#
+# Prerequisites:
+# - All infrastructure components deployed
+# - kubectl access configured
+#
+# Usage:
+#   ansible-playbook -i ../inventory/hosts.yml playbooks/99-validate.yml
+#
+# Exit codes:
+#   0 - All validations passed
+#   1 - One or more validations failed
+# =============================================================================
+
+- name: Validate K3s Cluster and Infrastructure
+  hosts: k3s_master
+  become: yes
+  gather_facts: yes
+
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+    validation_failed: false
+
+  tasks:
+    # =========================================================================
+    # Cluster Health Checks
+    # =========================================================================
+    - name: "VALIDATION 01 - Check K3s service status"
+      ansible.builtin.systemd:
+        name: k3s
+        state: started
+      register: k3s_service
+      failed_when: false
+      tags: [cluster, health]
+
+    - name: "VALIDATION 02 - Verify all nodes are Ready"
+      ansible.builtin.shell: |
+        kubectl get nodes --no-headers | awk '{print $2}' | grep -v "Ready" | wc -l
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: nodes_not_ready
+      failed_when: nodes_not_ready.stdout|int > 0
+      changed_when: false
+      tags: [cluster, nodes]
+
+    - name: "VALIDATION 03 - Get node details"
+      ansible.builtin.command: kubectl get nodes -o wide
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: node_details
+      changed_when: false
+      tags: [cluster, nodes]
+
+    - name: Display node details
+      ansible.builtin.debug:
+        var: node_details.stdout_lines
+      tags: [cluster, nodes]
+
+    # =========================================================================
+    # Node Configuration Checks
+    # =========================================================================
+    - name: "VALIDATION 04 - Verify node labels (stateless workers)"
+      ansible.builtin.shell: |
+        kubectl get nodes -l workload-type=stateless --no-headers | wc -l
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: stateless_nodes
+      failed_when: stateless_nodes.stdout|int < 2
+      changed_when: false
+      tags: [cluster, labels]
+
+    - name: "VALIDATION 05 - Verify node labels (stateful worker)"
+      ansible.builtin.shell: |
+        kubectl get nodes -l workload-type=stateful --no-headers | wc -l
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: stateful_nodes
+      failed_when: stateful_nodes.stdout|int < 1
+      changed_when: false
+      tags: [cluster, labels]
+
+    - name: "VALIDATION 06 - Verify node taints (stateful worker)"
+      ansible.builtin.shell: |
+        kubectl get nodes -o json | jq -r '.items[] | select(.spec.taints != null) | select(.spec.taints[] | .key == "stateful" and .effect == "NoSchedule") | .metadata.name'
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: tainted_nodes
+      failed_when: tainted_nodes.stdout == ""
+      changed_when: false
+      tags: [cluster, taints]
+
+    # =========================================================================
+    # Infrastructure Component Checks
+    # =========================================================================
+    - name: "VALIDATION 07 - Check Helm installation"
+      ansible.builtin.command: helm version --short
+      register: helm_version
+      failed_when: helm_version.rc != 0
+      changed_when: false
+      tags: [infrastructure, helm]
+
+    - name: Display Helm version
+      ansible.builtin.debug:
+        msg: "Helm version: {{ helm_version.stdout }}"
+      tags: [infrastructure, helm]
+
+    - name: "VALIDATION 08 - Check NGINX Ingress Controller pods"
+      ansible.builtin.shell: |
+        kubectl get pods -n nginx-ingress -l app.kubernetes.io/name=ingress-nginx --no-headers | grep -c "Running"
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: nginx_pods
+      failed_when: nginx_pods.stdout|int == 0
+      changed_when: false
+      tags: [infrastructure, nginx]
+
+    - name: "VALIDATION 09 - Check NGINX Ingress NodePort service"
+      ansible.builtin.shell: |
+        kubectl get svc -n nginx-ingress nginx-ingress-ingress-nginx-controller -o jsonpath='{.spec.ports[?(@.name=="http")].nodePort}'
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: nginx_http_port
+      failed_when: nginx_http_port.stdout != "30080"
+      changed_when: false
+      tags: [infrastructure, nginx]
+
+    - name: "VALIDATION 10 - Check Cert-Manager pods"
+      ansible.builtin.shell: |
+        kubectl get pods -n cert-manager --no-headers | grep -c "Running"
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: certmanager_pods
+      failed_when: certmanager_pods.stdout|int < 3
+      changed_when: false
+      tags: [infrastructure, cert-manager]
+
+    - name: "VALIDATION 11 - Check Cert-Manager CRDs"
+      ansible.builtin.shell: |
+        kubectl get crd | grep -c "cert-manager.io"
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: certmanager_crds
+      failed_when: certmanager_crds.stdout|int < 5
+      changed_when: false
+      tags: [infrastructure, cert-manager]
+
+    - name: "VALIDATION 12 - Check Metrics Server deployment"
+      ansible.builtin.shell: |
+        kubectl get deployment -n kube-system metrics-server -o jsonpath='{.status.availableReplicas}'
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: metrics_server_replicas
+      failed_when: metrics_server_replicas.stdout|int == 0
+      changed_when: false
+      tags: [infrastructure, metrics]
+
+    - name: "VALIDATION 13 - Verify Metrics Server functionality"
+      ansible.builtin.command: kubectl top nodes
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: metrics_top_nodes
+      failed_when: metrics_top_nodes.rc != 0
+      changed_when: false
+      retries: 3
+      delay: 10
+      tags: [infrastructure, metrics]
+
+    - name: Display node metrics
+      ansible.builtin.debug:
+        var: metrics_top_nodes.stdout_lines
+      tags: [infrastructure, metrics]
+
+    - name: "VALIDATION 14 - Check External Secrets Operator pods"
+      ansible.builtin.shell: |
+        kubectl get pods -n external-secrets --no-headers | grep -c "Running"
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: eso_pods
+      failed_when: eso_pods.stdout|int == 0
+      changed_when: false
+      tags: [infrastructure, external-secrets]
+
+    - name: "VALIDATION 15 - Check External Secrets CRDs"
+      ansible.builtin.shell: |
+        kubectl get crd | grep -c "external-secrets.io"
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: eso_crds
+      failed_when: eso_crds.stdout|int < 5
+      changed_when: false
+      tags: [infrastructure, external-secrets]
+
+    # =========================================================================
+    # ArgoCD Checks
+    # =========================================================================
+    - name: "VALIDATION 16 - Check if ArgoCD namespace exists"
+      ansible.builtin.shell: |
+        kubectl get namespace argocd --no-headers 2>/dev/null | wc -l
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: argocd_namespace
+      failed_when: false
+      changed_when: false
+      tags: [argocd]
+
+    - name: "VALIDATION 17 - Check ArgoCD pods"
+      ansible.builtin.shell: |
+        kubectl get pods -n argocd --no-headers | grep -c "Running"
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: argocd_pods
+      failed_when: false
+      changed_when: false
+      when: argocd_namespace.stdout|int > 0
+      tags: [argocd]
+
+    - name: "VALIDATION 18 - Check ArgoCD server service"
+      ansible.builtin.shell: |
+        kubectl get svc -n argocd argocd-server -o jsonpath='{.spec.ports[?(@.name=="http")].nodePort}'
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: argocd_port
+      failed_when: false
+      changed_when: false
+      when: argocd_namespace.stdout|int > 0
+      tags: [argocd]
+
+    # =========================================================================
+    # Storage and Networking Checks
+    # =========================================================================
+    - name: "VALIDATION 19 - Check default storage class"
+      ansible.builtin.shell: |
+        kubectl get storageclass -o jsonpath='{.items[?(@.metadata.annotations.storageclass\.kubernetes\.io/is-default-class=="true")].metadata.name}'
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: default_storageclass
+      failed_when: default_storageclass.stdout == ""
+      changed_when: false
+      tags: [storage]
+
+    - name: Display default storage class
+      ansible.builtin.debug:
+        msg: "Default storage class: {{ default_storageclass.stdout }}"
+      tags: [storage]
+
+    - name: "VALIDATION 20 - Check CoreDNS status"
+      ansible.builtin.shell: |
+        kubectl get pods -n kube-system -l k8s-app=kube-dns --no-headers | grep -c "Running"
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: coredns_pods
+      failed_when: coredns_pods.stdout|int == 0
+      changed_when: false
+      tags: [networking, dns]
+
+    # =========================================================================
+    # Summary Report
+    # =========================================================================
+    - name: Generate validation summary
+      ansible.builtin.set_fact:
+        validation_summary:
+          cluster:
+            k3s_service: "{{ 'PASS' if k3s_service.status.ActiveState == 'active' else 'FAIL' }}"
+            nodes_ready: "{{ 'PASS' if nodes_not_ready.stdout|int == 0 else 'FAIL' }}"
+            node_labels_stateless: "{{ 'PASS' if stateless_nodes.stdout|int >= 2 else 'FAIL' }}"
+            node_labels_stateful: "{{ 'PASS' if stateful_nodes.stdout|int >= 1 else 'FAIL' }}"
+            node_taints: "{{ 'PASS' if tainted_nodes.stdout != '' else 'FAIL' }}"
+          infrastructure:
+            helm: "{{ 'PASS' if helm_version.rc == 0 else 'FAIL' }}"
+            nginx_ingress: "{{ 'PASS' if nginx_pods.stdout|int > 0 else 'FAIL' }}"
+            nginx_nodeport: "{{ 'PASS' if nginx_http_port.stdout == '30080' else 'FAIL' }}"
+            cert_manager: "{{ 'PASS' if certmanager_pods.stdout|int >= 3 else 'FAIL' }}"
+            metrics_server: "{{ 'PASS' if metrics_server_replicas.stdout|int > 0 else 'FAIL' }}"
+            external_secrets: "{{ 'PASS' if eso_pods.stdout|int > 0 else 'FAIL' }}"
+          argocd:
+            namespace: "{{ 'PASS' if argocd_namespace.stdout|int > 0 else 'NOT DEPLOYED' }}"
+            pods: "{{ 'PASS' if argocd_pods.stdout|int > 0 else 'NOT DEPLOYED' if argocd_namespace.stdout|int > 0 else 'NOT DEPLOYED' }}"
+            service: "{{ 'PASS' if argocd_port.stdout == '30081' else 'NOT DEPLOYED' if argocd_namespace.stdout|int > 0 else 'NOT DEPLOYED' }}"
+          storage_networking:
+            storage_class: "{{ 'PASS' if default_storageclass.stdout != '' else 'FAIL' }}"
+            coredns: "{{ 'PASS' if coredns_pods.stdout|int > 0 else 'FAIL' }}"
+      tags: [always]
+
+    - name: Display validation summary
+      ansible.builtin.debug:
+        msg: |
+          ========================================
+          INFRASTRUCTURE VALIDATION SUMMARY
+          ========================================
+
+          📊 CLUSTER HEALTH
+          ├─ K3s Service:              {{ validation_summary.cluster.k3s_service }}
+          ├─ All Nodes Ready:          {{ validation_summary.cluster.nodes_ready }}
+          ├─ Stateless Node Labels:    {{ validation_summary.cluster.node_labels_stateless }}
+          ├─ Stateful Node Labels:     {{ validation_summary.cluster.node_labels_stateful }}
+          └─ Stateful Node Taints:     {{ validation_summary.cluster.node_taints }}
+
+          🔧 INFRASTRUCTURE COMPONENTS
+          ├─ Helm:                     {{ validation_summary.infrastructure.helm }}
+          ├─ NGINX Ingress:            {{ validation_summary.infrastructure.nginx_ingress }}
+          ├─ NGINX NodePort (30080):   {{ validation_summary.infrastructure.nginx_nodeport }}
+          ├─ Cert-Manager:             {{ validation_summary.infrastructure.cert_manager }}
+          ├─ Metrics Server:           {{ validation_summary.infrastructure.metrics_server }}
+          └─ External Secrets:         {{ validation_summary.infrastructure.external_secrets }}
+
+          🚀 GITOPS (ArgoCD)
+          ├─ Namespace:                {{ validation_summary.argocd.namespace }}
+          ├─ Pods Running:             {{ validation_summary.argocd.pods }}
+          └─ Service (NodePort 30081): {{ validation_summary.argocd.service }}
+
+          💾 STORAGE & NETWORKING
+          ├─ Default Storage Class:    {{ validation_summary.storage_networking.storage_class }}
+          └─ CoreDNS:                  {{ validation_summary.storage_networking.coredns }}
+
+          ========================================
+          {% set total_checks = 20 %}
+          {% set failed_checks = [] %}
+          {% for category, checks in validation_summary.items() %}
+            {% for check, result in checks.items() %}
+              {% if result == 'FAIL' %}
+                {% set _ = failed_checks.append(check) %}
+              {% endif %}
+            {% endfor %}
+          {% endfor %}
+          {% if failed_checks|length == 0 %}
+          ✅ ALL VALIDATIONS PASSED ({{ total_checks }}/{{ total_checks }})
+          {% else %}
+          ❌ VALIDATION FAILED ({{ total_checks - failed_checks|length }}/{{ total_checks }} passed)
+
+          Failed checks: {{ failed_checks|join(', ') }}
+          {% endif %}
+          ========================================
+      tags: [always]
+
+    - name: Fail playbook if any validation failed
+      ansible.builtin.fail:
+        msg: "One or more validation checks failed. Review the summary above."
+      when: >
+        validation_summary.cluster.k3s_service == 'FAIL' or
+        validation_summary.cluster.nodes_ready == 'FAIL' or
+        validation_summary.cluster.node_labels_stateless == 'FAIL' or
+        validation_summary.cluster.node_labels_stateful == 'FAIL' or
+        validation_summary.cluster.node_taints == 'FAIL' or
+        validation_summary.infrastructure.helm == 'FAIL' or
+        validation_summary.infrastructure.nginx_ingress == 'FAIL' or
+        validation_summary.infrastructure.nginx_nodeport == 'FAIL' or
+        validation_summary.infrastructure.cert_manager == 'FAIL' or
+        validation_summary.infrastructure.metrics_server == 'FAIL' or
+        validation_summary.infrastructure.external_secrets == 'FAIL' or
+        validation_summary.storage_networking.storage_class == 'FAIL' or
+        validation_summary.storage_networking.coredns == 'FAIL'
+      tags: [always]

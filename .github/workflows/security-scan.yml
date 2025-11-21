@@ -117,15 +117,15 @@ jobs:
       - name: Pull latest production image
         continue-on-error: true
         run: |
-          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ matrix.name }}:production || \
-          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ matrix.name }}:latest || \
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/orange-wallet-${{ matrix.name }}:production || \
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/orange-wallet-${{ matrix.name }}:latest || \
           echo "⚠️ No production image found for ${{ matrix.name }}"
 
       - name: Scan production Docker image (table format)
         uses: aquasecurity/trivy-action@0.28.0
         continue-on-error: true
         with:
-          image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/orange-pay-${{ matrix.name }}:production
+          image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/orange-wallet-${{ matrix.name }}:production
           format: 'table'
           severity: 'CRITICAL,HIGH,MEDIUM'
 

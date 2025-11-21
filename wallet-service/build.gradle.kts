@@ -33,9 +33,6 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
     implementation("org.springframework.boot:spring-boot-starter-webflux")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
-    implementation("io.jsonwebtoken:jjwt-api:0.11.5")
-    runtimeOnly("io.jsonwebtoken:jjwt-impl:0.11.5")
-    runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.11.5")
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
     implementation("org.postgresql:postgresql")
@@ -48,6 +45,15 @@ dependencies {
 
     implementation("com.google.protobuf:protobuf-java:4.31.1")
     implementation("com.google.protobuf:protobuf-java-util:4.31.1")
+
+    runtimeOnly("io.micrometer:micrometer-registry-prometheus")
+    implementation("io.micrometer:micrometer-tracing-bridge-otel")
+    implementation("io.opentelemetry:opentelemetry-exporter-otlp")
+
+    implementation("io.jsonwebtoken:jjwt-api:0.11.5")
+    runtimeOnly("io.jsonwebtoken:jjwt-impl:0.11.5")
+    runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.11.5")
+
     annotationProcessor ("org.mapstruct:mapstruct-processor:1.6.3")    
     annotationProcessor ("org.projectlombok:lombok-mapstruct-binding:0.2.0")
     runtimeOnly("io.micrometer:micrometer-registry-prometheus")

@@ -1,0 +1,46 @@
+---
+# =============================================================================
+# Metrics Server Role
+# =============================================================================
+
+- name: Add Metrics Server Helm repository
+  kubernetes.core.helm_repository:
+    name: metrics-server
+    repo_url: https://kubernetes-sigs.github.io/metrics-server/
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+- name: Install Metrics Server
+  kubernetes.core.helm:
+    name: metrics-server
+    chart_ref: metrics-server/metrics-server
+    release_namespace: kube-system
+    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    values:
+      args:
+        - --kubelet-insecure-tls
+        - --kubelet-preferred-address-types=InternalIP
+    wait: yes
+    timeout: 5m0s
+
+- name: Wait for Metrics Server to be ready
+  kubernetes.core.k8s_info:
+    kind: Deployment
+    name: metrics-server
+    namespace: kube-system
+    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    wait: yes
+    wait_condition:
+      type: Available
+      status: "True"
+    wait_timeout: 300
+
+- name: Verify metrics-server is working
+  ansible.builtin.command: kubectl top nodes
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: metrics_check
+  changed_when: false
+  retries: 5
+  delay: 10
+  until: metrics_check.rc == 0

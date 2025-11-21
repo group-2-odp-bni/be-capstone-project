@@ -1,0 +1,52 @@
+# =============================================================================
+# Group Variables - K3s Stateful Worker Node
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# K3s Role
+# -----------------------------------------------------------------------------
+k3s_control_node: false
+
+# K3s agent configuration (must be dict for xanmanning.k3s v3.6+)
+k3s_agent:
+  node-label:
+    - "node-role.kubernetes.io/worker=true"
+    - "workload-type=stateful"
+    - "node-type=worker"
+    - "database-node=true"
+  node-taint:
+    - "stateful=true:NoSchedule"
+
+# Additional node labels
+k3s_node_labels:
+  - "workload-type=stateful"
+  - "database-node=true"
+
+# Node Taints (defined above in k3s_agent)
+# Prevents stateless workloads from scheduling here
+# Pods need toleration to run on this node
+
+# -----------------------------------------------------------------------------
+# Workload Configuration
+# -----------------------------------------------------------------------------
+# This node is dedicated to stateful workloads:
+# - PostgreSQL (StatefulSet)
+# - Redis (StatefulSet)
+# - Kafka (StatefulSet)
+# - WAHA (StatefulSet)
+
+# -----------------------------------------------------------------------------
+# Resource Allocation
+# -----------------------------------------------------------------------------
+# Reserve resources for system components
+kubelet_reserved_cpu: 200m
+kubelet_reserved_memory: 1Gi
+
+# Node has e2-standard-2: 2 vCPU, 8GB RAM
+# Available for workloads: ~1.8 vCPU, 7GB RAM
+
+# -----------------------------------------------------------------------------
+# Storage Optimization
+# -----------------------------------------------------------------------------
+# This node will have persistent volumes attached
+# Ensure adequate disk I/O performance

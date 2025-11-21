@@ -1,5 +1,6 @@
 package com.bni.orange.api.gateway.filter;
 
+import com.bni.orange.api.gateway.config.SecurityProperties;
 import com.bni.orange.api.gateway.service.IpBlockingService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -7,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -20,15 +22,22 @@ import java.util.Optional;
 
 @Slf4j
 @Component
+@Profile("!load-test")
 @RequiredArgsConstructor
 public class IpBlockingGatewayFilter implements GlobalFilter, Ordered {
 
     private final IpBlockingService ipBlockingService;
+    private final SecurityProperties securityProperties;
     private final ObjectMapper objectMapper;
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         var ipAddress = extractIpAddress(exchange);
+
+        if (securityProperties.whitelistedIps() != null && securityProperties.whitelistedIps().contains(ipAddress)) {
+            log.trace("IP {} is whitelisted, skipping IP blocking check.", ipAddress);
+            return chain.filter(exchange);
+        }
 
         return ipBlockingService
             .isIpBlocked(ipAddress)
