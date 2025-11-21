@@ -93,10 +93,63 @@ jobs:
           )"
 
           echo "📤 Pushing to GitOps repository..."
-          git push origin main
 
-          echo "✅ GitOps repository updated successfully"
-          echo "new_tag=${{ inputs.image-tag }}" >> $GITHUB_OUTPUT
+          # Retry push with pull --rebase to handle concurrent updates
+          MAX_RETRIES=5
+          RETRY_COUNT=0
+
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            if git push origin main; then
+              echo "✅ GitOps repository updated successfully"
+              echo "new_tag=${{ inputs.image-tag }}" >> $GITHUB_OUTPUT
+              exit 0
+            else
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              echo "⚠️ Push failed (attempt $RETRY_COUNT/$MAX_RETRIES). Pulling latest changes..."
+
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                # Pull with rebase to integrate remote changes
+                git pull --rebase origin main
+
+                # Check if rebase had conflicts
+                if [ $? -ne 0 ]; then
+                  echo "❌ Rebase conflict detected. Aborting and retrying from fresh clone..."
+                  git rebase --abort
+
+                  # Fetch and reset to remote, then re-apply our changes
+                  git fetch origin main
+                  git reset --hard origin/main
+
+                  # Re-apply the image tag update
+                  yq eval '.images[0].newTag = "${{ inputs.image-tag }}"' -i "production/${{ inputs.service-name }}/kustomization.yaml"
+                  yq eval '.images[0].newName = "docker.io/${{ inputs.dockerhub-username }}/orange-wallet-${{ inputs.service-name }}"' -i "production/${{ inputs.service-name }}/kustomization.yaml"
+
+                  git add production/${{ inputs.service-name }}/kustomization.yaml
+                  git commit -m "$(cat <<EOF
+          chore: update ${{ inputs.service-name }} to ${{ inputs.image-tag }}
+
+          Automated update from CI/CD pipeline
+
+          Service: ${{ inputs.service-name }}
+          Image: ${{ inputs.dockerhub-username }}/orange-wallet-${{ inputs.service-name }}:${{ inputs.image-tag }}
+          Source Commit: ${{ github.sha }}
+          Workflow: ${{ github.workflow }}
+          Run: ${{ github.run_number }}
+          Actor: ${{ github.actor }}
+          EOF
+          )" || true
+                fi
+
+                # Wait before retry with exponential backoff
+                WAIT_TIME=$((2 ** RETRY_COUNT))
+                echo "⏳ Waiting ${WAIT_TIME}s before retry..."
+                sleep $WAIT_TIME
+              fi
+            fi
+          done
+
+          echo "❌ Failed to push after $MAX_RETRIES attempts"
+          exit 1
 
       - name: Create deployment summary
         run: |

@@ -169,6 +169,7 @@ jobs:
     if: needs.discover-services.outputs.has-changes == 'true'
     strategy:
       fail-fast: false
+      max-parallel: 3  # Limit concurrent GitOps updates to reduce race conditions
       matrix: ${{ fromJson(needs.discover-services.outputs.matrix) }}
     uses: ./.github/workflows/_reusable-update-gitops.yml
     with:
