@@ -1,0 +1,205 @@
+---
+# =============================================================================
+# Playbook: Install K3s Cluster
+# =============================================================================
+# Purpose: Install K3s on master and worker nodes
+# Usage: ansible-playbook -i ../inventory/hosts.yml playbooks/02-install-k3s.yml
+#
+# This playbook uses the xanmanning.k3s Ansible Galaxy role v3.6+
+# Install role first: ansible-galaxy install -r requirements.yml
+#
+# Important Notes:
+# - K3s configuration comes from group_vars (k3s_master.yml, k3s_workers_*.yml)
+# - Master node labels must NOT use 'node-role.kubernetes.io/master' (deprecated in K8s 1.24+)
+# - Worker labels and taints are defined per worker group (stateless vs stateful)
+# =============================================================================
+
+- name: Install K3s on Master Node
+  hosts: k3s_master
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: Display master node information
+      ansible.builtin.debug:
+        msg: |
+          Installing K3s master on: {{ inventory_hostname }}
+          Internal IP: {{ ansible_default_ipv4.address }}
+          External IP: {{ ansible_host }}
+          K3s Version: {{ k3s_version }}
+
+  roles:
+    - role: xanmanning.k3s
+      vars:
+        k3s_state: installed
+        # k3s_server config comes from group_vars/k3s_master.yml
+        # k3s_control_node: true is inherited from group_vars
+
+  post_tasks:
+    - name: Wait for K3s API server to be ready
+      ansible.builtin.wait_for:
+        host: "{{ ansible_default_ipv4.address }}"
+        port: 6443
+        timeout: 300
+      retries: 3
+      delay: 10
+
+    - name: Verify K3s service is running
+      ansible.builtin.systemd:
+        name: k3s
+        state: started
+        enabled: yes
+
+    - name: Wait for kubectl to be functional
+      ansible.builtin.command: kubectl get nodes
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: kubectl_check
+      until: kubectl_check.rc == 0
+      retries: 10
+      delay: 5
+      changed_when: false
+
+    - name: Get node token
+      ansible.builtin.slurp:
+        src: /var/lib/rancher/k3s/server/node-token
+      register: k3s_node_token
+
+    - name: Display K3s token (for debugging)
+      ansible.builtin.debug:
+        msg: "K3s Token = {{ k3s_node_token.content | b64decode | trim }}"
+      when: ansible_verbosity >= 1
+
+    - name: Display master installation summary
+      ansible.builtin.debug:
+        msg: |
+          ========================================
+          K3s Master Installation Complete!
+          ========================================
+          Node: {{ inventory_hostname }}
+          API Server: https://{{ ansible_host }}:6443
+          Token retrieved for worker nodes
+          ========================================
+
+# =============================================================================
+# Install K3s on Worker Nodes
+# =============================================================================
+# Workers are installed sequentially to avoid race conditions
+# Configuration comes from group_vars (stateless vs stateful)
+# =============================================================================
+
+- name: Install K3s on Worker Nodes
+  hosts: k3s_workers
+  become: true
+  gather_facts: true
+  serial: 1  # Install workers one at a time to avoid issues
+
+  pre_tasks:
+    - name: Display worker node information
+      ansible.builtin.debug:
+        msg: |
+          Installing K3s worker on: {{ inventory_hostname }}
+          Internal IP: {{ ansible_default_ipv4.address }}
+          External IP: {{ ansible_host }}
+          Worker Type: {{ 'stateful' if 'k3s_workers_stateful' in group_names else 'stateless' }}
+          Master URL: https://{{ hostvars[groups['k3s_master'][0]]['ansible_default_ipv4']['address'] }}:6443
+
+    - name: Verify master node token is available
+      ansible.builtin.fail:
+        msg: "K3s token from master is not available. Master installation may have failed."
+      when: hostvars[groups['k3s_master'][0]]['k3s_node_token'] is not defined
+
+  roles:
+    - role: xanmanning.k3s
+      vars:
+        k3s_state: installed
+        k3s_server_url: "https://{{ hostvars[groups['k3s_master'][0]]['ansible_default_ipv4']['address'] }}:6443"
+        k3s_token: "{{ hostvars[groups['k3s_master'][0]]['k3s_node_token']['content'] | b64decode | trim }}"
+        # k3s_agent config comes from group_vars/k3s_workers_*.yml
+        # k3s_control_node: false is inherited from group_vars
+        # node-label and node-taint are defined in group_vars
+
+  post_tasks:
+    - name: Verify K3s agent service is running
+      ansible.builtin.systemd:
+        name: k3s-agent
+        state: started
+        enabled: yes
+
+    - name: Wait for worker to register with cluster
+      ansible.builtin.command: kubectl get node {{ inventory_hostname }}
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      delegate_to: "{{ groups['k3s_master'][0] }}"
+      register: worker_status
+      until: worker_status.rc == 0
+      retries: 10
+      delay: 5
+      changed_when: false
+
+    - name: Display worker join status
+      ansible.builtin.debug:
+        msg: |
+          ========================================
+          Worker {{ inventory_hostname }} joined successfully!
+          Type: {{ 'Stateful' if 'k3s_workers_stateful' in group_names else 'Stateless' }}
+          ========================================
+
+# =============================================================================
+# Verify Cluster Status
+# =============================================================================
+
+- name: Verify K3s Cluster Status
+  hosts: k3s_master
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Wait for all nodes to be ready
+      ansible.builtin.command: kubectl get nodes -o json
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: nodes_json
+      until: >
+        (nodes_json.stdout | from_json).items |
+        selectattr('status.conditions', 'defined') |
+        selectattr('status.conditions', 'search', 'type="Ready"') |
+        selectattr('status.conditions', 'search', 'status="True"') |
+        list | length == groups['k3s_cluster'] | length
+      retries: 30
+      delay: 10
+      changed_when: false
+
+    - name: Get cluster nodes with labels
+      ansible.builtin.command: kubectl get nodes -o wide --show-labels
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: cluster_nodes
+      changed_when: false
+
+    - name: Get all pods in kube-system
+      ansible.builtin.command: kubectl get pods -n kube-system -o wide
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: system_pods
+      changed_when: false
+
+    - name: Display cluster status
+      ansible.builtin.debug:
+        msg: |
+          ========================================
+          K3s Cluster Installation Complete!
+          ========================================
+
+          CLUSTER NODES:
+          {{ cluster_nodes.stdout }}
+
+          SYSTEM PODS:
+          {{ system_pods.stdout }}
+
+          ========================================
+          Next Steps:
+          1. Download kubeconfig: ansible-playbook playbooks/03-configure-cluster.yml
+          2. Deploy infrastructure: ansible-playbook playbooks/03-infrastructure.yml
+          3. Deploy ArgoCD: ansible-playbook playbooks/04-argocd.yml
+          ========================================

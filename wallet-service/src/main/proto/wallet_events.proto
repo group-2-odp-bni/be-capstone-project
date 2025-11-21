@@ -52,3 +52,6 @@ message WalletInviteAcceptedEvent {
   string role = 3;
   string occurred_at = 4;
 }
+message WalletMembersClearedEvent {
+  string wallet_id = 1;
+}

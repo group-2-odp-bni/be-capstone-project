@@ -35,7 +35,6 @@ import org.springframework.transaction.annotation.Transactional;
 import com.bni.orange.wallet.domain.DomainEvents.WalletInviteLinkGenerated;
 import com.bni.orange.wallet.domain.DomainEvents.WalletInviteAccepted;
 import com.bni.orange.wallet.exception.business.ResourceNotFoundException;
-
 import org.springframework.util.StringUtils;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -52,28 +51,29 @@ import java.util.List;
 @RequiredArgsConstructor
 public class InviteServiceImpl implements InviteService {
 
-  private final StringRedisTemplate redis;
-  private final ObjectMapper om;
-  private final WalletPolicyQueryServiceImpl walletPolicyService;
+    private final StringRedisTemplate redis;
+    private final ObjectMapper om;
+    private final WalletPolicyQueryServiceImpl walletPolicyService;
 
-  private final WalletMemberRepository memberRepo;          
-  private final WalletMemberReadRepository memberReadRepo;  
-  private final com.bni.orange.wallet.repository.read.WalletReadRepository walletReadRepo;
-  private final com.bni.orange.wallet.repository.WalletRepository walletRepo;
-  private final com.bni.orange.wallet.repository.read.UserWalletReadRepository userWalletReadRepo;
-  private final ApplicationEventPublisher appEvents;
+    private final WalletMemberRepository memberRepo;
+    private final WalletMemberReadRepository memberReadRepo;
+    private final com.bni.orange.wallet.repository.read.WalletReadRepository walletReadRepo;
+    private final com.bni.orange.wallet.repository.WalletRepository walletRepo;
+    private final com.bni.orange.wallet.repository.read.UserWalletReadRepository userWalletReadRepo;
+    private final ApplicationEventPublisher appEvents;
 
-  @Value("${spring.security.invite.secret}")
-  String inviteSecret;
+    @Value("${spring.security.invite.secret}")
+    String inviteSecret;
 
-  @Value("${app.invite.ttl-seconds:600}")
-  long ttlSeconds;
+    @Value("${app.invite.ttl-seconds:600}")
+    long ttlSeconds;
 
-  @Value("${app.invite.base-url}")
-  String baseUrl;
+    @Value("${app.invite.base-url}")
+    String baseUrl;
 
   private static final String KEY_FMT = "wallet:invite:%s:%s:%s";
   private static final String INDEX_KEY_FMT  = "wallet:invite:index:%s:%s";
+
   @Override
   @Transactional
   public GeneratedInvite generateInviteLink(UUID walletId, UUID userId, String phoneE164, WalletMemberRole role) {
@@ -102,7 +102,7 @@ public class InviteServiceImpl implements InviteService {
     }
     walletRepo.findById(walletId).orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
     String conflictIndexKey;
-    String keyForConflictValue; // Nilai yang digunakan untuk format KEY_FMT
+    String keyForConflictValue; 
     
     if (userId != null) {
         keyForConflictValue = userId.toString();
@@ -179,6 +179,7 @@ public class InviteServiceImpl implements InviteService {
         .code(code)
         .build();
   }
+
   private WalletMember requireAdminOrOwner(UUID walletId) {
     var uid = CurrentUser.userId();
     var me = memberRepo.findByWalletIdAndUserId(walletId, uid)
@@ -192,6 +193,7 @@ public class InviteServiceImpl implements InviteService {
     }
     return me;
   }
+
   @Override
   public InviteInspectResponse inspect(String token) {
     try {
@@ -199,8 +201,20 @@ public class InviteServiceImpl implements InviteService {
       var walletId = UUID.fromString((String) claims.get("wid"));
       var uidStr   = (String) claims.get("uid");
       var nonce    = (String) claims.get("n");
+      if (uidStr != null) {
+          var inviteUserId = UUID.fromString(uidStr);
+          var currentUserId = CurrentUser.userId();
+          if (currentUserId == null || !inviteUserId.equals(currentUserId)) {
+              throw new ForbiddenOperationException("Invite is not for this account");
+          }
+      }
 
       var session = getSessionFlexible(walletId, uidStr, nonce);
+      String walletName = "Shared Wallet";
+      var walletOpt = walletReadRepo.findById(walletId);
+      if (walletOpt.isPresent()) {
+            walletName = walletOpt.get().getName();
+      }
       if (session == null) {
         return InviteInspectResponse.builder()
             .status("EXPIRED")
@@ -213,6 +227,7 @@ public class InviteServiceImpl implements InviteService {
       return InviteInspectResponse.builder()
           .status(isVerified ? "VERIFIED" : "VALID")          
           .walletId(walletId)
+          .walletName(walletName)
           .role(session.getRole())
           .phoneMasked(mask(session.getPhone()))
           .expiresAt(claims.getExpiration().toInstant().atOffset(ZoneOffset.UTC))
@@ -222,6 +237,7 @@ public class InviteServiceImpl implements InviteService {
       return InviteInspectResponse.builder().status("EXPIRED").build();
     }
   }
+
   @Override
   @Transactional
   public VerifyInviteCodeResponse verifyCode(String token, String code) {
@@ -229,13 +245,20 @@ public class InviteServiceImpl implements InviteService {
       throw new ValidationFailedException("Token and code are required");
     }
     var initialClaims = parseAndValidate(token);
-    if (initialClaims.containsKey("uid")) {
-        throw new ForbiddenOperationException("Invite already verified or bound to a user, please proceed to accept token.");
-    }
+
     var wid      = UUID.fromString((String) initialClaims.get("wid"));
     var nonce    = (String) initialClaims.get("n");
     var expires  = initialClaims.getExpiration().toInstant().atOffset(ZoneOffset.UTC);
-    var anonKey = String.format(KEY_FMT, wid, "-", nonce);
+    var uidStr   = (String) initialClaims.get("uid");
+    if (uidStr == null) {
+        throw new ValidationFailedException("Invite is not bound to a user");
+    }
+    var inviteUserId  = UUID.fromString(uidStr);
+    var currentUserId = CurrentUser.userId();
+    if (currentUserId == null || !inviteUserId.equals(currentUserId)) {
+        throw new ForbiddenOperationException("Invite is not for this account");
+    }
+    var anonKey = String.format(KEY_FMT, wid, uidStr, nonce);
     var json = redis.opsForValue().get(anonKey);
     if (json == null) {
       return VerifyInviteCodeResponse.builder()
@@ -249,7 +272,7 @@ public class InviteServiceImpl implements InviteService {
 
     if (s.getAttempts() >= s.getMaxAttempts()) {
       redis.delete(anonKey);
-      String indexKey = String.format(INDEX_KEY_FMT, wid, s.getPhone());
+      String indexKey = String.format("wallet:invite:index:user:%s:%s", wid, uidStr);
       redis.delete(indexKey);
       return VerifyInviteCodeResponse.builder()
           .status("EXPIRED").walletId(wid).verified(false).expiresAt(expires)
@@ -274,14 +297,12 @@ public class InviteServiceImpl implements InviteService {
           .expiresAt(expires)
           .build();
     }
-
     var uid = CurrentUser.userId();                
     s.setUserId(uid);
     s.setStatus("VERIFIED");
-    var boundKey = String.format(KEY_FMT, wid, uid, nonce);
     redis.delete(anonKey);
     var remain = remainingTtlSeconds(s.getCreatedAt());
-    if (remain > 0) redis.opsForValue().set(boundKey, writeJson(s), Duration.ofSeconds(remain));
+    if (remain > 0) redis.opsForValue().set(anonKey, writeJson(s), Duration.ofSeconds(remain));
 
     String boundToken = signToken(wid, uid, nonce);
 
@@ -426,6 +447,20 @@ public class InviteServiceImpl implements InviteService {
       throw new RuntimeException(e);
     }
   }
+  private String normalizePhone(String p) {
+    if (p == null) return null;
+    String s = p.trim().replaceAll("[^0-9+]", "");
+    if (s.startsWith("0")) {
+        s = "62" + s.substring(1);
+    }
+    if (s.startsWith("62")) {
+        s = "+" + s;
+    }
+    if (!s.startsWith("+")) {
+        s = "+" + s;
+    }
+    return s;
+}
   private void recountMembersActive(WalletMember m) {
     long active = memberReadRepo.countByWalletIdAndStatusIn(
         m.getWalletId(),
@@ -517,5 +552,4 @@ public class InviteServiceImpl implements InviteService {
         .build();
     memberReadRepo.save(read);
   }
-
 }

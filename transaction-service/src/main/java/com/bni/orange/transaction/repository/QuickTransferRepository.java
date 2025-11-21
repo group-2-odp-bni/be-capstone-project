@@ -63,4 +63,7 @@ public interface QuickTransferRepository extends JpaRepository<QuickTransfer, UU
         @Param("searchTerm") String searchTerm,
         Pageable pageable
     );
+
+    // Find all quick transfers where the given user is the recipient
+    List<QuickTransfer> findByRecipientUserId(UUID recipientUserId);
 }

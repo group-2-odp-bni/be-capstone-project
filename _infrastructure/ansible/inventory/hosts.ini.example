@@ -1,0 +1,61 @@
+# =============================================================================
+# Ansible Inventory - Orange Wallet K3s Cluster
+# =============================================================================
+#
+# IMPORTANT: This is an EXAMPLE file. The actual inventory will be generated
+# from Terraform outputs.
+#
+# To generate inventory from Terraform:
+#   cd ../terraform/environments/dev
+#   terraform output -json > ../../../ansible/inventory/terraform-output.json
+#   python3 ../../scripts/generate-inventory.py
+#
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# K3s Master Nodes
+# -----------------------------------------------------------------------------
+[k3s_master]
+orange-wallet-master ansible_host=34.101.XXX.XXX ansible_user=ubuntu
+
+# -----------------------------------------------------------------------------
+# K3s Worker Nodes - Stateless
+# -----------------------------------------------------------------------------
+[k3s_workers_stateless]
+orange-wallet-worker-1 ansible_host=34.101.XXX.XXX ansible_user=ubuntu
+orange-wallet-worker-2 ansible_host=34.101.XXX.XXX ansible_user=ubuntu
+
+# -----------------------------------------------------------------------------
+# K3s Worker Nodes - Stateful
+# -----------------------------------------------------------------------------
+[k3s_workers_stateful]
+orange-wallet-worker-3 ansible_host=34.101.XXX.XXX ansible_user=ubuntu
+
+# -----------------------------------------------------------------------------
+# Group Aggregations
+# -----------------------------------------------------------------------------
+[k3s_workers:children]
+k3s_workers_stateless
+k3s_workers_stateful
+
+[k3s_cluster:children]
+k3s_master
+k3s_workers
+
+# -----------------------------------------------------------------------------
+# Group Variables
+# -----------------------------------------------------------------------------
+[k3s_master:vars]
+k3s_role=master
+
+[k3s_workers_stateless:vars]
+k3s_role=worker
+workload_type=stateless
+
+[k3s_workers_stateful:vars]
+k3s_role=worker
+workload_type=stateful
+
+[k3s_cluster:vars]
+ansible_python_interpreter=/usr/bin/python3
+ansible_ssh_private_key_file=~/.ssh/orange-wallet-key

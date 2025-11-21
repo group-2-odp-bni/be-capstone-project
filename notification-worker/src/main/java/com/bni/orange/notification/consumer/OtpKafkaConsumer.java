@@ -20,8 +20,8 @@ public class OtpKafkaConsumer {
 
     @KafkaListener(
         topics = "${orange.kafka.topics.otp-whatsapp}",
-        groupId = "${spring.kafka.consumer.group-id}",
-        concurrency = "3"
+        groupId = "${orange.kafka.groups.otp-whatsapp}",
+        concurrency = "2"
     )
     public void listen(ConsumerRecord<String, byte[]> record, Acknowledgment acknowledgment) {
         OtpNotificationEvent event = null;

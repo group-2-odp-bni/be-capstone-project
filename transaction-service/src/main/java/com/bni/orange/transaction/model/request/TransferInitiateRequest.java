@@ -6,10 +6,12 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import lombok.Builder;
 
 import java.math.BigDecimal;
 import java.util.UUID;
 
+@Builder
 public record TransferInitiateRequest(
     @NotNull(message = "Receiver user ID is required")
     UUID receiverUserId,
@@ -27,6 +29,11 @@ public record TransferInitiateRequest(
 
     @Size(max = 255, message = "Notes cannot exceed 255 characters")
     String notes,
+
+    // NEW - optional fields untuk Split Bill
+    String splitBillId,
+
+    String splitBillMemberId,
 
     @NotBlank(message = "Currency is required")
     @Pattern(regexp = "^[A-Z]{3}$", message = "Currency must be 3-letter ISO code")

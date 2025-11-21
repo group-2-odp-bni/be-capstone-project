@@ -2,9 +2,9 @@ package com.bni.orange.wallet.repository.read;
 
 import com.bni.orange.wallet.model.entity.read.WalletMemberRead;
 import com.bni.orange.wallet.model.enums.WalletMemberStatus;
-import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 import java.util.Optional;
@@ -17,5 +17,6 @@ public interface WalletMemberReadRepository extends JpaRepository<WalletMemberRe
 
   Page<WalletMemberRead> findByWalletId(UUID walletId, Pageable pageable);
   void deleteByWalletIdAndUserId(java.util.UUID walletId, java.util.UUID userId);
+  void deleteAllByWalletId(UUID walletId);
 
 }

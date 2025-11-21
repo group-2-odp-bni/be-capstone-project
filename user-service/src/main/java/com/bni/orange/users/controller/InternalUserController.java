@@ -25,7 +25,6 @@ public class InternalUserController {
     private final InternalUserService internalUserService;
 
     @GetMapping("/by-phone")
-    @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
     public ResponseEntity<ApiResponse<UserProfileResponse>> findByPhoneNumber(
         @RequestParam("phone") @NotBlank String phoneNumber
     ) {
@@ -35,7 +34,6 @@ public class InternalUserController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('SCOPE_FULL_ACCESS')")
     public ResponseEntity<ApiResponse<UserProfileResponse>> findById(
         @PathVariable UUID id
     ) {

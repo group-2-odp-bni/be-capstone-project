@@ -1,0 +1,161 @@
+---
+# =============================================================================
+# Kustomization - Development Environment
+# =============================================================================
+# Development overlay with:
+# - Lower replica counts
+# - Reduced resource limits
+# - Mock services enabled
+# - Debug logging enabled
+# =============================================================================
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: orange-wallet-dev
+
+# Resources from base
+resources:
+  - ../../base/authentication-service
+  - ../../base/user-service
+  - ../../base/transaction-service
+  - ../../base/wallet-service
+  - ../../base/api-gateway
+  - ../../base/ingress.yaml
+  - ../../base/network-policies.yaml
+
+# Patches for dev environment
+patches:
+  # Reduce replicas for all deployments
+  - target:
+      kind: Deployment
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+
+  # Reduce resource requests/limits
+  - target:
+      kind: Deployment
+      name: authentication-service
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: 100m
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: 256Mi
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: 500m
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: 512Mi
+
+  - target:
+      kind: Deployment
+      name: user-service
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: 100m
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: 256Mi
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: 500m
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: 512Mi
+
+  - target:
+      kind: Deployment
+      name: transaction-service
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: 200m
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: 384Mi
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: 750m
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: 768Mi
+
+  - target:
+      kind: Deployment
+      name: wallet-service
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: 200m
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: 384Mi
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: 750m
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: 768Mi
+
+  - target:
+      kind: Deployment
+      name: api-gateway
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: 200m
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: 256Mi
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: 500m
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: 512Mi
+
+# ConfigMap patches for dev-specific config
+configMapGenerator:
+  - name: transaction-service-config
+    behavior: merge
+    literals:
+      - bni-va.mock-enabled=true
+      - transaction.limit.transfer.max-amount=5000000  # Lower limit for dev
+
+# Image tags (can be overridden with specific dev tags)
+images:
+  - name: asia-southeast2-docker.pkg.dev/orange-wallet/orange-wallet-registry/authentication-service
+    newTag: dev-latest
+
+  - name: asia-southeast2-docker.pkg.dev/orange-wallet/orange-wallet-registry/user-service
+    newTag: dev-latest
+
+  - name: asia-southeast2-docker.pkg.dev/orange-wallet/orange-wallet-registry/transaction-service
+    newTag: dev-latest
+
+  - name: asia-southeast2-docker.pkg.dev/orange-wallet/orange-wallet-registry/wallet-service
+    newTag: dev-latest
+
+  - name: asia-southeast2-docker.pkg.dev/orange-wallet/orange-wallet-registry/api-gateway
+    newTag: dev-latest
+
+# Labels for all resources
+labels:
+  - pairs:
+      environment: dev
+      app.kubernetes.io/environment: dev
+
+# HPA patches - reduce max replicas for dev
+patches:
+  - target:
+      kind: HorizontalPodAutoscaler
+    patch: |-
+      - op: replace
+        path: /spec/maxReplicas
+        value: 3

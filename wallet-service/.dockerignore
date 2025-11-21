@@ -1,7 +1,41 @@
-build
-.gradle
-**/.idea
-**/.vscode
-**/.DS_Store
+# Build output
+build/
+target/
+out/
+*.jar
+*.war
+*.ear
+
+# Gradle cache (keep gradle wrapper)
+.gradle/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+**/.idea/
+**/.vscode/
 *.iml
-out
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+
+# OS
+**/.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Logs
+*.log
+logs/
+_logs/
+
+# Docker
+docker-compose*.yml
+
+# Documentation
+*.md
+docs/

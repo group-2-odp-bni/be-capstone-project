@@ -13,6 +13,7 @@ import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
 import org.springframework.stereotype.Component;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
@@ -32,8 +33,10 @@ public class ScopeValidationGatewayFilterFactory extends AbstractGatewayFilterFa
     @Override
     public GatewayFilter apply(Config config) {
         return (exchange, chain) -> {
-            Optional<String> tokenOptional = extractBearerToken(exchange);
-            return tokenOptional.map(s -> jwtDecoder.decode(s)
+            var tokenOptional = extractBearerToken(exchange);
+
+            return tokenOptional
+                .map(s -> jwtDecoder.decode(s)
                 .flatMap(jwt -> {
                     List<String> scopes = jwt.getClaimAsStringList("scope");
                     if (scopes == null || !scopes.contains(config.getRequiredScope())) {
@@ -48,20 +51,22 @@ public class ScopeValidationGatewayFilterFactory extends AbstractGatewayFilterFa
                 .onErrorResume(JwtException.class, e -> {
                     log.debug("JWT validation failed during scope check: {}", e.getMessage());
                     return Mono.error(new JwtAuthenticationException("TOKEN_INVALID", "Invalid token for scope validation"));
-                })).orElseGet(() -> Mono.error(JwtAuthenticationException.tokenMissing()));
+                }))
+                .orElseGet(() -> Mono.error(JwtAuthenticationException.tokenMissing()));
 
         };
     }
 
-    private Optional<String> extractBearerToken(org.springframework.web.server.ServerWebExchange exchange) {
-        return Optional.ofNullable(exchange.getRequest().getHeaders().getFirst("Authorization"))
+    private Optional<String> extractBearerToken(ServerWebExchange exchange) {
+        return Optional
+            .ofNullable(exchange.getRequest().getHeaders().getFirst("Authorization"))
             .filter(header -> header.startsWith("Bearer "))
             .map(header -> header.substring(7));
     }
 
-    @Validated
     @Getter
     @Setter
+    @Validated
     public static class Config {
         @NotEmpty
         private String requiredScope;

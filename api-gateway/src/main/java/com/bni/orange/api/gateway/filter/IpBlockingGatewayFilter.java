@@ -1,5 +1,6 @@
 package com.bni.orange.api.gateway.filter;
 
+import com.bni.orange.api.gateway.config.SecurityProperties;
 import com.bni.orange.api.gateway.service.IpBlockingService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -7,8 +8,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.Ordered;
-import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -21,21 +22,30 @@ import java.util.Optional;
 
 @Slf4j
 @Component
+@Profile("!load-test")
 @RequiredArgsConstructor
 public class IpBlockingGatewayFilter implements GlobalFilter, Ordered {
 
     private final IpBlockingService ipBlockingService;
+    private final SecurityProperties securityProperties;
     private final ObjectMapper objectMapper;
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         var ipAddress = extractIpAddress(exchange);
 
-        return ipBlockingService.isIpBlocked(ipAddress)
+        if (securityProperties.whitelistedIps() != null && securityProperties.whitelistedIps().contains(ipAddress)) {
+            log.trace("IP {} is whitelisted, skipping IP blocking check.", ipAddress);
+            return chain.filter(exchange);
+        }
+
+        return ipBlockingService
+            .isIpBlocked(ipAddress)
             .flatMap(isBlocked -> {
                 if (isBlocked) {
                     log.warn("Blocking request from blacklisted IP: {}", ipAddress);
-                    return ipBlockingService.getBlockTimeRemaining(ipAddress)
+                    return ipBlockingService
+                        .getBlockTimeRemaining(ipAddress)
                         .flatMap(remainingSeconds -> sendBlockedResponse(exchange, ipAddress, remainingSeconds));
                 }
                 return chain.filter(exchange);
@@ -43,7 +53,8 @@ public class IpBlockingGatewayFilter implements GlobalFilter, Ordered {
     }
 
     private String extractIpAddress(ServerWebExchange exchange) {
-        return Optional.ofNullable(exchange.getRequest().getHeaders().getFirst("X-Forwarded-For"))
+        return Optional
+            .ofNullable(exchange.getRequest().getHeaders().getFirst("X-Forwarded-For"))
             .map(ip -> ip.split(",")[0].trim())
             .orElse(Optional.ofNullable(exchange.getRequest().getRemoteAddress())
                 .map(address -> address.getAddress().getHostAddress())
@@ -63,8 +74,8 @@ public class IpBlockingGatewayFilter implements GlobalFilter, Ordered {
         errorResponse.put("timestamp", System.currentTimeMillis());
 
         try {
-            byte[] bytes = objectMapper.writeValueAsBytes(errorResponse);
-            DataBuffer buffer = exchange.getResponse().bufferFactory().wrap(bytes);
+            var bytes = objectMapper.writeValueAsBytes(errorResponse);
+            var buffer = exchange.getResponse().bufferFactory().wrap(bytes);
             return exchange.getResponse().writeWith(Mono.just(buffer));
         } catch (JsonProcessingException e) {
             log.error("Error creating blocked response", e);

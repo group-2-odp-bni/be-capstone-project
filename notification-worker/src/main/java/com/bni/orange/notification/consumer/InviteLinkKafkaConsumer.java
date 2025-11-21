@@ -21,11 +21,11 @@ public class InviteLinkKafkaConsumer {
 
   @KafkaListener(
       topics = "${orange.kafka.topics.wallet-invite-generated:wallet.events.invite-generated}",
-      groupId = "${spring.kafka.consumer.group-id}",
-      concurrency = "3"
+      groupId = "${orange.kafka.groups.invite-link}",
+      concurrency = "2"
   )
   public void listen(ConsumerRecord<String, byte[]> record, Acknowledgment ack) {
-    WalletInviteLinkGeneratedEvent event = null;
+    WalletInviteLinkGeneratedEvent event;
 
     try {
       var env = EventEnvelope.parseFrom(record.value());
@@ -37,7 +37,8 @@ public class InviteLinkKafkaConsumer {
 
       event = env.getPayload().unpack(WalletInviteLinkGeneratedEvent.class);
       var phone = event.getPhoneE164();
-      if (phone == null || phone.isBlank()) {
+
+      if (phone.isBlank()) {
         throw new IllegalArgumentException("Phone E164 missing in event");
       }
 
@@ -45,7 +46,8 @@ public class InviteLinkKafkaConsumer {
           event.getWalletId(), mask(phone));
 
       // Kirim WA: link + kode (masked / plain sesuai kebijakan)
-      whatsAppService.sendInviteLink(event)
+      whatsAppService
+          .sendInviteLink(event)
           .block(java.time.Duration.ofSeconds(35));
 
       ack.acknowledge();

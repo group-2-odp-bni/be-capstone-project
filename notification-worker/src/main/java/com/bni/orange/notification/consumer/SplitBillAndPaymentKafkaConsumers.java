@@ -30,8 +30,8 @@ public class SplitBillAndPaymentKafkaConsumers {
 
   @KafkaListener(
       topics = "${orange.kafka.topics.splitbill-created:splitbill.events.created}",
-      groupId = "${spring.kafka.consumer.group-id}",
-      concurrency = "3"
+      groupId = "${orange.kafka.groups.split-bill}",
+      concurrency = "2"
   )
   public void onSplitBillCreated(ConsumerRecord<String, byte[]> record, Acknowledgment ack) {
     try {
@@ -57,7 +57,7 @@ public class SplitBillAndPaymentKafkaConsumers {
 
   @KafkaListener(
       topics = "${orange.kafka.topics.splitbill-reminded:splitbill.events.reminded}",
-      groupId = "${spring.kafka.consumer.group-id}",
+      groupId = "${orange.kafka.groups.split-bill}",
       concurrency = "3"
   )
   public void onSplitBillReminded(ConsumerRecord<String, byte[]> record, Acknowledgment ack) {
@@ -84,7 +84,7 @@ public class SplitBillAndPaymentKafkaConsumers {
 
   @KafkaListener(
       topics = "${orange.kafka.topics.payment-intent:payment.intent.created}",
-      groupId = "${spring.kafka.consumer.group-id}",
+      groupId = "${orange.kafka.groups.payment}",
       concurrency = "3"
   )
   public void onPaymentIntentCreated(ConsumerRecord<String, byte[]> record, Acknowledgment ack) {
@@ -111,7 +111,7 @@ public class SplitBillAndPaymentKafkaConsumers {
 
   @KafkaListener(
       topics = "${orange.kafka.topics.payment-status:payment.status.updated}",
-      groupId = "${spring.kafka.consumer.group-id}",
+      groupId = "${orange.kafka.groups.payment}",
       concurrency = "3"
   )
   public void onPaymentStatusUpdated(ConsumerRecord<String, byte[]> record, Acknowledgment ack) {

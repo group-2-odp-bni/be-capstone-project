@@ -1,0 +1,75 @@
+# =============================================================================
+# Terraform Variables - Development Environment
+# =============================================================================
+# Copy this file to terraform.tfvars and fill in your values
+# Command: cp terraform.tfvars.example terraform.tfvars
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# REQUIRED: Project Configuration
+# -----------------------------------------------------------------------------
+
+project_id = "orange-wallet-project" # Change to your GCP project ID
+region     = "asia-southeast2"       # Jakarta, Indonesia
+zone       = "asia-southeast2-a"
+
+# -----------------------------------------------------------------------------
+# OPTIONAL: Network Configuration (defaults are recommended)
+# -----------------------------------------------------------------------------
+
+# vpc_name     = "orange-wallet-vpc"
+# subnet_cidr  = "10.0.0.0/24"      # 254 usable IPs for nodes
+# pod_cidr     = "10.1.0.0/16"      # 65k IPs for pods
+# service_cidr = "10.2.0.0/16"      # 65k IPs for services
+
+# -----------------------------------------------------------------------------
+# OPTIONAL: Compute Configuration
+# -----------------------------------------------------------------------------
+
+# Master node (K3s control plane)
+# master_machine_type = "e2-standard-2" # 2 vCPU, 8GB RAM
+# master_disk_size    = 50              # GB
+
+# Worker nodes (applications)
+# worker_stateless_machine_type = "e2-medium"     # 2 vCPU, 4GB RAM
+# worker_stateful_machine_type  = "e2-standard-2" # 2 vCPU, 8GB RAM
+# worker_disk_size              = 50              # GB
+
+# -----------------------------------------------------------------------------
+# REQUIRED: SSH Configuration
+# -----------------------------------------------------------------------------
+
+ssh_user            = "ubuntu"
+ssh_public_key_path = "~/.ssh/orange-wallet-key.pub" # Path to your SSH public key
+
+# -----------------------------------------------------------------------------
+# OPTIONAL: Storage Configuration
+# -----------------------------------------------------------------------------
+
+# backup_bucket_name    = "orange-wallet-backups"       # Must be globally unique
+# backup_retention_days = 30
+
+# -----------------------------------------------------------------------------
+# OPTIONAL: Service Account
+# -----------------------------------------------------------------------------
+
+# k3s_node_sa_email = "k3s-node-sa@orange-wallet-project.iam.gserviceaccount.com"
+
+# -----------------------------------------------------------------------------
+# OPTIONAL: Feature Flags
+# -----------------------------------------------------------------------------
+
+# enable_cloud_nat   = false # Enable NAT for private instances
+# enable_monitoring  = true  # GCP Cloud Monitoring
+# enable_logging     = true  # GCP Cloud Logging
+
+# -----------------------------------------------------------------------------
+# OPTIONAL: Custom Labels
+# -----------------------------------------------------------------------------
+
+# labels = {
+#   project     = "orange-wallet"
+#   environment = "dev"
+#   managed-by  = "terraform"
+#   team        = "platform"
+# }

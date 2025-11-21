@@ -73,4 +73,11 @@ public class DomainEvents {
         WalletMemberRole role;    // final role
         OffsetDateTime occurredAt;
     }
+    @Value
+    
+    @Builder
+    public static class WalletMembersCleared {
+        UUID walletId;
+    }
+
 }

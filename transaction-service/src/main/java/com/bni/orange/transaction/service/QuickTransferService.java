@@ -101,7 +101,17 @@ public class QuickTransferService {
     public void addOrUpdateFromTransaction(UUID userId, UUID recipientUserId, String recipientName, String recipientPhone) {
         quickTransferRepository.findByUserIdAndRecipientUserId(userId, recipientUserId)
             .ifPresentOrElse(
-                this::incrementQuickTransferUsage,
+                existing -> {
+                    incrementQuickTransferUsage(existing);
+                    // Fallback: lazy update name if changed (safety net if event consumer fails)
+                    if (!existing.getRecipientName().equals(recipientName)) {
+                        log.info("Lazy updating recipient name in quick transfer: {} -> {} (fallback mechanism)",
+                            existing.getRecipientName(), recipientName);
+                        existing.setRecipientName(recipientName);
+                        existing.setRecipientAvatarInitial(QuickTransfer.getAvatarInitial(recipientName));
+                        quickTransferRepository.save(existing);
+                    }
+                },
                 () -> createNewQuickTransfer(userId, recipientUserId, recipientName, recipientPhone)
             );
     }
@@ -219,4 +229,33 @@ public class QuickTransferService {
                 .build())
             .build();
     }
+
+    @Transactional
+    public void syncRecipientName(UUID recipientUserId, String newName) {
+        log.info("Syncing recipient name for user: {} to '{}'", recipientUserId, newName);
+
+        var quickTransfers = quickTransferRepository.findByRecipientUserId(recipientUserId);
+
+        if (quickTransfers.isEmpty()) {
+            log.debug("No quick transfers found for recipient user: {}", recipientUserId);
+            return;
+        }
+
+        var updatedTransfers = quickTransfers.stream()
+            .filter(qt -> !newName.equals(qt.getRecipientName()))
+            .peek(qt -> {
+                qt.setRecipientName(newName);
+                qt.setRecipientAvatarInitial(QuickTransfer.getAvatarInitial(newName));
+            })
+            .toList();
+
+        if (updatedTransfers.isEmpty()) {
+            log.debug("No updates needed for recipient user: {} (already up-to-date)", recipientUserId);
+            return;
+        }
+
+        quickTransferRepository.saveAll(updatedTransfers);
+        log.info("Successfully synced recipient name for {} quick transfer(s) (user: {})", updatedTransfers.size(), recipientUserId);
+    }
+
 }

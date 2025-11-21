@@ -1,0 +1,256 @@
+name: Deploy Infrastructure to K3s
+
+# ⚠️ WARNING: This workflow is for INITIAL SETUP ONLY
+# Infrastructure (PostgreSQL, Redis, MongoDB, Kafka) is already deployed and managed by K3s.
+# Secrets are managed within the cluster (database namespace: postgres-credentials, redis-credentials, mongodb-credentials).
+# Only use this workflow if you need to redeploy infrastructure from scratch.
+
+on:
+  workflow_dispatch:
+    inputs:
+      components:
+        description: 'Components to deploy (comma-separated: postgres,redis,kafka or "all")'
+        required: true
+        default: 'all'
+      confirm:
+        description: 'Type "DEPLOY" to confirm infrastructure deployment'
+        required: true
+
+env:
+  NAMESPACE: orange-wallet
+
+jobs:
+  validate-input:
+    name: Validate Deployment Input
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate confirmation
+        run: |
+          if [[ "${{ github.event.inputs.confirm }}" != "DEPLOY" ]]; then
+            echo "❌ Deployment cancelled. You must type 'DEPLOY' to confirm."
+            exit 1
+          fi
+          echo "✅ Confirmation validated"
+
+      - name: Show deployment plan
+        run: |
+          echo "=========================================="
+          echo "🏗️  INFRASTRUCTURE DEPLOYMENT PLAN"
+          echo "=========================================="
+          echo ""
+          echo "Namespace: ${{ env.NAMESPACE }}"
+          echo "Components: ${{ github.event.inputs.components }}"
+          echo "Triggered by: ${{ github.actor }}"
+          echo ""
+          echo "⚠️  WARNING: This will deploy stateful services!"
+          echo "⚠️  Make sure you understand the implications."
+          echo ""
+
+  deploy-infrastructure:
+    name: Deploy Infrastructure Components
+    runs-on: ubuntu-latest
+    needs: validate-input
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.14.0'
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Verify cluster connection
+        run: |
+          echo "Connecting to K3s cluster..."
+          kubectl cluster-info
+          kubectl get nodes
+          echo ""
+          echo "✅ Connected to cluster"
+
+      - name: Create namespace if not exists
+        run: |
+          kubectl create namespace ${{ env.NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create namespace database --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create namespace messaging --dry-run=client -o yaml | kubectl apply -f -
+          echo "✅ Namespaces ready"
+
+      # NOTE: Database secrets are managed by Helm charts or K3s manifests
+      # Secrets already exist in cluster:
+      #   - database/postgres-credentials
+      #   - database/redis-credentials
+      #   - database/mongodb-credentials
+      # No GitHub secrets needed: DB_USERNAME, DB_PASSWORD, DB_NAME
+
+      - name: Determine components to deploy
+        id: components
+        run: |
+          COMPONENTS="${{ github.event.inputs.components }}"
+
+          if [[ "$COMPONENTS" == "all" ]]; then
+            echo "deploy_postgres=true" >> $GITHUB_OUTPUT
+            echo "deploy_redis=true" >> $GITHUB_OUTPUT
+            echo "deploy_kafka=true" >> $GITHUB_OUTPUT
+          else
+            echo "deploy_postgres=false" >> $GITHUB_OUTPUT
+            echo "deploy_redis=false" >> $GITHUB_OUTPUT
+            echo "deploy_kafka=false" >> $GITHUB_OUTPUT
+
+            IFS=',' read -ra SELECTED <<< "$COMPONENTS"
+            for component in "${SELECTED[@]}"; do
+              component=$(echo "$component" | xargs)
+              case "$component" in
+                postgres|postgresql)
+                  echo "deploy_postgres=true" >> $GITHUB_OUTPUT
+                  ;;
+                redis)
+                  echo "deploy_redis=true" >> $GITHUB_OUTPUT
+                  ;;
+                kafka)
+                  echo "deploy_kafka=true" >> $GITHUB_OUTPUT
+                  ;;
+              esac
+            done
+          fi
+
+      - name: Deploy PostgreSQL
+        if: steps.components.outputs.deploy_postgres == 'true'
+        run: |
+          echo "=========================================="
+          echo "Deploying PostgreSQL..."
+          echo "=========================================="
+
+          helm upgrade --install postgres .k8s/charts/infrastructure/postgresql \
+            --namespace database \
+            --wait \
+            --timeout 10m \
+            --create-namespace
+
+          echo ""
+          echo "✅ PostgreSQL deployed"
+
+          echo "Waiting for PostgreSQL to be ready..."
+          kubectl wait --for=condition=ready pod -l app=postgresql \
+            -n database \
+            --timeout=300s
+
+          echo "✅ PostgreSQL is ready"
+
+      - name: Deploy Redis
+        if: steps.components.outputs.deploy_redis == 'true'
+        run: |
+          echo "=========================================="
+          echo "Deploying Redis..."
+          echo "=========================================="
+
+          helm upgrade --install redis .k8s/charts/infrastructure/redis \
+            --namespace database \
+            --wait \
+            --timeout 10m \
+            --create-namespace
+
+          echo ""
+          echo "✅ Redis deployed"
+
+          echo "Waiting for Redis to be ready..."
+          kubectl wait --for=condition=ready pod -l app=redis \
+            -n database \
+            --timeout=300s
+
+          echo "✅ Redis is ready"
+
+      - name: Deploy Kafka
+        if: steps.components.outputs.deploy_kafka == 'true'
+        run: |
+          echo "=========================================="
+          echo "Deploying Kafka..."
+          echo "=========================================="
+
+          helm upgrade --install kafka .k8s/charts/infrastructure/kafka \
+            --namespace messaging \
+            --wait \
+            --timeout 10m \
+            --create-namespace
+
+          echo ""
+          echo "✅ Kafka deployed"
+
+          echo "Waiting for Kafka to be ready..."
+          kubectl wait --for=condition=ready pod -l app=kafka,component=messaging \
+            -n messaging \
+            --timeout=300s
+
+          echo "✅ Kafka is ready"
+
+      - name: Verify infrastructure deployment
+        run: |
+          echo "=========================================="
+          echo "Infrastructure Status"
+          echo "=========================================="
+          echo ""
+
+          echo "=== Database Pods ==="
+          kubectl get pods -n database
+          echo ""
+
+          echo "=== Messaging Pods ==="
+          kubectl get pods -n messaging
+          echo ""
+
+          echo "=== Database Services ==="
+          kubectl get svc -n database
+          echo ""
+
+          echo "=== Messaging Services ==="
+          kubectl get svc -n messaging
+          echo ""
+
+          echo "=== Database Persistent Volume Claims ==="
+          kubectl get pvc -n database
+          echo ""
+
+          echo "=== Database Secrets ==="
+          kubectl get secrets -n database
+          echo ""
+
+      - name: Deployment summary
+        if: always()
+        run: |
+          echo "=========================================="
+          echo "🏗️  Infrastructure Deployment Summary"
+          echo "=========================================="
+          echo ""
+          echo "Namespace: ${{ env.NAMESPACE }}"
+          echo "Components requested: ${{ github.event.inputs.components }}"
+          echo ""
+          echo "Deployed components:"
+          [[ "${{ steps.components.outputs.deploy_postgres }}" == "true" ]] && echo "  ✅ PostgreSQL"
+          [[ "${{ steps.components.outputs.deploy_redis }}" == "true" ]] && echo "  ✅ Redis"
+          [[ "${{ steps.components.outputs.deploy_kafka }}" == "true" ]] && echo "  ✅ Kafka"
+          echo ""
+          echo "Triggered by: ${{ github.actor }}"
+          echo "Completed at: $(date -u)"
+          echo ""
+          echo "⚠️  IMPORTANT NOTES:"
+          echo "  - Infrastructure is now running"
+          echo "  - Data is persistent via PVCs in database/messaging namespaces"
+          echo "  - Secrets are managed in cluster (postgres-credentials, redis-credentials, etc)"
+          echo "  - To remove, use: helm uninstall <component> -n <namespace>"
+          echo "    Example: helm uninstall postgres -n database"
+          echo "  - Deleting PVCs will DELETE ALL DATA!"
+          echo ""
+          echo "📋 Next Steps:"
+          echo "  1. Verify secrets: kubectl get secrets -n database"
+          echo "  2. Deploy applications via CD pipeline (push to main branch)"
+          echo "  3. Monitor ArgoCD for application sync"
+          echo ""

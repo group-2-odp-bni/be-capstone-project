@@ -1,14 +1,24 @@
 package com.bni.orange.wallet.model.entity.read;
 
-import com.bni.orange.wallet.model.enums.*;
-import lombok.*;
-import jakarta.persistence.*;
+import com.bni.orange.wallet.model.enums.WalletStatus;
+import com.bni.orange.wallet.model.enums.WalletType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import org.hibernate.annotations.JdbcType;
+import org.hibernate.dialect.PostgreSQLEnumJdbcType;
+
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
-
-import org.hibernate.annotations.JdbcType;
-import org.hibernate.dialect.PostgreSQLEnumJdbcType;
 
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 @Entity

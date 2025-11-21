@@ -14,7 +14,7 @@ FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
 RUN addgroup -S spring && adduser -S spring -G spring \
-    && apk add --no-cache tini
+    && apk add --no-cache tini gcompat curl
 
 COPY --from=build --chown=spring:spring /app/build/libs/*.jar app.jar
 
@@ -30,9 +30,8 @@ CMD ["java", \
     "-XX:InitialRAMPercentage=50.0", \
     "-XX:+TieredCompilation", \
     "-XX:TieredStopAtLevel=1", \
-    "-XX:+UseSerialGC", \
+    "-XX:+UseG1GC", \
     "-XX:MaxMetaspaceSize=128m", \
     "-Dspring.jmx.enabled=false", \
-    "-Dspring.main.lazy-initialization=true", \
     "-jar", \
     "app.jar"]

@@ -60,6 +60,14 @@ public class OtpService {
         redisTemplate.opsForValue().set(redisProperties.prefix().otpCooldown() + phoneNumber, "true", OTP_COOLDOWN_DURATION);
     }
 
+    public boolean isCooldownReset(String phoneNumber) {
+        return redisTemplate.hasKey(redisProperties.prefix().otpCooldown() + "reset:" + phoneNumber);
+    }
+
+    public void setCooldownReset(String phoneNumber) {
+        redisTemplate.opsForValue().set(redisProperties.prefix().otpCooldown() + "reset:" + phoneNumber, "true", OTP_COOLDOWN_DURATION);
+    }
+
     private boolean isOtpLocked(String phoneNumber) {
         return redisTemplate.hasKey(redisProperties.prefix().otpLocked() + phoneNumber);
     }

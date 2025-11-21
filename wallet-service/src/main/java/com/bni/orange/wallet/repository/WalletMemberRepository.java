@@ -6,7 +6,6 @@ import com.bni.orange.wallet.model.enums.WalletMemberStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
-
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -28,6 +27,8 @@ public interface WalletMemberRepository extends JpaRepository<WalletMember, UUID
   Page<WalletMember> findByWalletId(UUID walletId, Pageable pageable);
 
   long countByWalletIdAndStatusIn(UUID walletId, List<WalletMemberStatus> statuses);
+
+  long countByUserIdAndWalletIdInAndStatus(UUID userId, List<UUID> walletIds, WalletMemberStatus status);
 
   void deleteByWalletIdAndUserId(java.util.UUID walletId, java.util.UUID userId);
 }

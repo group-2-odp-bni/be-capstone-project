@@ -1,18 +1,24 @@
 package com.bni.orange.transaction.config;
 
+import com.bni.orange.transaction.config.properties.KafkaConsumerProperties;
 import com.bni.orange.transaction.config.properties.KafkaProducerProperties;
 import com.bni.orange.transaction.config.properties.KafkaTopicProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.config.TopicBuilder;
+import org.springframework.kafka.core.ConsumerFactory;
+import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
+import org.springframework.kafka.listener.ContainerProperties;
 
 import java.util.HashMap;
 import java.util.List;
@@ -25,29 +31,36 @@ import java.util.stream.Collectors;
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
-@EnableConfigurationProperties({KafkaProducerProperties.class, KafkaTopicProperties.class})
+@EnableConfigurationProperties({
+    KafkaProducerProperties.class,
+    KafkaTopicProperties.class,
+    KafkaConsumerProperties.class
+})
 public class KafkaConfig {
 
-    private final KafkaProducerProperties kafkaProps;
+    private final KafkaProducerProperties producerProps;
     private final KafkaTopicProperties topicProps;
+    private final KafkaConsumerProperties consumerProps;
 
     @Bean
     public Map<String, Object> producerConfigs() {
         Map<String, Object> props = new HashMap<>();
-        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaProps.bootstrapServers());
-        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, kafkaProps.keySerializer());
-        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, kafkaProps.valueSerializer());
-        props.put(ProducerConfig.ACKS_CONFIG, kafkaProps.acks());
-        props.put(ProducerConfig.RETRIES_CONFIG, kafkaProps.retries());
-        props.put(ProducerConfig.RETRY_BACKOFF_MS_CONFIG, (int) kafkaProps.backoff().toMillis());
-        props.put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, kafkaProps.reliability().maxInFlightRequestsPerConnection());
-        props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, kafkaProps.idempotence());
-        props.put(ProducerConfig.LINGER_MS_CONFIG, kafkaProps.batching().lingerMs());
-        props.put(ProducerConfig.BATCH_SIZE_CONFIG, kafkaProps.batching().batchSize());
-        props.put(ProducerConfig.COMPRESSION_TYPE_CONFIG, kafkaProps.compressionType());
-        props.put(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG, (int) kafkaProps.reliability().requestTimeout().toMillis());
-        props.put(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, (int) kafkaProps.reliability().deliveryTimeout().toMillis());
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, producerProps.bootstrapServers());
+        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, producerProps.keySerializer());
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, producerProps.valueSerializer());
+        props.put(ProducerConfig.ACKS_CONFIG, producerProps.acks());
+        props.put(ProducerConfig.RETRIES_CONFIG, producerProps.retries());
+        props.put(ProducerConfig.RETRY_BACKOFF_MS_CONFIG, (int) producerProps.retryBackoffMs().toMillis());
+        props.put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, producerProps.reliability().maxInFlightRequestsPerConnection());
+        props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, producerProps.enableIdempotence());
+        props.put(ProducerConfig.LINGER_MS_CONFIG, producerProps.batching().lingerMs());
+        props.put(ProducerConfig.BATCH_SIZE_CONFIG, producerProps.batching().batchSize());
+        props.put(ProducerConfig.COMPRESSION_TYPE_CONFIG, producerProps.compressionType());
+        props.put(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG, (int) producerProps.reliability().requestTimeout().toMillis());
+        props.put(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, (int) producerProps.reliability().deliveryTimeout().toMillis());
 
+        log.info("Kafka producer configured: bootstrap={}, acks={}, idempotence={}",
+            producerProps.bootstrapServers(), producerProps.acks(), producerProps.enableIdempotence());
         return props;
     }
 
@@ -88,5 +101,42 @@ public class KafkaConfig {
                 return builder.build();
             })
             .collect(Collectors.toList());
+    }
+
+    @Bean
+    public Map<String, Object> consumerConfigs() {
+        Map<String, Object> props = new HashMap<>();
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, consumerProps.bootstrapServers());
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, consumerProps.groupId());
+        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, consumerProps.keyDeserializer());
+        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, consumerProps.valueDeserializer());
+        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, consumerProps.autoOffsetReset());
+        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, consumerProps.enableAutoCommit());
+        props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, consumerProps.maxPollRecords());
+        props.put(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, consumerProps.maxPollIntervalMs());
+        props.put(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, consumerProps.sessionTimeoutMs());
+        props.put(ConsumerConfig.HEARTBEAT_INTERVAL_MS_CONFIG, consumerProps.heartbeatIntervalMs());
+
+        log.info("Kafka consumer configured: bootstrap={}, groupId={}, autoOffsetReset={}",
+            consumerProps.bootstrapServers(), consumerProps.groupId(), consumerProps.autoOffsetReset());
+        return props;
+    }
+
+    @Bean
+    public ConsumerFactory<String, byte[]> consumerFactory() {
+        return new DefaultKafkaConsumerFactory<>(consumerConfigs());
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, byte[]> kafkaListenerContainerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, byte[]> factory =
+            new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(consumerFactory());
+        factory.setConcurrency(consumerProps.concurrency());
+        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL);
+
+        log.info("Kafka consumer factory configured with MANUAL ack mode and concurrency {}",
+            consumerProps.concurrency());
+        return factory;
     }
 }

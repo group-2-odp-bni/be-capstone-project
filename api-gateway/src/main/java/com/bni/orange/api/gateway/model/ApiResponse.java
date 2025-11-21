@@ -18,12 +18,8 @@ public class ApiResponse<T> {
     private final Instant timestamp = Instant.now();
     private final String path;
 
-    @Getter
     @Builder
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public static class ErrorDetail {
-        private final String code;
-        private final String message;
-        private final Object details;
+    public record ErrorDetail(String code, String message, Object details) {
     }
 }

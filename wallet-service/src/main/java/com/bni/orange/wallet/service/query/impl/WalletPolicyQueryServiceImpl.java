@@ -1,7 +1,8 @@
 package com.bni.orange.wallet.service.query.impl;
 
-import com.bni.orange.wallet.model.entity.read.WalletRead;
+import com.bni.orange.wallet.exception.business.ResourceNotFoundException;
 import com.bni.orange.wallet.model.entity.WalletTypePolicy;
+import com.bni.orange.wallet.model.entity.read.WalletRead;
 import com.bni.orange.wallet.model.enums.WalletType;
 import com.bni.orange.wallet.model.response.policy.WalletPolicyResponse;
 import com.bni.orange.wallet.repository.WalletTypePolicyRepository;
@@ -12,7 +13,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.bni.orange.wallet.exception.business.ResourceNotFoundException;
+
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;

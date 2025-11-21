@@ -3,6 +3,7 @@ package com.bni.orange.transaction.service;
 import com.bni.orange.transaction.client.UserServiceClient;
 import com.bni.orange.transaction.error.BusinessException;
 import com.bni.orange.transaction.error.ErrorCode;
+import com.bni.orange.transaction.model.request.QuickTransferAddRequest;
 import com.bni.orange.transaction.model.request.VerifyContactRequest;
 import com.bni.orange.transaction.model.response.PageResponse;
 import com.bni.orange.transaction.model.response.QuickTransferResponse;
@@ -32,7 +33,7 @@ public class ContactService {
     public PageResponse<QuickTransferResponse> searchContacts(UUID userId, String query, int page, int size) {
         log.debug("Searching contacts for user: {}, query: {}", userId, query);
 
-        if (query == null || query.trim().length() < 2) {
+        if (query == null || query.trim().length() < 3) {
             return PageResponse.empty(page, size);
         }
 
@@ -53,34 +54,27 @@ public class ContactService {
         if (userProfile == null) {
             log.warn("Phone number not registered: {}", request.phoneNumber());
             throw new BusinessException(
-                ErrorCode.USER_NOT_FOUND,
-                "This phone number is not registered in OrangePay"
+                ErrorCode.USER_NOT_FOUND, "This phone number is not registered in OrangePay"
             );
         }
 
         if (userProfile.id().equals(userId)) {
             log.warn("User {} trying to add themselves as contact", userId);
             throw new BusinessException(
-                ErrorCode.INVALID_REQUEST,
-                "You cannot add yourself as a contact"
+                ErrorCode.INVALID_REQUEST, "You cannot add yourself as a contact"
             );
         }
 
-        log.debug("Adding contact: userId={}, contactId={}, name={}",
-            userId, userProfile.id(), userProfile.name());
+        log.debug("Adding contact: userId={}, contactId={}, customName={}, systemName={}",
+            userId, userProfile.id(), request.name(), userProfile.name());
 
-        quickTransferService.addOrUpdateFromTransaction(
-            userId,
+        var addRequest = new QuickTransferAddRequest(
             userProfile.id(),
-            userProfile.name(),
+            request.name(),
             userProfile.phoneNumber()
         );
 
-        return quickTransferService.getQuickTransferByRecipientId(userId, userProfile.id())
-            .orElseThrow(() -> new BusinessException(
-                ErrorCode.INTERNAL_SERVER_ERROR,
-                "Failed to retrieve added contact"
-            ));
+        return quickTransferService.addQuickTransfer(userId, addRequest);
     }
 
     @Transactional

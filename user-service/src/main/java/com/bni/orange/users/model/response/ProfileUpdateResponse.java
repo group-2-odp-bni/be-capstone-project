@@ -20,11 +20,13 @@ public class ProfileUpdateResponse {
     @Builder
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class PendingVerification {
-        private String field;
+        private String fieldName;
         private String value;
         private Boolean otpSent;
         private Long expiresInSeconds;
         private String verifyEndpoint;
+        private Integer remainingGenerationAttempts;
+        private Long rateLimitResetInSeconds;
     }
 
     public boolean hasPendingVerifications() {

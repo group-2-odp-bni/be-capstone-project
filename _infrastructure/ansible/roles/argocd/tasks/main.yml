@@ -1,0 +1,82 @@
+---
+# =============================================================================
+# ArgoCD Role
+# =============================================================================
+
+- name: Add ArgoCD Helm repository
+  kubernetes.core.helm_repository:
+    name: argo
+    repo_url: https://argoproj.github.io/argo-helm
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+- name: Create argocd namespace
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: argocd
+
+- name: Install ArgoCD
+  kubernetes.core.helm:
+    name: argocd
+    chart_ref: argo/argo-cd
+    release_namespace: argocd
+    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    create_namespace: false
+    values:
+      server:
+        service:
+          type: NodePort
+          nodePortHttp: 30081
+      configs:
+        params:
+          server.insecure: true  # For HTTP access behind NGINX
+    wait: yes
+    timeout: 15m0s
+
+- name: Wait for ArgoCD server to be ready
+  kubernetes.core.k8s_info:
+    kind: Deployment
+    namespace: argocd
+    name: argocd-server
+    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    wait: yes
+    wait_condition:
+      type: Available
+      status: "True"
+    wait_timeout: 600
+
+- name: Get ArgoCD initial admin password
+  ansible.builtin.command: >
+    kubectl -n argocd get secret argocd-initial-admin-secret
+    -o jsonpath="{.data.password}"
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: argocd_password_encoded
+  changed_when: false
+
+- name: Decode ArgoCD admin password
+  ansible.builtin.set_fact:
+    argocd_admin_password: "{{ argocd_password_encoded.stdout | b64decode }}"
+
+- name: Display ArgoCD access information
+  ansible.builtin.debug:
+    msg: |
+      ========================================
+      ArgoCD Installed Successfully!
+      ========================================
+
+      Access ArgoCD UI:
+      - URL: http://<MASTER_IP>:30081
+      - Username: admin
+      - Password: {{ argocd_admin_password }}
+
+      Or via port-forward:
+      kubectl port-forward svc/argocd-server -n argocd 8080:443
+
+      Then access: https://localhost:8080
+      ========================================

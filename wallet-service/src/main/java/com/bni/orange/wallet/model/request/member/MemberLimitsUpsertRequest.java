@@ -2,7 +2,11 @@ package com.bni.orange.wallet.model.request.member;
 
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.PositiveOrZero;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.math.BigDecimal;
 

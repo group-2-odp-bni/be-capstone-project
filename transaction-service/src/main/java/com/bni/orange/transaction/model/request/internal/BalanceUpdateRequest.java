@@ -1,5 +1,6 @@
 package com.bni.orange.transaction.model.request.internal;
 
+import com.bni.orange.transaction.model.enums.TransferType;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -10,8 +11,20 @@ import java.util.UUID;
 
 @Builder
 public record BalanceUpdateRequest(
-    @NotNull UUID walletId,
-    @NotNull @Digits(integer = 20, fraction = 2) BigDecimal delta,
-    @NotBlank String referenceId,
-    String reason
+    @NotNull
+    UUID walletId,
+
+    @NotNull
+    @Digits(integer = 20, fraction = 2)
+    BigDecimal delta,
+
+    @NotBlank
+    String referenceId,
+
+    String reason,
+
+    @NotNull
+    UUID actorUserId,
+
+    TransferType transferType
 ) {}

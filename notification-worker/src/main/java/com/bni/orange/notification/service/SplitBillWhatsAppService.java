@@ -18,6 +18,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
 @Service
@@ -42,24 +43,25 @@ public class SplitBillWhatsAppService {
         .then();
 
     final int total = e.getMemberLinks() == null ? 0 : e.getMemberLinks().size();
-    java.util.concurrent.atomic.AtomicInteger ok = new java.util.concurrent.atomic.AtomicInteger();
-    java.util.concurrent.atomic.AtomicInteger fail = new java.util.concurrent.atomic.AtomicInteger();
+      var ok = new AtomicInteger();
+      var fail = new AtomicInteger();
 
-    Mono<Void> sendMembers = Flux.fromIterable(nullSafe(e.getMemberLinks()))
+      var sendMembers = Flux.fromIterable(nullSafe(e.getMemberLinks()))
         .index()
         .flatMap(t -> {
-          long idx = t.getT1() + 1;
-          MemberLink m = t.getT2();
+            var idx = t.getT1() + 1;
+            var m = t.getT2();
+
           return resolveRecipient(m.getPhoneE164(), null, String.valueOf(m.getUserId()))
               .flatMap(r -> {
-                String msg = r.known()
+                  var msg = r.known()
                     ? formatMemberBillCreatedKnown(e, safe(m.getShortLink()), r)
                     : formatMemberBillCreatedUnknown(e, safe(m.getShortLink()), r);
-                long start = System.nanoTime();
+                  var start = System.nanoTime();
                 return wahaApiClient.sendTextMessage(r.phoneE164(), msg)
                     .doOnSuccess(resp -> {
                       ok.incrementAndGet();
-                      long durMs = (System.nanoTime() - start) / 1_000_000;
+                        var durMs = (System.nanoTime() - start) / 1_000_000;
                       log.info("[{}/{}] SENT billId={} to={} waId={} in {}ms",
                           idx, total, e.getBillId(), mask(r.phoneE164()), resp.id(), durMs);
                     })
@@ -78,7 +80,8 @@ public class SplitBillWhatsAppService {
         }, 5)
         .then()
         .doFinally(sig -> log.info("SplitBillCreated summary billId={} total={} ok={} fail={} signal={}",
-            e.getBillId(), total, ok.get(), fail.get(), sig));
+            e.getBillId(), total, ok.get(), fail.get(), sig)
+        );
 
     return wahaSessionService.waitForSessionReady(5, 3)
         .then(sendOwner)
@@ -87,9 +90,9 @@ public class SplitBillWhatsAppService {
   }
 
   public Mono<Void> sendBillReminded(SplitBillRemindedEvent e) {
-    Mono<Void> sendMembers = Flux.fromIterable(nullSafe(e.getMemberLinks()))
-        .flatMap((MemberLink m) ->
-            resolveRecipient(m.getPhoneE164(), null, String.valueOf(m.getUserId()))
+      var sendMembers = Flux
+          .fromIterable(nullSafe(e.getMemberLinks()))
+          .flatMap((MemberLink m) -> resolveRecipient(m.getPhoneE164(), null, String.valueOf(m.getUserId()))
               .flatMap(r -> wahaApiClient.sendTextMessage(
                   r.phoneE164(),
                   r.known()
@@ -104,7 +107,7 @@ public class SplitBillWhatsAppService {
         , 5)
         .then();
 
-    Mono<Void> sendActorSummary = resolveRecipient(null, null, e.getRemindedByUserId())
+      var sendActorSummary = resolveRecipient(null, null, e.getRemindedByUserId())
         .flatMap(actor -> wahaApiClient.sendTextMessage(
             actor.phoneE164(), formatRemindedSummaryMessage(e, actor)
           ).doOnSuccess(this::logOk)
@@ -118,7 +121,7 @@ public class SplitBillWhatsAppService {
   }
 
   private Mono<Recipient> resolveRecipient(String phoneFromEvent, String nameFromEvent, String userId) {
-    String phone = normalizeE164(phoneFromEvent);
+      var phone = normalizeE164(phoneFromEvent);
     if (phone != null && !phone.isBlank()) {
       return userClient.findUserByPhone(phone)
           .map(this::toRecipientKnown)
@@ -131,8 +134,8 @@ public class SplitBillWhatsAppService {
   }
 
   private Recipient toRecipientKnown(UserProfileResponse u) {
-    String phone = normalizeE164(u.getPhoneNumber());
-    String name  = displayNameOrDefault(u.getFullName());
+      var phone = normalizeE164(u.getPhoneNumber());
+      var name = displayNameOrDefault(u.getFullName());
     return new Recipient(phone, name, true);
   }
 
@@ -244,11 +247,11 @@ public class SplitBillWhatsAppService {
     e.getResult().forEach((k, v) -> {
       if (v instanceof Map<?, ?> m) {
         Object s = m.get("success"); Object f = m.get("fail");
-        if (sb.length() > 0) sb.append(" • ");
+          if (!sb.isEmpty()) sb.append(" • ");
         sb.append(k).append(": ").append(s).append(" ok/").append(f).append(" gagal");
       } else {
-        if (sb.length() > 0) sb.append(" • ");
-        sb.append(k).append(": ").append(String.valueOf(v));
+          if (!sb.isEmpty()) sb.append(" • ");
+        sb.append(k).append(": ").append(v);
       }
     });
     return sb.toString();
@@ -264,8 +267,8 @@ public class SplitBillWhatsAppService {
   }
 
   private void logOk(WahaMessageResponse resp) {
-    Object ts = (resp.timestamp() != null) ? Instant.ofEpochSecond(resp.timestamp()) : "N/A";
-    log.info("WA sent. id={}, ts={}", resp.id(), ts);
+      var ts = (resp.timestamp() != null) ? Instant.ofEpochSecond(resp.timestamp()) : "N/A";
+      log.info("WA sent. id={}, ts={}", resp.id(), ts);
   }
 
   private String safe(String v) { return (v == null || v.isBlank()) ? "-" : v; }

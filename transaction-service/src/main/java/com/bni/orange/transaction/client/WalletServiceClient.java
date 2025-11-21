@@ -5,11 +5,13 @@ import com.bni.orange.transaction.error.ErrorCode;
 import com.bni.orange.transaction.model.request.internal.BalanceUpdateRequest;
 import com.bni.orange.transaction.model.request.internal.BalanceValidateRequest;
 import com.bni.orange.transaction.model.request.internal.RoleValidateRequest;
+import com.bni.orange.transaction.model.request.internal.ValidateWalletOwnershipRequest;
 import com.bni.orange.transaction.model.response.WalletResolutionResponse;
 import com.bni.orange.transaction.model.response.internal.BalanceUpdateResponse;
 import com.bni.orange.transaction.model.response.internal.InternalApiResponse;
 import com.bni.orange.transaction.model.response.internal.RoleValidateResponse;
 import com.bni.orange.transaction.model.response.internal.UserWalletsResponse;
+import com.bni.orange.transaction.model.response.internal.ValidateWalletOwnershipResponse;
 import com.bni.orange.transaction.model.response.internal.ValidationResultResponse;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.retry.Retry;
@@ -130,5 +132,22 @@ public class WalletServiceClient extends BaseServiceClient {
             }
         ).map(UserWalletsResponse::walletIds)
             .doOnSuccess(walletIds -> log.debug("User {} has access to {} wallets", userId, walletIds.size()));
+    }
+
+    public Mono<ValidateWalletOwnershipResponse> validateWalletOwnership(ValidateWalletOwnershipRequest request) {
+        log.debug("Validating wallet ownership for user: {} on wallets: {}", request.userId(), request.walletIds());
+
+        return executePostInternal(
+            uriSpec -> uriSpec
+                .uri("/internal/v1/wallets/ownership:validate")
+                .bodyValue(request),
+            new ParameterizedTypeReference<InternalApiResponse<ValidateWalletOwnershipResponse>>() {}
+        ).doOnSuccess(result -> {
+            if (result.isOwner()) {
+                log.debug("Wallet ownership validation passed for user: {}", request.userId());
+            } else {
+                log.warn("Wallet ownership validation failed for user: {}", request.userId());
+            }
+        });
     }
 }

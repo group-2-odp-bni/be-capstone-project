@@ -22,8 +22,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.UUID;
-
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/auth")
@@ -72,11 +70,7 @@ public class AuthController {
         HttpServletRequest servletRequest
     ) {
         var jwt = (Jwt) authentication.getPrincipal();
-        var userId = UUID.fromString(jwt.getSubject());
-        var scope = jwt.getClaimAsString("scope");
-        var jti = jwt.getId();
-
-        return ResponseEntity.ok(authFlowService.authenticateWithPin(userId, request.pin(), scope, jti, servletRequest));
+        return ResponseEntity.ok(authFlowService.authenticateWithPin(jwt.getTokenValue(), request.pin(), servletRequest));
     }
 
     @PostMapping("/refresh")

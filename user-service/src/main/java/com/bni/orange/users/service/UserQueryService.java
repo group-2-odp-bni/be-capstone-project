@@ -17,6 +17,7 @@ import java.util.UUID;
 public class UserQueryService {
 
     private final UserProfileRepository userProfileRepository;
+    private final FileStorageService fileStorageService;
 
     @Transactional(readOnly = true)
     public UserProfileResponse getCurrentUserProfile(UUID userId) {
@@ -29,6 +30,16 @@ public class UserQueryService {
                 return new BusinessException(ErrorCode.USER_NOT_FOUND);
             });
 
+        String profileImageUrl = null;
+        if (userProfile.getProfileImageUrl() != null && !userProfile.getProfileImageUrl().isBlank()) {
+            try {
+                profileImageUrl = fileStorageService.generateSignedUrl(userProfile.getProfileImageUrl());
+                log.debug("Generated signed URL for user {} profile image", userId);
+            } catch (Exception e) {
+                log.error("Failed to generate signed URL for user {} profile image. Returning null.", userId, e);
+            }
+        }
+
         return UserProfileResponse.builder()
             .id(userProfile.getId())
             .name(userProfile.getName())
@@ -37,7 +48,7 @@ public class UserQueryService {
             .bio(userProfile.getBio())
             .address(userProfile.getAddress())
             .dateOfBirth(userProfile.getDateOfBirth())
-            .profileImageUrl(userProfile.getProfileImageUrl())
+            .profileImageUrl(profileImageUrl) // Fresh signed URL with 60-min expiry
             .emailVerified(userProfile.hasVerifiedEmail())
             .phoneVerified(userProfile.hasVerifiedPhone())
             .emailVerifiedAt(userProfile.getEmailVerifiedAt())
