@@ -21,7 +21,7 @@ public class EmailOtpKafkaConsumer {
     @KafkaListener(
         topics = "${orange.kafka.topics.otp-email}",
         groupId = "${orange.kafka.groups.otp-email}",
-        concurrency = "3"
+        concurrency = "2"
     )
     public void listen(ConsumerRecord<String, byte[]> record, Acknowledgment acknowledgment) {
         OtpEmailNotificationEvent event = null;
