@@ -36,7 +36,8 @@ def create_short_tokens(bill_id: str, owner_user_id: str, members: List[Dict[str
 
     member_links = []
     docs = [{"token": owner_tok, "type": "owner", "bill_id": bill_id, "member_id": None,
-             "exp": exp_ts, "created_at": datetime.now(timezone.utc)}]
+                "user_id": owner_user_id, 
+                "exp": exp_ts, "created_at": datetime.now(timezone.utc)}]
 
     for m in members:
         mid = m.get("memberId") or m.get("member_id")
@@ -51,7 +52,8 @@ def create_short_tokens(bill_id: str, owner_user_id: str, members: List[Dict[str
                 "phoneE164": phone
                 })
         docs.append({"token": tok, "type": "member", "bill_id": bill_id,
-                     "member_id": mid, "user_id": uid,"exp": exp_ts, "created_at": datetime.now(timezone.utc)})
+                            "member_id": mid, "user_id": uid, 
+                            "exp": exp_ts, "created_at": datetime.now(timezone.utc)})
 
     try:
         shortlinks_collection.insert_many(docs, ordered=False)
@@ -80,4 +82,5 @@ def resolve_short_token(token: str) -> Dict[str, Any]:
     if datetime.now(timezone.utc).timestamp() > exp_ts:
         raise ValueError("token expired")
 
-    return {"type": doc["type"], "billId": doc["bill_id"], "memberId": doc.get("member_id")}
+    return {"type": doc["type"], "billId": doc["bill_id"], "memberId": doc.get("member_id"),
+            "userId": doc.get("user_id")}

@@ -162,7 +162,7 @@ def post_bills():
     assignments = payload.get("assignments") or []
     receipt_url = payload.get("imageUrl")
     tax_strategy = (payload.get("tax_strategy") or "proportional").lower()
-
+    creator_name=payload.get("creator_name")
     if not destination_wallet_id or not items or not assignments:
         return jsonify(_to_jsonable({"error": True, "message": "destinationWalletId, items, assignments wajib.", "data": None})), 400
     expanded_items = payload.get("expandedItems") or []
@@ -174,6 +174,7 @@ def post_bills():
     bill_doc = {
         "title": title,
         "creator_user_id": user_id,
+        "creator_name":creator_name,
         "destination_wallet_id": destination_wallet_id,
         "items_norm": items_norm,
         "components": comps,
