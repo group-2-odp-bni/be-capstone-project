@@ -26,6 +26,30 @@ jobs:
     name: Update ${{ inputs.service-name }} in GitOps
     runs-on: ubuntu-latest
     steps:
+      - name: Validate GitOps configuration
+        run: |
+          echo "🔍 Validating GitOps configuration..."
+          if [[ -z "${{ secrets.GITOPS_REPO }}" ]]; then
+            echo "❌ ERROR: GITOPS_REPO secret is not set"
+            exit 1
+          fi
+          if [[ -z "${{ secrets.GITOPS_TOKEN }}" ]]; then
+            echo "❌ ERROR: GITOPS_TOKEN secret is not set"
+            exit 1
+          fi
+
+          # Validate GITOPS_REPO format (should be owner/repo, not full URL)
+          REPO="${{ secrets.GITOPS_REPO }}"
+          if [[ "$REPO" == https://* ]] || [[ "$REPO" == http://* ]]; then
+            echo "❌ ERROR: GITOPS_REPO should be in format 'owner/repo', not a full URL"
+            echo "   Current format appears to be a URL"
+            echo "   Expected: group-2-odp-bni/orange-wallet-gitops"
+            exit 1
+          fi
+
+          echo "✅ GitOps configuration validated"
+          echo "   Repository: ${REPO}"
+
       - name: Checkout GitOps repository
         uses: actions/checkout@v4
         with:
@@ -33,9 +57,6 @@ jobs:
           token: ${{ secrets.GITOPS_TOKEN }}
           path: gitops
           fetch-depth: 1
-
-      - name: Setup yq (YAML processor)
-        uses: mikefarah/yq@v4
 
       - name: Update image tag in production overlay
         working-directory: gitops
