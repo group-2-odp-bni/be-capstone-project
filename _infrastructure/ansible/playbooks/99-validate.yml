@@ -134,27 +134,7 @@
       changed_when: false
       tags: [infrastructure, nginx]
 
-    - name: "VALIDATION 10 - Check Cert-Manager pods"
-      ansible.builtin.shell: |
-        kubectl get pods -n cert-manager --no-headers | grep -c "Running"
-      environment:
-        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
-      register: certmanager_pods
-      failed_when: certmanager_pods.stdout|int < 3
-      changed_when: false
-      tags: [infrastructure, cert-manager]
-
-    - name: "VALIDATION 11 - Check Cert-Manager CRDs"
-      ansible.builtin.shell: |
-        kubectl get crd | grep -c "cert-manager.io"
-      environment:
-        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
-      register: certmanager_crds
-      failed_when: certmanager_crds.stdout|int < 5
-      changed_when: false
-      tags: [infrastructure, cert-manager]
-
-    - name: "VALIDATION 12 - Check Metrics Server deployment"
+    - name: "VALIDATION 10 - Check Metrics Server deployment"
       ansible.builtin.shell: |
         kubectl get deployment -n kube-system metrics-server -o jsonpath='{.status.availableReplicas}'
       environment:

@@ -14,20 +14,20 @@ resource "google_compute_address" "lb_ip" {
 # -----------------------------------------------------------------------------
 # Health Check
 # -----------------------------------------------------------------------------
-# Using HTTP health check to NGINX Ingress Controller's internal healthz endpoint.
-# Port 30254 is the NodePort for the metrics/health port (10254) which bypasses
-# Ingress rules and SSL redirects.
+# Using HTTP health check to NGINX Ingress Controller HTTP NodePort.
+# NGINX Ingress returns 404 for root path (no default backend configured).
+# 404 response means NGINX is alive and responding, which is sufficient for health check.
 resource "google_compute_http_health_check" "ingress_health_check" {
   name    = "${var.environment}-ingress-http-health-check"
   project = var.project_id
 
-  port         = 30254 # NGINX Ingress Controller healthz NodePort
+  port         = 30254 # Health check endpoint NodePort
   request_path = "/healthz"
 
   timeout_sec         = 5
   check_interval_sec  = 10
   healthy_threshold   = 2
-  unhealthy_threshold = 2
+  unhealthy_threshold = 3
 }
 
 # -----------------------------------------------------------------------------

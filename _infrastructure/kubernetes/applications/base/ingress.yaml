@@ -8,7 +8,7 @@
 #   Internet → NGINX Ingress Controller → API Gateway → Backend Services
 #
 # Access:
-#   - Production: https://api.orange-wallet.com
+#   - Production: https://api.orangebybni.my.id
 #   - Dev: http://<MASTER_IP>:30080
 #
 # TLS:
@@ -65,12 +65,12 @@ spec:
   # TLS configuration (uncomment for production)
   # tls:
   #   - hosts:
-  #       - api.orange-wallet.com
+  #       - api.orangebybni.my.id
   #     secretName: orange-wallet-tls
 
   rules:
     # Production rule (with domain)
-    # - host: api.orange-wallet.com
+    # - host: api.orangebybni.my.id
     #   http:
     #     paths:
     #       - path: /

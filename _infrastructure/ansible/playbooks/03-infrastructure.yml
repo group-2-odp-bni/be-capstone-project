@@ -5,9 +5,10 @@
 # This playbook deploys core infrastructure components to the K3s cluster:
 # - Helm (package manager)
 # - NGINX Ingress Controller (ingress)
-# - Cert-Manager (TLS certificates)
 # - Metrics Server (resource metrics)
 # - External Secrets Operator (secrets management)
+#
+# Note: TLS handled by Cloudflare Origin Certificates, not cert-manager
 #
 # Prerequisites:
 # - K3s cluster must be running
@@ -53,9 +54,6 @@
     - role: nginx-ingress
       tags: [nginx-ingress, ingress, infrastructure]
 
-    - role: cert-manager
-      tags: [cert-manager, certificates, infrastructure]
-
     - role: metrics-server
       tags: [metrics-server, monitoring, infrastructure]
 
@@ -72,14 +70,16 @@
 
           ✓ Helm 3 - Package Manager
           ✓ NGINX Ingress Controller - HTTP/HTTPS routing (NodePort 30080/30443)
-          ✓ Cert-Manager - TLS certificate management
           ✓ Metrics Server - Resource metrics for HPA
           ✓ External Secrets Operator - Secrets from GCP Secret Manager
+
+          TLS: Cloudflare Origin Certificates (manual setup required)
 
           Next Steps:
           1. Deploy ArgoCD: ansible-playbook -i ../inventory/hosts.yml playbooks/04-argocd.yml
           2. Configure External Secrets with GCP Secret Manager
-          3. Deploy application manifests
+          3. Create Cloudflare Origin Certificate secrets
+          4. Deploy application manifests
 
           Access NGINX Ingress:
           - HTTP: http://<MASTER_IP>:30080
