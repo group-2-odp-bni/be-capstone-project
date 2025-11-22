@@ -214,6 +214,6 @@ jobs:
             echo "🔄 ArgoCD will sync automatically within 3 minutes"
             echo ""
             echo "Monitor deployment:"
-            echo "  - ArgoCD UI: https://argocd.orange-wallet.com"
+            echo "  - ArgoCD UI: https://argocd.orangebybni.my.id"
             echo "  - CLI: kubectl get pods -n orange-wallet"
           fi

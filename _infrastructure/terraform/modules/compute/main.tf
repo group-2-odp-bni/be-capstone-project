@@ -105,6 +105,10 @@ resource "google_compute_instance" "master" {
     scopes = ["cloud-platform"]
   }
 
+  # Enable IP forwarding for VPN and network routing
+  # CRITICAL: Required for OpenVPN, K3s Flannel, and pod networking
+  can_ip_forward = true
+
   allow_stopping_for_update = true
 
   lifecycle {

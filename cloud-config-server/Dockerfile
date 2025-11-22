@@ -20,6 +20,9 @@ COPY --from=build --chown=spring:spring /app/build/libs/*.jar app.jar
 
 USER spring
 
+# Set config home to writable directory (fixes JGit permission issue)
+ENV XDG_CONFIG_HOME=/tmp
+
 EXPOSE 8080
 
 ENTRYPOINT ["/sbin/tini", "--"]

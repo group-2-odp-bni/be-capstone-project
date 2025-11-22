@@ -115,11 +115,11 @@ patches:
         path: /spec/tls
         value:
           - hosts:
-              - api.orange-wallet.com
+              - api.orangebybni.my.id
             secretName: orange-wallet-tls
       - op: add
         path: /spec/rules/0/host
-        value: api.orange-wallet.com
+        value: api.orangebybni.my.id
       - op: replace
         path: /metadata/annotations/nginx.ingress.kubernetes.io~1ssl-redirect
         value: "true"
@@ -128,7 +128,7 @@ patches:
         value: letsencrypt-prod
       - op: replace
         path: /metadata/annotations/nginx.ingress.kubernetes.io~1cors-allow-origin
-        value: "https://orange-wallet.com"  # Restrict CORS
+        value: "https://orangebybni.my.id"  # Restrict CORS
 
   # Remove development backend ingress in production
   - target:

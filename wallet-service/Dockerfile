@@ -48,8 +48,8 @@ CMD ["java", \
     "-XX:+TieredCompilation", \
     "-XX:TieredStopAtLevel=1", \
     "-XX:+UseG1GC", \
-    "-XX:MaxMetaspaceSize=128m", \
+    "-XX:MaxMetaspaceSize=512m", \
+    "-XX:MetaspaceSize=256m", \
     "-Dspring.jmx.enabled=false", \
-    "-Dspring.main.lazy-initialization=true", \
     "-jar", \
     "app.jar"]

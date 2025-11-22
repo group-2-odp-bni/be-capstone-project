@@ -109,7 +109,6 @@
       loop:
         - argocd
         - nginx-ingress
-        - cert-manager
         - external-secrets
         - observability
         - database
