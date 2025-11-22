@@ -8,9 +8,14 @@ on:
 jobs:
   remove-old-artifacts:
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
     steps:
       - name: Remove old artifacts
         uses: c-hive/gha-remove-artifacts@v1
         with:
-          age: '1 days'
+          age: '1 day'
           skip-recent: 5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -167,6 +167,8 @@ jobs:
     name: Update GitOps Repository
     needs: [discover-services, docker-build-push]
     if: needs.discover-services.outputs.has-changes == 'true'
+    permissions:
+      contents: write  # Required for GITHUB_TOKEN to push to GitOps repo
     strategy:
       fail-fast: false
       max-parallel: 3  # Limit concurrent GitOps updates to reduce race conditions
