@@ -119,7 +119,6 @@ services:
       - '127.0.0.1:3000:3000'
     volumes:
       - ./waha/sessions:/app/.sessions
-      - ./waha/media:/app/.media
     environment:
       # Core GOWS engine configuration
       - WHATSAPP_DEFAULT_ENGINE=GOWS
@@ -199,7 +198,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_PROFILES_ACTIVE=test
       - SPRING_CONFIG_IMPORT=configserver:http://cloud-config-server:8888
       - SERVER_PORT=8080
       - REDIS_HOST=redis
@@ -233,7 +232,7 @@ services:
       context: ../authentication-service
     container_name: orange-authentication-service
     environment:
-      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_PROFILES_ACTIVE=test
       - SPRING_CONFIG_IMPORT=configserver:http://cloud-config-server:8888
       - SERVER_PORT=8081
       - DB_URL=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-orange_db}
@@ -269,7 +268,7 @@ services:
       context: ../user-service
     container_name: orange-user-service
     environment:
-      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_PROFILES_ACTIVE=test
       - SPRING_CONFIG_IMPORT=configserver:http://cloud-config-server:8888
       - SERVER_PORT=8082
       - DB_URL=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-orange_db}
@@ -308,7 +307,7 @@ services:
       context: ../wallet-service
     container_name: orange-wallet-service
     environment:
-      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_PROFILES_ACTIVE=test
       - SPRING_CONFIG_IMPORT=configserver:http://cloud-config-server:8888
       - SERVER_PORT=8083
       - DB_URL=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-orange_db}
@@ -348,7 +347,7 @@ services:
       context: ../transaction-service
     container_name: orange-transaction-service
     environment:
-      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_PROFILES_ACTIVE=test
       - SPRING_CONFIG_IMPORT=configserver:http://cloud-config-server:8888
       - SERVER_PORT=8084
       - DB_URL=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-orange_db}
@@ -392,7 +391,7 @@ services:
     ports:
       - "127.0.0.1:8095:8085"  # Localhost only - for emergency manual access via SSH
     environment:
-      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_PROFILES_ACTIVE=test
       - SPRING_CONFIG_IMPORT=configserver:http://cloud-config-server:8888
       - SERVER_PORT=8085
       - REDIS_HOST=redis

@@ -167,14 +167,17 @@ jobs:
     name: Update GitOps Repository
     needs: [discover-services, docker-build-push]
     if: needs.discover-services.outputs.has-changes == 'true'
+    permissions:
+      contents: write  # Required for GITHUB_TOKEN to push to GitOps repo
     strategy:
       fail-fast: false
+      max-parallel: 3  # Limit concurrent GitOps updates to reduce race conditions
       matrix: ${{ fromJson(needs.discover-services.outputs.matrix) }}
     uses: ./.github/workflows/_reusable-update-gitops.yml
     with:
       service-name: ${{ matrix.name }}
       image-tag: ${{ github.sha }}
-      dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
+      dockerhub-username: teukumunawar
     secrets:
       GITOPS_REPO: ${{ secrets.GITOPS_REPO }}
       GITOPS_TOKEN: ${{ secrets.GITOPS_TOKEN }}
@@ -213,6 +216,6 @@ jobs:
             echo "🔄 ArgoCD will sync automatically within 3 minutes"
             echo ""
             echo "Monitor deployment:"
-            echo "  - ArgoCD UI: https://argocd.orange-wallet.com"
+            echo "  - ArgoCD UI: https://argocd.orangebybni.my.id"
             echo "  - CLI: kubectl get pods -n orange-wallet"
           fi

@@ -97,7 +97,8 @@ public class JwtBlacklistGatewayFilter implements GlobalFilter, Ordered {
             path.startsWith("/oauth2/jwks") ||
             // External payment gateway endpoints - authenticated via API key
             path.startsWith("/api/v1/topup/inquiry/") ||
-            path.startsWith("/api/v1/topup/callback/");
+            path.startsWith("/api/v1/topup/callback/") ||
+            path.startsWith("/s/");
     }
 
     private Optional<String> extractBearerToken(ServerWebExchange exchange) {

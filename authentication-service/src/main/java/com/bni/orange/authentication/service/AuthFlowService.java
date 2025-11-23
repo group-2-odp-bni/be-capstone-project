@@ -133,11 +133,7 @@ public class AuthFlowService {
     private ApiResponse<OtpResponse> processAndSendOtp(String phoneNumber, String userId, HttpServletRequest servletRequest, boolean isPinReset) {
         var otp = otpService.generateAndStoreOtp(phoneNumber);
 
-        var otpEvent = DomainEventFactory.createOtpNotificationEvent(
-            phoneNumber,
-            otp,
-            userId
-        );
+        var otpEvent = DomainEventFactory.createOtpNotificationEvent(phoneNumber, otp, userId);
 
         var topicName = topicProperties.definitions().get("otp-notification").name();
         eventPublisher.publish(topicName, phoneNumber, otpEvent);

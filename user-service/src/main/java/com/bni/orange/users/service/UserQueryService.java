@@ -30,7 +30,6 @@ public class UserQueryService {
                 return new BusinessException(ErrorCode.USER_NOT_FOUND);
             });
 
-        // Generate fresh signed URL from GCS path if profile image exists
         String profileImageUrl = null;
         if (userProfile.getProfileImageUrl() != null && !userProfile.getProfileImageUrl().isBlank()) {
             try {
@@ -38,7 +37,6 @@ public class UserQueryService {
                 log.debug("Generated signed URL for user {} profile image", userId);
             } catch (Exception e) {
                 log.error("Failed to generate signed URL for user {} profile image. Returning null.", userId, e);
-                // Return null if signed URL generation fails (don't break the whole response)
             }
         }
 

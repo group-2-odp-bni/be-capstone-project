@@ -45,6 +45,10 @@ dependencies {
     implementation("org.flywaydb:flyway-database-postgresql")
     implementation("org.flywaydb:flyway-core")
 
+    runtimeOnly("io.micrometer:micrometer-registry-prometheus")
+    implementation("io.micrometer:micrometer-tracing-bridge-otel")
+    implementation("io.opentelemetry:opentelemetry-exporter-otlp")
+
     implementation("io.jsonwebtoken:jjwt-api:0.13.0")
     implementation("org.bouncycastle:bcprov-jdk18on:1.82")
     implementation("com.google.protobuf:protobuf-java:4.31.1")

@@ -3,9 +3,8 @@ package com.bni.orange.api.gateway.controller;
 import com.bni.orange.api.gateway.model.ApiResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
@@ -15,26 +14,22 @@ import java.time.Instant;
 @RequestMapping("/fallback")
 public class FallbackController {
 
-    @PostMapping("/auth")
-    @GetMapping("/auth")
+    @RequestMapping(value = "/auth", method = {RequestMethod.GET, RequestMethod.POST})
     public Mono<ResponseEntity<ApiResponse<Void>>> authServiceFallback() {
         return Mono.just(createFallbackResponse("Authentication", "/fallback/auth"));
     }
 
-    @PostMapping("/user")
-    @GetMapping("/user")
+    @RequestMapping(value = "/user", method = {RequestMethod.GET, RequestMethod.POST})
     public Mono<ResponseEntity<ApiResponse<Void>>> userServiceFallback() {
         return Mono.just(createFallbackResponse("User", "/fallback/user"));
     }
 
-    @PostMapping("/wallet")
-    @GetMapping("/wallet")
+    @RequestMapping(value = "/wallet", method = {RequestMethod.GET, RequestMethod.POST})
     public Mono<ResponseEntity<ApiResponse<Void>>> walletServiceFallback() {
         return Mono.just(createFallbackResponse("Wallet", "/fallback/wallet"));
     }
 
-    @PostMapping("/transaction")
-    @GetMapping("/transaction")
+    @RequestMapping(value = "/transaction", method = {RequestMethod.GET, RequestMethod.POST})
     public Mono<ResponseEntity<ApiResponse<Void>>> transactionServiceFallback() {
         return Mono.just(createFallbackResponse("Transaction", "/fallback/transaction"));
     }

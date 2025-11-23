@@ -43,10 +43,8 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers(
-                    "/actuator/health", "/actuator/info",
-                    "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/api/v1/wallets/*/invites/inspect"
-                ).permitAll()
+                .requestMatchers("/actuator/**", "/actuator/health/**").permitAll()
+                .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/api/v1/wallets/*/invites/inspect").permitAll()
                 // Internal service-to-service endpoints - no JWT required (protected at network level)
                 .requestMatchers("/internal/**").permitAll()
                 .anyRequest().authenticated()
