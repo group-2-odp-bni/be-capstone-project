@@ -8,7 +8,7 @@ from payment_status_updated_pb2 import PaymentStatusUpdatedEvent
 
 TOPIC = "payment.status.updated.v1"
 GROUP_ID = "split-bill-payment-updater"
-KAFKA_BOOTSTRAP = os.getenv("SPRING_KAFKA_BOOTSTRAP_SERVERS")
+KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP_SERVERS")
 KAFKA_USERNAME = os.getenv("KAFKA_USERNAME")
 KAFKA_PASSWORD = os.getenv("KAFKA_PASSWORD")
 KAFKA_CA = os.getenv("KAFKA_CA")
