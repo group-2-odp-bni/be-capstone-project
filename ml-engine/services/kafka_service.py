@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 logging.getLogger("kafka").setLevel(logging.DEBUG)
 log = logging.getLogger("splitbill.kafka")
 
-KAFKA_BOOTSTRAP_SERVERS = os.getenv("SPRING_KAFKA_BOOTSTRAP_SERVERS")
+KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS")
 KAFKA_SSL_CAFILE = os.getenv("KAFKA_SSL_CAFILE") or os.getenv("KAFKA_SSL_TRUSTSTORE_LOCATION")
 KAFKA_SSL_CERTFILE = os.getenv("KAFKA_SSL_CERTFILE") or os.getenv("KAFKA_SSL_CERT_LOCATION")
 KAFKA_SSL_KEYFILE = os.getenv("KAFKA_SSL_KEYFILE") or os.getenv("KAFKA_SSL_KEY_LOCATION")
@@ -35,7 +35,7 @@ def _is_ssl_enabled():
 def _preflight():
     """Validate Kafka configuration"""
     if not KAFKA_BOOTSTRAP_SERVERS:
-        raise RuntimeError("SPRING_KAFKA_BOOTSTRAP_SERVERS tidak terisi")
+        raise RuntimeError("KAFKA_BOOTSTRAP_SERVERS tidak terisi")
 
     use_ssl = _is_ssl_enabled()
     if use_ssl:
