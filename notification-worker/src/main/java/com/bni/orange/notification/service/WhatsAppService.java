@@ -42,19 +42,32 @@ public class WhatsAppService {
             .timeout(Duration.ofSeconds(35));
     }
 
+    // private String formatOtpMessage(String otpCode) {
+    //     return """
+    //         🔸 *BNI Orange E-Wallet* 🔸
+
+    //         Hey there! 👋 Your OTP is: *%s*
+
+    //         ⏰ It’s valid for *5 minutes*.
+    //         🚫 Don’t share this code with anyone, not even us.
+
+    //         Stay safe and keep your wallet secure 💪
+    //         """.formatted(otpCode);
+    // }
     private String formatOtpMessage(String otpCode) {
         return """
             🔸 *BNI Orange E-Wallet* 🔸
 
-            Hey there! 👋 Your OTP is: *%s*
+            Halo! 👋
 
-            ⏰ It’s valid for *5 minutes*.
-            🚫 Don’t share this code with anyone, not even us.
+            Kode OTP Anda adalah: *%s*
 
-            Stay safe and keep your wallet secure 💪
+            ⏰ Kode ini berlaku selama *5 menit*.
+            🔐 Jangan berikan kode ini kepada siapa pun, termasuk petugas BNI.
+
+            Jika Anda tidak meminta OTP ini, abaikan saja pesan ini.
             """.formatted(otpCode);
     }
-
     private String maskPhoneNumber(String phoneNumber) {
         if (phoneNumber == null || phoneNumber.length() < 4) {
             return "***";
