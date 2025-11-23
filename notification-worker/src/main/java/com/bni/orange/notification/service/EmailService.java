@@ -50,7 +50,9 @@ public class EmailService {
 
             helper.setFrom(emailConfig.fromAddress(), emailConfig.fromName());
             helper.setTo(event.getEmail());
-            helper.setSubject("Your OTP Code - BNI Orange E-Wallet");
+            // helper.setSubject("Your OTP Code - BNI Orange E-Wallet");
+            helper.setSubject("Kode OTP Anda - BNI Orange E-Wallet");
+
             helper.setText(buildHtmlContent(event.getOtpCode()), true);
 
             mailSender.send(message);
@@ -130,29 +132,29 @@ public class EmailService {
                         <h1>🔸 BNI Orange E-Wallet 🔸</h1>
                     </div>
 
-                    <p>Hello! 👋</p>
-                    <p>You requested an OTP code for your BNI Orange E-Wallet account verification.</p>
+                    <p>Halo! 👋</p>
+                    <p>Anda meminta kode OTP untuk verifikasi akun BNI Orange E-Wallet Anda.</p>
 
                     <div class="otp-box">
-                        <p style="margin: 0; color: #6c757d;">Your OTP Code:</p>
+                        <p style="margin: 0; color: #6c757d;">Kode OTP Anda:</p>
                         <div class="otp-code">%s</div>
                     </div>
 
                     <div class="info">
-                        <p style="margin: 5px 0;">⏰ <strong>Valid for 5 minutes</strong></p>
-                        <p style="margin: 5px 0;">🔒 Keep this code secure and don't share it with anyone</p>
+                        <p style="margin: 5px 0;">⏰ <strong>Berlaku selama 5 menit</strong></p>
+                        <p style="margin: 5px 0;">🔒 Simpan kode ini baik-baik dan jangan berikan kepada siapa pun</p>
                     </div>
 
-                    <p class="warning">⚠️ Important Security Notice:</p>
+                    <p class="warning">⚠️ Penting untuk Keamanan:</p>
                     <ul>
-                        <li>Never share this OTP with anyone, including BNI Orange staff</li>
-                        <li>If you didn't request this code, please ignore this email and ensure your account is secure</li>
+                        <li>Jangan pernah membagikan OTP ini kepada siapa pun, termasuk petugas BNI Orange</li>
+                        <li>Jika Anda tidak merasa meminta kode ini, abaikan email ini dan periksa keamanan akun Anda</li>
                     </ul>
 
                     <div class="footer">
-                        <p>This is an automated message from BNI Orange E-Wallet.</p>
-                        <p>Please do not reply to this email.</p>
-                        <p>&copy; 2025 BNI Orange E-Wallet. All rights reserved.</p>
+                        <p>Ini adalah pesan otomatis dari BNI Orange E-Wallet.</p>
+                        <p>Mohon tidak membalas email ini.</p>
+                        <p>&copy; 2025 BNI Orange E-Wallet. Seluruh hak cipta dilindungi.</p>
                     </div>
                 </div>
             </body>

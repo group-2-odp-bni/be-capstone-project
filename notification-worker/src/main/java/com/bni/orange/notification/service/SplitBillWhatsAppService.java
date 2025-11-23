@@ -143,103 +143,225 @@ public class SplitBillWhatsAppService {
     return (name == null || name.isBlank()) ? "Teman" : name;
   }
 
+  // private String formatOwnerBillCreatedKnown(SplitBillCreatedEvent e, Recipient r) {
+  //   return """
+  //       🧾 *Split Bill Dibuat!*
+        
+  //       Hai %s, tagihan patungan kamu berhasil dibuat.
+  //       • ID Tagihan: *%s*
+  //       • Tautan Owner (kelola & pantau):
+  //       %s
+        
+  //       _Dibuat pada: %s_
+  //       """.formatted(r.displayName(), e.getBillId(), e.getOwnerShortLink(), safe(e.getCreatedAt()));
+  // }
   private String formatOwnerBillCreatedKnown(SplitBillCreatedEvent e, Recipient r) {
     return """
-        🧾 *Split Bill Dibuat!*
+        🧾 *Tagihan Split Bill Berhasil Dibuat*
         
-        Hai %s, tagihan patungan kamu berhasil dibuat.
-        • ID Tagihan: *%s*
-        • Tautan Owner (kelola & pantau):
+        Halo %s,
+        
+        Tagihan patungan Anda berhasil dibuat di *BNI Orange*.
+        
+        Anda dapat mengelola dan memantau tagihan melalui tautan berikut:
         %s
         
         _Dibuat pada: %s_
-        """.formatted(r.displayName(), e.getBillId(), e.getOwnerShortLink(), safe(e.getCreatedAt()));
+        """.formatted(
+        r.displayName(),
+        e.getOwnerShortLink(),
+        formatDateOnly(e.getCreatedAt())
+    );
   }
-
+  // private String formatOwnerBillCreatedUnknown(SplitBillCreatedEvent e, Recipient r) {
+  //   return """
+  //       🧾 *Split Bill Dibuat!*
+        
+  //       Hai %s, kamu baru saja membuat tagihan.
+  //       • ID Tagihan: *%s*
+  //       • Tautan Owner:
+  //       %s
+        
+  //       Akunmu belum terdaftar. Daftar dulu agar lebih mudah memantau dan membayar:
+  //       %s
+        
+  //       _Dibuat pada: %s_
+  //       """.formatted(r.displayName(), e.getBillId(), e.getOwnerShortLink(), registerUrl, safe(e.getCreatedAt()));
+  // }
   private String formatOwnerBillCreatedUnknown(SplitBillCreatedEvent e, Recipient r) {
     return """
-        🧾 *Split Bill Dibuat!*
+        🧾 *Tagihan Split Bill Berhasil Dibuat*
         
-        Hai %s, kamu baru saja membuat tagihan.
-        • ID Tagihan: *%s*
-        • Tautan Owner:
+        Halo %s,
+        
+        Kamu baru saja membuat tagihan patungan di *BNI Orange*.
+        
+        Tautan pemilik untuk kelola tagihan:
         %s
         
-        Akunmu belum terdaftar. Daftar dulu agar lebih mudah memantau dan membayar:
+        Akun BNI Orange kamu belum terdaftar.
+        Daftar terlebih dahulu agar lebih mudah memantau dan mengelola pembayaran:
         %s
         
         _Dibuat pada: %s_
-        """.formatted(r.displayName(), e.getBillId(), e.getOwnerShortLink(), registerUrl, safe(e.getCreatedAt()));
+        """.formatted(
+        r.displayName(),
+        e.getOwnerShortLink(),
+        registerUrl,
+        formatDateOnly(e.getCreatedAt())
+    );
   }
-
+  // private String formatMemberBillCreatedKnown(SplitBillCreatedEvent e, String memberShortLink, Recipient r) {
+  //   return """
+  //       🍊 *Ayo Patungan di BNI Orange!*
+        
+  //       Hai %s, kamu diundang ikut split bill.
+  //       • ID Tagihan: *%s*
+        
+  //       Klik tautan pribadimu untuk cek rincian & bayar jatahmu:
+  //       %s
+  //       """.formatted(r.displayName(), e.getBillId(), memberShortLink);
+  // }
   private String formatMemberBillCreatedKnown(SplitBillCreatedEvent e, String memberShortLink, Recipient r) {
     return """
-        🍊 *Ayo Patungan di BNI Orange!*
+        🍊 *Ayo patungan Split Bill di BNI Orange*
         
-        Hai %s, kamu diundang ikut split bill.
-        • ID Tagihan: *%s*
+        Halo %s,
         
-        Klik tautan pribadimu untuk cek rincian & bayar jatahmu:
+        Anda diundang untuk ikut patungan.
+        
+        Silakan klik tautan pribadi Anda untuk melihat rincian
+        dan melakukan pembayaran:
         %s
-        """.formatted(r.displayName(), e.getBillId(), memberShortLink);
+        """.formatted(
+        r.displayName(),
+        memberShortLink
+    );
   }
-
+  // private String formatMemberBillCreatedUnknown(SplitBillCreatedEvent e, String memberShortLink, Recipient r) {
+  //   return """
+  //       🍊 *Ayo Patungan di BNI Orange!*
+        
+  //       Hai %s, kamu diundang ikut split bill.
+  //       • ID Tagihan: *%s*
+        
+  //       Tautan pribadimu:
+  //       %s
+        
+  //       Akunmu belum terdaftar. Daftar dulu supaya pembayaran lebih mudah:
+  //       %s
+  //       """.formatted(r.displayName(), e.getBillId(), memberShortLink, registerUrl);
+  // }
   private String formatMemberBillCreatedUnknown(SplitBillCreatedEvent e, String memberShortLink, Recipient r) {
     return """
-        🍊 *Ayo Patungan di BNI Orange!*
+        🍊 *Undangan Split Bill di BNI Orange*
         
-        Hai %s, kamu diundang ikut split bill.
-        • ID Tagihan: *%s*
+        Halo %s,
         
-        Tautan pribadimu:
+        Kamu diundang untuk ikut patungan.
+        
+        Tautan pribadi kamu:
         %s
         
-        Akunmu belum terdaftar. Daftar dulu supaya pembayaran lebih mudah:
+        Akun BNI Orange kamu belum terdaftar.
+        Daftar terlebih dahulu supaya proses pembayaran lebih mudah:
         %s
-        """.formatted(r.displayName(), e.getBillId(), memberShortLink, registerUrl);
+        """.formatted(
+        r.displayName(),
+        memberShortLink,
+        registerUrl
+    );
   }
-
+  // private String formatMemberReminderKnown(SplitBillRemindedEvent e, String memberShortLink, Recipient r) {
+  //   return """
+  //       🔔 *Pengingat Pembayaran Split Bill*
+        
+  //       Hai %s, kamu masih punya tagihan di *%s*.
+  //       Silakan cek rincian & bayar lewat tautan pribadimu:
+  //       %s
+  //       """.formatted(r.displayName(), safe(e.getBillId()), memberShortLink);
+  // }
   private String formatMemberReminderKnown(SplitBillRemindedEvent e, String memberShortLink, Recipient r) {
     return """
         🔔 *Pengingat Pembayaran Split Bill*
         
-        Hai %s, kamu masih punya tagihan di *%s*.
-        Silakan cek rincian & bayar lewat tautan pribadimu:
+        Halo %s,
+        
+        Anda masih memiliki tagihan split bill yang belum lunas.
+        
+        Silakan cek rincian dan lakukan pembayaran melalui
+        tautan pribadi berikut:
         %s
-        """.formatted(r.displayName(), safe(e.getBillId()), memberShortLink);
+        """.formatted(
+        r.displayName(),
+        memberShortLink
+    );
   }
 
+  // private String formatMemberReminderUnknown(SplitBillRemindedEvent e, String memberShortLink, Recipient r) {
+  //   return """
+  //       🔔 *Pengingat Pembayaran Split Bill*
+        
+  //       Hai %s, kamu masih punya tagihan di *%s*.
+  //       Tautan pribadimu:
+  //       %s
+        
+  //       Supaya proses lebih mudah, daftar dulu:
+  //       %s
+  //       """.formatted(r.displayName(), safe(e.getBillId()), memberShortLink, registerUrl);
+  // }
   private String formatMemberReminderUnknown(SplitBillRemindedEvent e, String memberShortLink, Recipient r) {
     return """
         🔔 *Pengingat Pembayaran Split Bill*
         
-        Hai %s, kamu masih punya tagihan di *%s*.
-        Tautan pribadimu:
+        Halo %s,
+        
+        Kamu masih memiliki tagihan split bill yang belum lunas.
+        
+        Tautan pribadi kamu:
         %s
         
-        Supaya proses lebih mudah, daftar dulu:
+        Supaya proses lebih mudah, daftar terlebih dahulu di BNI Orange:
         %s
-        """.formatted(r.displayName(), safe(e.getBillId()), memberShortLink, registerUrl);
+        """.formatted(
+        r.displayName(),
+        memberShortLink,
+        registerUrl
+    );
   }
 
+  // private String formatRemindedSummaryMessage(SplitBillRemindedEvent e, Recipient actor) {
+  //   String result = summarizeResult(e);
+  //   return """
+  //       🔔 *Pengingat Split Bill*
+        
+  //       Hai %s, ringkasan pengingat untuk tagihan *%s*.
+  //       Hasil: %s
+        
+  //       _Oleh: %s • Kanal: %s_
+  //       """.formatted(
+  //         actor.displayName(),
+  //         safe(e.getBillId()),
+  //         result,
+  //         maskUser(e.getRemindedByUserId()),
+  //         safe(e.getRequestedChannels() == null ? "-" : String.join(",", e.getRequestedChannels()))
+  //       );
+  // }
   private String formatRemindedSummaryMessage(SplitBillRemindedEvent e, Recipient actor) {
     String result = summarizeResult(e);
     return """
-        🔔 *Pengingat Split Bill*
+        🔔 *Ringkasan Pengingat Split Bill*
         
-        Hai %s, ringkasan pengingat untuk tagihan *%s*.
-        Hasil: %s
+        Halo %s,
         
-        _Oleh: %s • Kanal: %s_
+        Berikut ringkasan pengingat yang baru saja dikirim
+        untuk tagihan split bill:
+        %s
         """.formatted(
-          actor.displayName(),
-          safe(e.getBillId()),
-          result,
-          maskUser(e.getRemindedByUserId()),
-          safe(e.getRequestedChannels() == null ? "-" : String.join(",", e.getRequestedChannels()))
-        );
+        actor.displayName(),
+        result
+    );
   }
-
   private <T> List<T> nullSafe(List<T> v) { return v == null ? List.of() : v; }
   private String summarizeResult(SplitBillRemindedEvent e) {
     if (e.getResult() == null || e.getResult().isEmpty()) return "-";
@@ -270,7 +392,13 @@ public class SplitBillWhatsAppService {
       var ts = (resp.timestamp() != null) ? Instant.ofEpochSecond(resp.timestamp()) : "N/A";
       log.info("WA sent. id={}, ts={}", resp.id(), ts);
   }
-
+  private String formatDateOnly(String value) {
+      if (value == null || value.isBlank()) {
+          return "-";
+      }
+      int t = value.indexOf('T');
+      return (t > 0) ? value.substring(0, t) : value;
+  }
   private String safe(String v) { return (v == null || v.isBlank()) ? "-" : v; }
   private String mask(String phone) { return (phone == null || phone.length() < 8) ? "***" : phone.substring(0,6) + "****" + phone.substring(phone.length()-2); }
   private String maskUser(String userId) { return (userId == null || userId.length()<6) ? "***" : userId.substring(0,3) + "***" + userId.substring(userId.length()-2); }
