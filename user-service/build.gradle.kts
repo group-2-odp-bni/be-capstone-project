@@ -44,6 +44,7 @@ dependencies {
 	implementation("org.xerial.snappy:snappy-java:1.1.10.5")
 	implementation("com.google.protobuf:protobuf-java:4.29.2")
 	implementation("com.google.cloud:spring-cloud-gcp-starter-storage:6.5.0")
+	implementation("com.google.auth:google-auth-library-oauth2-http:1.36.0") // For ImpersonatedCredentials
 	implementation("org.flywaydb:flyway-core")
 	implementation("org.flywaydb:flyway-database-postgresql")
 
