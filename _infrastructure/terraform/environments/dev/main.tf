@@ -98,9 +98,13 @@ module "loadbalancer" {
 
   network_name = module.network.network_name
 
-  # Pass the worker instance self-links and network tag to the LB module
-  worker_instances_self_links = module.compute.worker_instances_self_links
-  worker_nodes_tag            = module.compute.worker_nodes_tag
+  # Pass only stateless worker instance self-links to LB (exclude worker-3 stateful)
+  # Only worker-1 and worker-2 run NGINX Ingress Controller pods
+  worker_instances_self_links = [
+    for k, v in module.compute.worker_nodes : v.id
+    if v.workload != "stateful"
+  ]
+  worker_nodes_tag = module.compute.worker_nodes_tag
 
   labels = local.common_labels
 
