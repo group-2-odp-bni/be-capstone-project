@@ -68,16 +68,17 @@ public class AuthFlowService {
 
         var userOpt = userRepository.findByPhoneNumber(normalizedPhoneNumber);
 
-        if (userOpt.isPresent()) {
-            return processAndSendOtp(userOpt.get().getPhoneNumber(), userOpt.get().getId().toString(), servletRequest, false);
-        } else {
-            if (pendingRegistrationService.exists(normalizedPhoneNumber)) {
+       return userOpt
+            .map(user -> processAndSendOtp(user.getPhoneNumber(), user.getId().toString(), servletRequest, false))
+            .orElseGet(() -> {
+                if (!pendingRegistrationService.exists(normalizedPhoneNumber)) {
+                    throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+                }
+
                 log.info("User with phone number {} not found in DB, but pending registration exists. Proceeding with PIN setup flow.", normalizedPhoneNumber);
+
                 return processAndSendOtp(normalizedPhoneNumber, null, servletRequest, false);
-            } else {
-                throw new BusinessException(ErrorCode.USER_NOT_FOUND);
-            }
-        }
+            });
     }
 
     @Transactional
@@ -289,7 +290,7 @@ public class AuthFlowService {
             if (!passwordEncoder.matches(pin, user.getUserPins())) {
                 loginAttemptService.loginFailed(phoneNumber);
                 var attemptsLeft = loginAttemptService.getAttemptsLeft(phoneNumber);
-                throw new BusinessException(ErrorCode.INVALID_PIN, String.format("Invalid PIN. You have %d attempts left.", (Integer) attemptsLeft));
+                throw new BusinessException(ErrorCode.INVALID_PIN, String.format("Invalid PIN. You have %d attempts left.", attemptsLeft));
             }
         }
 
